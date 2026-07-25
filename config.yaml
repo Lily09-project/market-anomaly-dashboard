@@ -1,0 +1,44 @@
+project:
+  name: Stock Analysis and Market Tracking Dashboard
+  short_name: market-anomaly-dashboard
+  random_state: 42
+  sample_mode: true
+  disclaimer: 本專案僅供資料分析與技術展示，不構成任何投資建議。
+
+data:
+  stock_symbols: ["0050", "2330", "2317"]
+  currency_pair: USD_TWD
+  start_date: "2021-01-01"
+  end_date: "2025-12-31"
+  raw_dir: data/raw
+  sample_dir: data/sample
+  processed_dir: data/processed
+  sample_market_path: data/sample/sample_market.csv
+  sample_fx_path: data/sample/sample_fx.csv
+  cleaned_path: data/processed/market_cleaned.csv
+  features_path: data/processed/market_features.csv
+  results_path: data/processed/market_anomaly_results.csv
+
+model:
+  path: models/market_anomaly_detector.joblib
+  anomaly_contamination: 0.06
+  random_state: 42
+
+reports:
+  metrics_dir: reports/metrics
+  figures_dir: reports/figures
+  anomaly_metrics_path: reports/metrics/anomaly_metrics.json
+  evaluation_summary_path: reports/metrics/evaluation_summary.json
+
+api:
+  timeout_seconds: 15
+  market_url: ""
+  fx_url: ""
+  twse_company_profile_url: "https://openapi.twse.com.tw/v1/opendata/t187ap03_L"
+  twse_esg_legal_url: "https://openapi.twse.com.tw/v1/opendata/t187ap46_L_20"
+  notes: Dashboard 行情使用 yfinance，TWSE OpenAPI 提供上市公司清單與 ESG 法律訴訟資料；資料來源失敗時使用本機快取或 sample data。
+
+dashboard:
+  theme_name: charcoal_orange
+  dark_theme_name: charcoal_orange
+  light_theme_name: paper_orange
