@@ -15,7 +15,7 @@ except Exception:
 
 from src.features import FEATURE_COLUMNS, build_features
 from src import joblib_compat
-from src.utils import ensure_parent, load_config, project_path, write_json
+from src.utils import atomic_write_dataframe, ensure_parent, load_config, project_path, write_json
 
 
 MODEL_FEATURES = [
@@ -153,7 +153,7 @@ def train_anomaly_model(config: dict | None = None) -> Path:
     model_path = ensure_parent(cfg["model"]["path"])
     joblib_compat.dump({"model": model, "features": MODEL_FEATURES, "metrics": metrics}, model_path)
     results_path = ensure_parent(cfg["data"]["results_path"])
-    df.to_csv(results_path, index=False, encoding="utf-8")
+    atomic_write_dataframe(df, results_path)
     write_json(metrics, cfg["reports"]["anomaly_metrics_path"])
     return model_path
 

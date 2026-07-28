@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from src.preprocess import preprocess_data
-from src.utils import ensure_parent, load_config, project_path
+from src.utils import atomic_write_dataframe, ensure_parent, load_config, project_path
 
 
 FEATURE_COLUMNS = [
@@ -65,10 +65,8 @@ def build_features(config: dict | None = None) -> Path:
     featured = featured.replace([np.inf, -np.inf], np.nan)
     featured = featured.dropna(subset=FEATURE_COLUMNS + ["close", "volume", "exchange_rate"])
     out = ensure_parent(cfg["data"]["features_path"])
-    featured.to_csv(out, index=False, encoding="utf-8")
-    return out
+    return atomic_write_dataframe(featured, out)
 
 
 if __name__ == "__main__":
     print(build_features())
-

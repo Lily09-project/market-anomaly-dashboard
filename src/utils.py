@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -83,6 +85,35 @@ def ensure_parent(path: str | Path) -> Path:
     return resolved
 
 
+def _atomic_write(path: str | Path, writer) -> Path:
+    resolved = ensure_parent(path)
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            newline="",
+            dir=resolved.parent,
+            prefix=f".{resolved.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary:
+            temporary_path = Path(temporary.name)
+            writer(temporary)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        os.replace(temporary_path, resolved)
+    except Exception:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+        raise
+    return resolved
+
+
+def atomic_write_dataframe(df: pd.DataFrame, path: str | Path) -> Path:
+    return _atomic_write(path, lambda file: df.to_csv(file, index=False))
+
+
 def ensure_project_dirs(config: dict[str, Any] | None = None) -> None:
     cfg = config or load_config()
     for key in ["raw_dir", "sample_dir", "processed_dir"]:
@@ -120,10 +151,10 @@ def parse_date(value: Any) -> pd.Timestamp | pd.NaT:
 
 
 def write_json(data: dict[str, Any], path: str | Path) -> Path:
-    out = ensure_parent(path)
-    with out.open("w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2, default=str)
-    return out
+    return _atomic_write(
+        path,
+        lambda file: json.dump(data, file, ensure_ascii=False, indent=2, default=str),
+    )
 
 
 def read_existing_csv(paths: list[Path]) -> pd.DataFrame | None:

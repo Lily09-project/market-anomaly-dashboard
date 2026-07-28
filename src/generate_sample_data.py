@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.utils import ensure_parent, ensure_project_dirs, load_config
+from src.utils import atomic_write_dataframe, ensure_parent, ensure_project_dirs, load_config
 
 
 def generate_sample_data(config: dict | None = None) -> tuple[Path, Path]:
@@ -61,8 +61,8 @@ def generate_sample_data(config: dict | None = None) -> tuple[Path, Path]:
 
     market_path = ensure_parent(cfg["data"]["sample_market_path"])
     fx_path = ensure_parent(cfg["data"]["sample_fx_path"])
-    pd.DataFrame(market_rows).to_csv(market_path, index=False, encoding="utf-8")
-    pd.DataFrame(fx_rows).to_csv(fx_path, index=False, encoding="utf-8")
+    atomic_write_dataframe(pd.DataFrame(market_rows), market_path)
+    atomic_write_dataframe(pd.DataFrame(fx_rows), fx_path)
     return market_path, fx_path
 
 
@@ -70,4 +70,3 @@ if __name__ == "__main__":
     market, fx = generate_sample_data()
     print(f"Generated {market}")
     print(f"Generated {fx}")
-

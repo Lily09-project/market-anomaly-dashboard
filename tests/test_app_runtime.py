@@ -1,8 +1,16 @@
 from __future__ import annotations
 
+import pytest
 from streamlit.testing.v1 import AppTest
+import streamlit.testing.v1.app_test as app_test_module
 
 from src import market_api
+
+
+@pytest.fixture(autouse=True)
+def cleanup_streamlit_test_directory():
+    yield
+    app_test_module.TMP_DIR.cleanup()
 
 
 def test_dashboard_pages_and_sidebar_interactions(monkeypatch) -> None:

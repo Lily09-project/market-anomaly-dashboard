@@ -7,7 +7,7 @@ import pandas as pd
 from src.fetch_fx_data import normalize_fx_columns
 from src.fetch_market_data import normalize_market_columns
 from src.generate_sample_data import generate_sample_data
-from src.utils import ensure_parent, load_config, project_path
+from src.utils import atomic_write_dataframe, ensure_parent, load_config, project_path
 
 
 def _candidate_paths(directory: str, pattern: str) -> list[Path]:
@@ -50,10 +50,8 @@ def preprocess_data(config: dict | None = None) -> Path:
     merged = merged.sort_values(["symbol", "date"]).drop_duplicates(subset=["date", "symbol"])
 
     out = ensure_parent(cfg["data"]["cleaned_path"])
-    merged.to_csv(out, index=False, encoding="utf-8")
-    return out
+    return atomic_write_dataframe(merged, out)
 
 
 if __name__ == "__main__":
     print(preprocess_data())
-
