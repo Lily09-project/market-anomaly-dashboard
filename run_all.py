@@ -22,7 +22,7 @@ def run_pipeline(mode: str = "sample") -> None:
         market_path = fetch_market_data(config)
         fx_path = fetch_fx_data(config)
         if not market_path or not fx_path:
-            print("API mode could not fetch complete data. Switching to sample data.")
+            print("API mode did not fetch both datasets; using API/local cache where available and sample fallback for missing datasets.")
             generate_sample_data(config)
     else:
         generate_sample_data(config)

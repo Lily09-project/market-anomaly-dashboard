@@ -7,6 +7,7 @@ import pandas as pd
 from src.market_api import (
     TWSE_COMPANY_PROFILE_URL,
     TWSE_GOVERNANCE_URL,
+    _fetch_twse_dataset,
     build_twse_stock_universe,
     build_stock_analysis,
     build_watchlist_cards,
@@ -71,9 +72,12 @@ def test_build_watchlist_cards_keeps_stock_metadata(monkeypatch) -> None:
 def test_batch_yfinance_download_is_split_by_symbol(monkeypatch) -> None:
     from src import market_api
 
+    download_kwargs = {}
+
     class BatchYFinance:
         @staticmethod
         def download(symbols, **kwargs):
+            download_kwargs.update(kwargs)
             dates = pd.bdate_range("2026-01-01", periods=5, name="Date")
             values = {}
             for offset, symbol in enumerate(symbols):
@@ -91,6 +95,7 @@ def test_batch_yfinance_download_is_split_by_symbol(monkeypatch) -> None:
     monkeypatch.setattr(market_api, "yf", BatchYFinance)
     histories = fetch_yfinance_histories(["2330.TW", "2454.TW"], period="1mo")
     assert list(histories) == ["2330.TW", "2454.TW"]
+    assert download_kwargs["timeout"] == market_api.YFINANCE_TIMEOUT_SECONDS
     for symbol, (history, source) in histories.items():
         assert source == "yfinance"
         assert len(history) == 5
@@ -139,6 +144,46 @@ def test_yfinance_download_noise_is_suppressed(monkeypatch, capsys) -> None:
     assert source == "sample"
     assert len(history) > 0
     assert "simulated yfinance connection failure" not in captured.err
+
+
+def test_yfinance_none_response_uses_sample_fallback(monkeypatch) -> None:
+    from src import market_api
+
+    class NoneYFinance:
+        @staticmethod
+        def download(*args, **kwargs):
+            return None
+
+    monkeypatch.setattr(market_api, "yf", NoneYFinance)
+    history, source = market_api.fetch_yfinance_history("2330.TW", period="1mo")
+
+    assert source == "sample"
+    assert not history.empty
+    assert {"date", "open", "high", "low", "close", "volume", "symbol"} <= set(history.columns)
+
+
+def test_twse_dataset_unwraps_list_payload(monkeypatch, tmp_path) -> None:
+    from src import market_api
+
+    class WrappedResponse:
+        headers = {"content-type": "application/json"}
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"data": [{"公司代號": "2330", "公司簡稱": "台積電"}]}
+
+    class WrappedRequests:
+        @staticmethod
+        def get(*args, **kwargs):
+            return WrappedResponse()
+
+    monkeypatch.setattr(market_api, "requests", WrappedRequests)
+    data, source = _fetch_twse_dataset("https://example.test", tmp_path / "twse.csv", 1)
+
+    assert source == "twse_openapi"
+    assert data.to_dict(orient="records") == [{"公司代號": "2330", "公司簡稱": "台積電"}]
 
 
 def test_technical_indicators_are_generated() -> None:

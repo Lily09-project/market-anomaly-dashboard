@@ -19,13 +19,14 @@ try:
 except Exception:
     yf = None
 
-from src.utils import clean_numeric, project_path
+from src.utils import atomic_write_dataframe, clean_numeric, project_path
 
 
 TWSE_COMPANY_PROFILE_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap03_L"
 TWSE_ESG_LEGAL_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap46_L_20"
 # Backward-compatible alias for existing callers and tests.
 TWSE_GOVERNANCE_URL = TWSE_ESG_LEGAL_URL
+YFINANCE_TIMEOUT_SECONDS = 15
 
 TWSE_INDUSTRY_MAP = {
     "01": "水泥工業",
@@ -255,8 +256,8 @@ def _fallback_history(symbol: str, rows: int = 90) -> pd.DataFrame:
     )
 
 
-def _normalize_yfinance_download(history: pd.DataFrame, symbol: str) -> pd.DataFrame:
-    if history.empty:
+def _normalize_yfinance_download(history: pd.DataFrame | None, symbol: str) -> pd.DataFrame:
+    if history is None or not isinstance(history, pd.DataFrame) or history.empty:
         return pd.DataFrame()
     data = history.copy()
     if isinstance(data.columns, pd.MultiIndex):
@@ -309,6 +310,7 @@ def fetch_yfinance_histories(
                 auto_adjust=False,
                 threads=len(yf_symbols) > 1,
                 group_by="ticker",
+                timeout=YFINANCE_TIMEOUT_SECONDS,
             )
     except Exception:
         downloaded = pd.DataFrame()
@@ -388,10 +390,15 @@ def _fetch_twse_dataset(url: str, raw_path: Path, timeout: int) -> tuple[pd.Data
             response = requests.get(url, timeout=timeout)
             response.raise_for_status()
             payload = response.json()
+            if isinstance(payload, dict):
+                for key in ("data", "records", "result"):
+                    if isinstance(payload.get(key), list):
+                        payload = payload[key]
+                        break
             data = pd.DataFrame(payload)
             if not data.empty:
                 raw_path.parent.mkdir(parents=True, exist_ok=True)
-                data.to_csv(raw_path, index=False, encoding="utf-8-sig")
+                atomic_write_dataframe(data, raw_path)
                 return data, "twse_openapi"
         except Exception:
             pass

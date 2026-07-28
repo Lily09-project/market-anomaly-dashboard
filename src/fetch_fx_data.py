@@ -9,7 +9,7 @@ try:
 except Exception:
     requests = None
 
-from src.utils import clean_numeric, ensure_parent, load_config, parse_date
+from src.utils import atomic_write_dataframe, clean_numeric, ensure_parent, load_config, parse_date
 
 
 FX_COLUMN_ALIASES = {
@@ -67,8 +67,7 @@ def fetch_fx_data(config: dict | None = None) -> Path | None:
         response.raise_for_status()
         normalized = normalize_fx_columns(_parse_response(response), cfg["data"]["currency_pair"])
         out = ensure_parent(Path(cfg["data"]["raw_dir"]) / "fx_raw.csv")
-        normalized.to_csv(out, index=False, encoding="utf-8")
-        return out
+        return atomic_write_dataframe(normalized, out)
     except Exception as exc:
         print(f"FX API failed; fallback will be used. Reason: {exc}")
         return None

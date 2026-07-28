@@ -98,6 +98,8 @@ def test_app_frontend_contracts() -> None:
     assert ".dashboard-topline h1" in source
     assert "skip-link" in source
     assert 'id="main-content"' in source
+    expand_selector = '[data-testid="stExpandSidebarButton"]'
+    assert source.index(expand_selector) < source.index("@media (max-width: 760px)")
     assert "近期價格與成交量資料" in source
     assert "固定網址 http://localhost:8765" not in source
     assert 'paper_bgcolor=theme["card"]' in source

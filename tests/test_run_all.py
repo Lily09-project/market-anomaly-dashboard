@@ -22,3 +22,6 @@ def test_run_all_sample_mode_outputs_required_files() -> None:
 
 def test_bat_files_are_valid() -> None:
     assert_bat_files_are_valid()
+    bat = project_path("run_project.bat").read_text(encoding="utf-8")
+    assert 'findstr /R /C:":%STREAMLIT_PORT% .*LISTENING"' in bat
+    assert "[ERROR] Port %STREAMLIT_PORT% is already in use." in bat

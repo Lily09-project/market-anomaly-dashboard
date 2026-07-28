@@ -35,6 +35,17 @@ if not exist "app.py" (
     exit /b 1
 )
 
+REM Fail clearly if the fixed dashboard port is already occupied.
+set "PORT_PID="
+for /f "tokens=5" %%P in ('netstat -ano ^| findstr /R /C:":%STREAMLIT_PORT% .*LISTENING"') do set "PORT_PID=%%P"
+if defined PORT_PID (
+    echo [ERROR] Port %STREAMLIT_PORT% is already in use.
+    echo [ERROR] Existing process ID: %PORT_PID%
+    echo Close that process or stop the other dashboard before retrying.
+    pause
+    exit /b 1
+)
+
 REM Find Python
 set "PY_EXE="
 set "PY_ARGS="

@@ -364,7 +364,6 @@ def inject_global_css(theme: dict) -> None:
             z-index: 100;
         }}
 
-        [data-testid="stToolbar"],
         [data-testid="stDecoration"],
         [data-testid="stStatusWidget"] {{
             display: none !important;
@@ -372,6 +371,20 @@ def inject_global_css(theme: dict) -> None:
             height: 0 !important;
             min-height: 0 !important;
             pointer-events: none !important;
+        }}
+
+        [data-testid="stToolbar"] {{
+            display: flex !important;
+            visibility: visible !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            pointer-events: none !important;
+        }}
+
+        [data-testid="stToolbar"] [data-testid="stBaseButton-header"],
+        [data-testid="stToolbar"] [data-testid="stMainMenuButton"] {{
+            display: none !important;
+            visibility: hidden !important;
         }}
 
         .stApp {{
@@ -1166,6 +1179,33 @@ def inject_global_css(theme: dict) -> None:
             color: {theme["text"]} !important;
             border: 1px solid {theme["border"]};
             border-radius: 8px !important;
+        }}
+
+        /* Keep the sidebar entry point reachable when Streamlit restores a collapsed sidebar. */
+        [data-testid="stExpandSidebarButton"] {{
+            display: flex !important;
+            visibility: visible !important;
+            position: fixed !important;
+            top: 0.75rem !important;
+            left: 0.75rem !important;
+            z-index: 1000 !important;
+            pointer-events: auto !important;
+            width: 44px !important;
+            height: 44px !important;
+            align-items: center !important;
+            justify-content: center !important;
+            border: 1px solid {theme["border"]} !important;
+            border-radius: 8px !important;
+            background: {theme["surface"]} !important;
+            box-shadow: {theme["soft_shadow"]} !important;
+        }}
+
+        [data-testid="stExpandSidebarButton"] button {{
+            width: 44px !important;
+            height: 44px !important;
+            min-height: 44px !important;
+            padding: 0 !important;
+            color: {theme["text"]} !important;
         }}
 
         @media (prefers-reduced-motion: reduce) {{
