@@ -81,8 +81,8 @@ def test_app_frontend_contracts() -> None:
     assert "套用代號" in source
     assert "active_custom_stock_symbol" in source
     assert "個股分析" in source
-    assert "分析總覽" in source
-    assert "股票健診" in source
+    assert "技術摘要" in source
+    assert "技術評分" in source
     assert "近期表現" in source
     assert "異常偵測展示" in source
     assert "模型評估指標" not in source
@@ -107,6 +107,13 @@ def test_app_frontend_contracts() -> None:
     assert 'color=theme["text"]' in source
     assert 'gridcolor=theme["chart_grid"]' in source
     assert "titlefont" not in source
+    assert "--ui-radius: 6px" in source
+    assert "touch-action: manipulation" in source
+    assert "linear-gradient" not in source
+    assert "transform: translateY(-1px)" not in source
+    assert "市場代表標的，依最新可用資料更新。" in source
+    assert "技術摘要" in source
+    assert "技術評分" in source
 
     assert app.stock_display_pair("2330.TW", "台積電") == "2330.TW · 台積電"
     lookup = app.stock_symbol_lookup(app.get_stock_universe())
