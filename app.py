@@ -331,6 +331,7 @@ def inject_global_css(theme: dict) -> None:
             --ui-space-4: 1rem;
             --ui-space-6: 1.5rem;
             --ui-space-8: 2rem;
+            --ui-radius: 6px;
         }}
 
         html,
@@ -400,7 +401,7 @@ def inject_global_css(theme: dict) -> None:
 
         h1, h2, h3, h4, h5, h6 {{
             color: {theme["text"]} !important;
-            font-weight: 800 !important;
+            font-weight: 720 !important;
             letter-spacing: 0 !important;
             scroll-margin-top: 1rem;
         }}
@@ -424,14 +425,14 @@ def inject_global_css(theme: dict) -> None:
         }}
 
         h1 {{
-            font-size: 2.5rem !important;
+            font-size: 2.25rem !important;
             line-height: 1.08 !important;
             overflow-wrap: anywhere;
             text-wrap: balance;
         }}
 
         h2 {{
-            font-size: 1.7rem !important;
+            font-size: 1.5rem !important;
             line-height: 1.2 !important;
             margin-top: 1.8rem !important;
             margin-bottom: 0.75rem !important;
@@ -439,7 +440,7 @@ def inject_global_css(theme: dict) -> None:
         }}
 
         h3 {{
-            font-size: 1.42rem !important;
+            font-size: 1.25rem !important;
             line-height: 1.25 !important;
             text-wrap: balance;
         }}
@@ -582,13 +583,15 @@ def inject_global_css(theme: dict) -> None:
             display: inline-flex;
             align-items: center;
             gap: 0.4rem;
-            padding: 0.5rem 0.85rem;
-            border-radius: 999px;
-            border: 1px solid {theme["border"]};
-            background: {theme["surface"]};
+            padding: 0.35rem 0.65rem;
+            border-radius: 4px;
+            border: 0;
+            border-left: 2px solid {theme["border"]};
+            background: transparent;
             color: {theme["muted_text"]};
-            font-weight: 700;
-            min-height: 44px;
+            font-size: 0.9rem;
+            font-weight: 650;
+            min-height: 32px;
             line-height: 1.35;
             white-space: normal;
         }}
@@ -604,8 +607,8 @@ def inject_global_css(theme: dict) -> None:
 
         .status-pill.live {{
             color: {theme["success"]};
-            border-color: {theme["success"]};
-            background: color-mix(in srgb, {theme["success"]} 14%, transparent);
+            border-left-color: {theme["success"]};
+            background: transparent;
         }}
 
         .status-pill.live::before {{
@@ -616,11 +619,11 @@ def inject_global_css(theme: dict) -> None:
         .market-card, .watch-card, .info-card {{
             background: {theme["card"]};
             border: 1px solid {theme["border"]};
-            border-radius: 8px;
+            border-radius: var(--ui-radius);
             padding: 18px 20px;
-            box-shadow: {theme["shadow"]};
+            box-shadow: none;
             min-height: 128px;
-            transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+            transition: border-color 180ms ease, background-color 180ms ease;
         }}
 
         .market-card, .watch-card {{
@@ -632,9 +635,9 @@ def inject_global_css(theme: dict) -> None:
             content: "";
             position: absolute;
             inset: 0 0 auto 0;
-            height: 2px;
+            height: 1px;
             background: {theme["accent"]};
-            opacity: 0.85;
+            opacity: 0.7;
         }}
 
         .market-grid {{
@@ -662,8 +665,7 @@ def inject_global_css(theme: dict) -> None:
 
         .market-card:hover, .watch-card:hover, .info-card:hover {{
             border-color: {theme["primary"]};
-            box-shadow: {theme["hover_shadow"]};
-            transform: translateY(-1px);
+            background: color-mix(in srgb, {theme["primary"]} 4%, {theme["card"]});
         }}
 
         .watch-card {{
@@ -748,7 +750,7 @@ def inject_global_css(theme: dict) -> None:
             display: inline-flex;
             align-items: center;
             padding: 0.22rem 0.55rem;
-            border-radius: 999px;
+            border-radius: 4px;
             background: {theme["surface"]};
             border: 1px solid {theme["border"]};
             color: {theme["muted_text"]};
@@ -807,17 +809,17 @@ def inject_global_css(theme: dict) -> None:
 
         .health-fill {{
             height: 100%;
-            border-radius: 999px;
-            background: linear-gradient(90deg, {theme["success"]}, {theme["accent"]});
+            border-radius: 2px;
+            background: {theme["success"]};
         }}
 
         .signal-card {{
             background: {theme["card"]};
             border: 1px solid {theme["border"]};
-            border-radius: 8px;
+            border-radius: var(--ui-radius);
             padding: 16px;
             min-height: 132px;
-            box-shadow: {theme["shadow"]};
+            box-shadow: none;
         }}
 
         .signal-card strong {{
@@ -839,7 +841,7 @@ def inject_global_css(theme: dict) -> None:
         .score-panel {{
             background: {theme["card"]};
             border: 1px solid {theme["border"]};
-            border-radius: 8px;
+            border-radius: var(--ui-radius);
             padding: 18px;
             min-height: 280px;
         }}
@@ -863,8 +865,8 @@ def inject_global_css(theme: dict) -> None:
         .range-track {{
             position: relative;
             height: 10px;
-            border-radius: 999px;
-            background: linear-gradient(90deg, {theme["danger"]}, {theme["warning"]}, {theme["success"]});
+            border-radius: 2px;
+            background: {theme["surface"]};
             border: 1px solid {theme["border"]};
             margin: 1rem 0 0.55rem;
         }}
@@ -893,8 +895,8 @@ def inject_global_css(theme: dict) -> None:
             margin-top: 1.6rem;
             margin-bottom: 0.6rem;
             color: {theme["text"]};
-            font-size: 1.42rem;
-            font-weight: 850;
+            font-size: 1.25rem;
+            font-weight: 720;
             display: flex;
             align-items: center;
             gap: 0.6rem;
@@ -902,20 +904,20 @@ def inject_global_css(theme: dict) -> None:
 
         .stock-section-title::before {{
             content: "";
-            width: 0.28rem;
+            width: 2px;
             height: 1.2em;
-            border-radius: 999px;
+            border-radius: 0;
             background: {theme["accent"]};
-            flex: 0 0 0.28rem;
+            flex: 0 0 2px;
         }}
 
         .section-card {{
             background: {theme["card"]};
             border: 1px solid {theme["border"]};
-            border-radius: 8px;
-            padding: 22px;
+            border-radius: var(--ui-radius);
+            padding: 18px;
             margin-bottom: 18px;
-            box-shadow: {theme["soft_shadow"]};
+            box-shadow: none;
             color: {theme["text"]};
         }}
 
@@ -959,12 +961,12 @@ def inject_global_css(theme: dict) -> None:
         }}
 
         .notice, .info-box {{
-            background: {theme["card"]};
+            background: color-mix(in srgb, {theme["accent"]} 5%, transparent);
             border: 1px solid {theme["border"]};
-            border-left: 5px solid {theme["accent"]};
+            border-left: 3px solid {theme["accent"]};
             color: {theme["text"]};
-            padding: 12px 14px;
-            border-radius: 8px;
+            padding: 10px 12px;
+            border-radius: 4px;
             margin: 8px 0 18px 0;
             font-size: 0.98rem;
             line-height: 1.6;
@@ -973,10 +975,10 @@ def inject_global_css(theme: dict) -> None:
         .warning-box {{
             background: {theme["surface"]};
             border: 1px solid {theme["border"]};
-            border-left: 5px solid {theme["danger"]};
+            border-left: 3px solid {theme["danger"]};
             color: {theme["text"]};
             padding: 12px 14px;
-            border-radius: 8px;
+            border-radius: 4px;
             font-size: 0.98rem;
             line-height: 1.6;
         }}
@@ -990,17 +992,17 @@ def inject_global_css(theme: dict) -> None:
         .stPlotlyChart {{
             background: {theme["card"]};
             border: 1px solid {theme["border"]};
-            border-radius: 8px;
-            padding: 6px;
+            border-radius: var(--ui-radius);
+            padding: 0;
             margin: 0.75rem 0 1.25rem;
-            box-shadow: {theme["shadow"]};
+            box-shadow: none;
         }}
 
         div[data-testid="stDataFrame"] {{
             background-color: {theme["card"]} !important;
             color: {theme["text"]} !important;
             border: 1px solid {theme["border"]};
-            border-radius: 8px;
+            border-radius: var(--ui-radius);
             overflow: hidden;
             font-size: 1.03rem !important;
             line-height: 1.55 !important;
@@ -1022,7 +1024,7 @@ def inject_global_css(theme: dict) -> None:
         div[data-testid="stForm"] {{
             background: {theme["card"]};
             border: 1px solid {theme["border"]};
-            border-radius: 8px;
+            border-radius: var(--ui-radius);
             padding: 16px 14px 14px;
             margin-top: 0.75rem;
             margin-bottom: 1rem;
@@ -1077,9 +1079,10 @@ def inject_global_css(theme: dict) -> None:
         }}
 
         button {{
-            border-radius: 8px !important;
+            border-radius: 6px !important;
             min-height: 44px !important;
             cursor: pointer !important;
+            touch-action: manipulation;
             transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease, box-shadow 180ms ease !important;
         }}
 
@@ -1121,6 +1124,10 @@ def inject_global_css(theme: dict) -> None:
         [tabindex]:focus-visible {{
             outline: 3px solid {theme["accent"]} !important;
             outline-offset: 2px !important;
+        }}
+
+        button:active {{
+            transform: translateY(1px);
         }}
 
         div[data-baseweb="select"] > div,
@@ -1178,7 +1185,7 @@ def inject_global_css(theme: dict) -> None:
             background: {theme["surface"]} !important;
             color: {theme["text"]} !important;
             border: 1px solid {theme["border"]};
-            border-radius: 8px !important;
+            border-radius: 6px !important;
         }}
 
         /* Keep the sidebar entry point reachable when Streamlit restores a collapsed sidebar. */
@@ -1319,8 +1326,8 @@ def inject_global_css(theme: dict) -> None:
 
             .status-pill {{
                 width: 100%;
-                justify-content: center;
-                text-align: center;
+                justify-content: flex-start;
+                text-align: left;
             }}
 
             .detail-header {{
@@ -1333,7 +1340,7 @@ def inject_global_css(theme: dict) -> None:
 
             .market-card, .watch-card, .section-card, .info-card {{
                 padding: 16px;
-                border-radius: 8px;
+                border-radius: var(--ui-radius);
             }}
 
             .market-grid {{
@@ -1507,7 +1514,7 @@ def render_popular_stocks(cards: list[dict], industry: str = "全部") -> None:
         st.info("目前沒有可顯示的熱門股資料，請稍後重試。")
         return
     if industry == "全部":
-        st.caption("熱門股優先使用 yfinance；若網路或套件不可用，會自動使用 sample data，確保 Demo 可執行。")
+        st.caption("市場代表標的，依最新可用資料更新。")
     else:
         st.caption(f"目前顯示「{industry}」類別中的熱門追蹤標的。")
     columns = st.columns(2, gap="large")
@@ -1671,7 +1678,7 @@ def score_class(score: float) -> str:
 
 
 def render_signal_cards(analysis: dict) -> None:
-    st.markdown('<h3 class="stock-section-title">分析總覽</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 class="stock-section-title">技術摘要</h3>', unsafe_allow_html=True)
     columns = st.columns(4)
     technical = analysis["technical"]
     metric_lookup = {
@@ -1709,7 +1716,7 @@ def render_health_score(analysis: dict) -> None:
         )
     marker_left = max(0, min(100, technical["range_position"]))
     html = (
-        '<h3 class="stock-section-title">股票健診</h3>'
+        '<h3 class="stock-section-title">技術評分</h3>'
         '<div class="score-wrap">'
         '<div class="score-panel">'
         '<div class="metric-label">綜合評分</div>'
@@ -1949,7 +1956,7 @@ def render_stock_analysis_page(theme: dict) -> None:
         unsafe_allow_html=True,
     )
     st.markdown(
-        "本頁主軸是股票追蹤與技術分析，包含大盤、熱門股、K 線、均線、RSI、成交量、近期表現與股票健診。"
+        "市場狀態、熱門標的、技術指標與同業比較。"
     )
     st.caption(f"TWSE 上市公司清單：{company_source}；ESG 法律訴訟資料：{esg_source}")
     render_market_cards(theme, market_cards)
