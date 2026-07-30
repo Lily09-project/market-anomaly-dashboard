@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from src.utils import atomic_write_dataframe, write_json
+from src.utils import atomic_write_dataframe, normalize_http_timeout, write_json
 
 
 def test_atomic_write_dataframe_replaces_existing_complete_file(tmp_path) -> None:
@@ -22,3 +22,12 @@ def test_write_json_replaces_existing_complete_file(tmp_path) -> None:
 
     assert path.read_text(encoding="utf-8") == '{\n  "status": "new",\n  "rows": 2\n}'
     assert list(tmp_path.glob(".summary.json.*.tmp")) == []
+
+
+def test_normalize_http_timeout_rejects_invalid_values() -> None:
+    assert normalize_http_timeout(None) == 15.0
+    assert normalize_http_timeout("invalid", default=8.0) == 8.0
+    assert normalize_http_timeout(0) == 15.0
+    assert normalize_http_timeout(-5) == 15.0
+    assert normalize_http_timeout(12) == 12.0
+    assert normalize_http_timeout(120) == 60.0

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from src import joblib_compat
 from src.features import build_features
@@ -23,3 +24,11 @@ def test_model_training_generates_loadable_model() -> None:
     assert model_path.exists()
     assert len(prediction) == len(sample)
     assert {"model_anomaly", "pseudo_anomaly", "anomaly_score"} <= set(results.columns)
+
+
+def test_joblib_compat_fails_closed_without_joblib(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(joblib_compat, "_joblib", None)
+    with pytest.raises(RuntimeError, match="joblib is required"):
+        joblib_compat.dump({"value": 1}, tmp_path / "artifact.joblib")
+    with pytest.raises(RuntimeError, match="joblib is required"):
+        joblib_compat.load(tmp_path / "artifact.joblib")
