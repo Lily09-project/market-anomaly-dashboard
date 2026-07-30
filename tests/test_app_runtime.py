@@ -4,6 +4,7 @@ import pytest
 from streamlit.testing.v1 import AppTest
 import streamlit.testing.v1.app_test as app_test_module
 
+from run_all import run_pipeline
 from src import market_api
 
 
@@ -14,6 +15,7 @@ def cleanup_streamlit_test_directory():
 
 
 def test_dashboard_pages_and_sidebar_interactions(monkeypatch) -> None:
+    run_pipeline("sample")
     monkeypatch.setattr(market_api, "requests", None)
     monkeypatch.setattr(market_api, "yf", None)
 
