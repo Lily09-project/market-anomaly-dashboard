@@ -9,7 +9,7 @@ try:
 except Exception:
     requests = None
 
-from src.utils import atomic_write_dataframe, clean_numeric, ensure_parent, load_config, parse_date
+from src.utils import atomic_write_dataframe, clean_numeric, ensure_parent, load_config, normalize_http_timeout, parse_date
 
 
 MARKET_COLUMN_ALIASES = {
@@ -66,7 +66,8 @@ def fetch_market_data(config: dict | None = None) -> Path | None:
         print("Market API URL is empty; fallback will be used.")
         return None
     try:
-        response = requests.get(url, timeout=cfg["api"].get("timeout_seconds", 15))
+        timeout = normalize_http_timeout(cfg["api"].get("timeout_seconds"), default=15.0)
+        response = requests.get(url, timeout=timeout)
         response.raise_for_status()
         normalized = normalize_market_columns(_parse_response(response))
         out = ensure_parent(Path(cfg["data"]["raw_dir"]) / "market_raw.csv")

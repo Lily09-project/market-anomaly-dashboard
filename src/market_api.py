@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ except Exception:
 from src.utils import atomic_write_dataframe, clean_numeric, project_path
 
 
+LOGGER = logging.getLogger(__name__)
 TWSE_COMPANY_PROFILE_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap03_L"
 TWSE_ESG_LEGAL_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap46_L_20"
 # Backward-compatible alias for existing callers and tests.
@@ -77,8 +79,8 @@ def configure_yfinance_cache() -> None:
         cache_dir = project_path("data/cache/yfinance")
         cache_dir.mkdir(parents=True, exist_ok=True)
         yf.set_tz_cache_location(str(cache_dir))
-    except Exception:
-        pass
+    except Exception as exc:
+        LOGGER.debug("Unable to configure the yfinance cache: %s", exc)
 
 
 configure_yfinance_cache()
@@ -400,8 +402,8 @@ def _fetch_twse_dataset(url: str, raw_path: Path, timeout: int) -> tuple[pd.Data
                 raw_path.parent.mkdir(parents=True, exist_ok=True)
                 atomic_write_dataframe(data, raw_path)
                 return data, "twse_openapi"
-        except Exception:
-            pass
+        except Exception as exc:
+            LOGGER.debug("TWSE request failed; local cache will be used: %s", exc)
     if raw_path.exists():
         return pd.read_csv(raw_path), "local_cache"
     return pd.DataFrame(), "unavailable"

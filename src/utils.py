@@ -79,6 +79,16 @@ def project_path(path: str | Path) -> Path:
     return path if path.is_absolute() else PROJECT_ROOT / path
 
 
+def normalize_http_timeout(value: Any, default: float = 15.0) -> float:
+    try:
+        timeout = float(value)
+    except (TypeError, ValueError):
+        timeout = default
+    if not pd.notna(timeout) or timeout <= 0:
+        timeout = default
+    return min(timeout, 60.0)
+
+
 def ensure_parent(path: str | Path) -> Path:
     resolved = project_path(path)
     resolved.parent.mkdir(parents=True, exist_ok=True)
