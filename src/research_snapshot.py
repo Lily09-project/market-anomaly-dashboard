@@ -5,6 +5,7 @@ import json
 import math
 from collections.abc import Mapping
 from datetime import date, datetime, timezone
+from html import escape
 from typing import Any
 
 import pandas as pd
@@ -121,3 +122,82 @@ def build_research_snapshot(
 def snapshot_to_json_bytes(snapshot: Mapping[str, Any]) -> bytes:
     """Serialise a snapshot as UTF-8 JSON without non-finite numeric values."""
     return json.dumps(_json_value(snapshot), ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False).encode("utf-8")
+
+
+
+def _html_text(value: Any) -> str:
+    return escape(str(value if value is not None else ""))
+
+
+def _html_table(rows: Any) -> str:
+    safe_rows = [row for row in rows if isinstance(row, Mapping)] if isinstance(rows, list) else []
+    if not safe_rows:
+        return '<p class="empty">No comparable data is available.</p>'
+    columns = list(dict.fromkeys(str(key) for row in safe_rows for key in row))
+    header = "".join(f"<th>{_html_text(column)}</th>" for column in columns)
+    body = "".join(
+        "<tr>" + "".join(f"<td>{_html_text(row.get(column, ''))}</td>" for column in columns) + "</tr>"
+        for row in safe_rows
+    )
+    return f"<table><thead><tr>{header}</tr></thead><tbody>{body}</tbody></table>"
+
+
+def render_snapshot_html(snapshot: Mapping[str, Any]) -> bytes:
+    """Render a self-contained, printable HTML research snapshot."""
+    asset = snapshot.get("asset", {})
+    provenance = snapshot.get("provenance", {})
+    research = snapshot.get("research", {})
+    safe_asset = asset if isinstance(asset, Mapping) else {}
+    safe_provenance = provenance if isinstance(provenance, Mapping) else {}
+    safe_research = research if isinstance(research, Mapping) else {}
+    warnings = safe_provenance.get("warnings", [])
+    warning_items = "".join(f"<li>{_html_text(item)}</li>" for item in warnings) if isinstance(warnings, list) else ""
+    evidence = safe_research.get("evidence", [])
+    evidence_cards = "".join(
+        "<article class=\"evidence\">"
+        f"<h3>{_html_text(item.get('label', item.get('id', 'Evidence')))}</h3>"
+        f"<p class=\"state\">{_html_text(item.get('state', 'unavailable'))}</p>"
+        f"<strong>{_html_text(item.get('headline', ''))}</strong>"
+        f"<p>{_html_text(item.get('detail', ''))}</p>"
+        f"<p class=\"metrics\">{_html_text(' | '.join(str(metric) for metric in item.get('metrics', [])))}</p>"
+        "</article>"
+        for item in evidence
+        if isinstance(item, Mapping)
+    )
+    changes = safe_research.get("changes", {})
+    peers = safe_research.get("peer_context", {})
+    change_rows = changes.get("rows", []) if isinstance(changes, Mapping) else []
+    peer_rows = peers.get("rows", []) if isinstance(peers, Mapping) else []
+    limitations = snapshot.get("limitations", [])
+    limitation_items = "".join(f"<li>{_html_text(item)}</li>" for item in limitations) if isinstance(limitations, list) else ""
+    title = f"{_html_text(safe_asset.get('symbol', ''))} {_html_text(safe_asset.get('display_name', ''))}".strip()
+    document = f"""<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title} Research Snapshot</title>
+<style>
+:root {{ color-scheme: light; --ink:#17202b; --muted:#536170; --line:#cfd7df; --surface:#f7f9fb; --accent:#b55a18; }}
+* {{ box-sizing:border-box; }} body {{ margin:0; background:#fff; color:var(--ink); font:15px/1.55 Arial,"Microsoft JhengHei",sans-serif; }}
+main {{ max-width:900px; margin:0 auto; padding:40px; }} h1,h2,h3,p {{ margin-top:0; }} h1 {{ font-size:30px; }} h2 {{ margin-top:32px; font-size:18px; }}
+.eyebrow,.state {{ color:var(--accent); font-weight:700; text-transform:uppercase; letter-spacing:.04em; }} .meta {{ color:var(--muted); }}
+.provenance,.warning {{ border:1px solid var(--line); background:var(--surface); padding:16px; }} .warning {{ border-left:4px solid var(--accent); }}
+.evidence-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }} .evidence {{ border:1px solid var(--line); padding:16px; }} .evidence h3 {{ margin-bottom:4px; }} .metrics {{ color:var(--muted); font-family:monospace; }}
+table {{ width:100%; border-collapse:collapse; }} th,td {{ border:1px solid var(--line); padding:8px; text-align:left; vertical-align:top; }} th {{ background:var(--surface); }} .empty {{ color:var(--muted); }}
+@media print {{ body {{ font-size:11pt; }} main {{ max-width:none; padding:0; }} .evidence {{ break-inside:avoid; }} }}
+@media (max-width:640px) {{ main {{ padding:24px; }} .evidence-grid {{ grid-template-columns:1fr; }} }}
+</style>
+</head>
+<body><main>
+<p class="eyebrow">Research Snapshot</p>
+<h1>{title}</h1>
+<p class="meta">Snapshot ID: {_html_text(snapshot.get('snapshot_id', ''))}<br>Captured: {_html_text(snapshot.get('captured_at_utc', ''))}<br>Market as of: {_html_text(snapshot.get('as_of_date', ''))}</p>
+<section class="provenance"><h2>Data provenance</h2><p>Source: {_html_text(safe_provenance.get('source', 'unavailable'))}<br>Quality: {_html_text(safe_provenance.get('quality_state', 'unavailable'))}<br>History fingerprint: {_html_text(safe_provenance.get('history_fingerprint', ''))}</p></section>
+{f'<section class="warning"><h2>Warnings</h2><ul>{warning_items}</ul></section>' if warning_items else ''}
+<section><h2>Evidence</h2><div class="evidence-grid">{evidence_cards or '<p class="empty">No evidence is available.</p>'}</div></section>
+<section><h2>Recent changes</h2>{_html_table(change_rows)}</section>
+<section><h2>Peer context</h2>{_html_table(peer_rows)}</section>
+<section><h2>Limitations</h2><ul>{limitation_items}</ul></section>
+</main></body></html>"""
+    return document.encode("utf-8")
