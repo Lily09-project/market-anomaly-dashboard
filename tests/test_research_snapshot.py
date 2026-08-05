@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 
-from src.research_snapshot import build_research_snapshot, snapshot_to_json_bytes
+from src.research_snapshot import build_research_snapshot, render_snapshot_html, snapshot_to_json_bytes
 
 
 CAPTURED_AT = datetime(2026, 8, 5, 9, 30, tzinfo=timezone.utc)
@@ -73,3 +73,15 @@ def test_json_export_is_utf8_and_sanitizes_non_finite_values() -> None:
     assert parsed["provenance"]["source"] == "sample"
     assert parsed["research"]["changes"]["rows"][0]["change"] is None
     assert "NaN" not in payload.decode("utf-8")
+
+
+def test_html_export_escapes_dynamic_asset_values() -> None:
+    asset = {**ASSET, "display_name": "<script>alert(1)</script>"}
+    snapshot = build_research_snapshot(asset, make_history(), "sample", BRIEF, CAPTURED_AT)
+
+    document = render_snapshot_html(snapshot).decode("utf-8")
+
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in document
+    assert "<script>alert(1)</script>" not in document
+    assert "sample" in document
+    assert snapshot["snapshot_id"] in document
