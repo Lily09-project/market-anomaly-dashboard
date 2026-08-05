@@ -31,6 +31,7 @@ from src.market_api import (
     lookup_twse_company,
     to_yfinance_symbol,
 )
+from src.research_brief import build_research_brief
 from src.theme import get_theme, validate_theme_contrast
 from src.utils import load_config
 
@@ -71,6 +72,15 @@ TECHNICAL_INDICATOR_OPTIONS = ["MA5", "MA20", "MA60", "布林通道", "成交量
 DEFAULT_TECHNICAL_INDICATORS = ["MA5", "MA20", "MA60", "成交量", "RSI"]
 CUSTOM_SYMBOL_PATTERN = re.compile(r"^[A-Za-z0-9^][A-Za-z0-9.^=_-]{0,19}$")
 PLOTLY_CONFIG = {"displaylogo": False, "responsive": True, "scrollZoom": False}
+
+RESEARCH_STATE_LABELS = {
+    "ready": "資料可用",
+    "caution": "保守解讀",
+    "unavailable": "資料不足",
+    "positive": "支持",
+    "neutral": "中性",
+    "risk": "注意",
+}
 
 
 def _load_twse_sources() -> tuple[pd.DataFrame, str, pd.DataFrame, str]:
@@ -548,6 +558,99 @@ def inject_global_css(theme: dict) -> None:
             color: {theme["text"]};
         }}
 
+        .research-brief {{
+            border-top: 2px solid {theme["accent"]};
+            margin: 1.75rem 0 1.25rem;
+            padding: 1rem 0 0.25rem;
+        }}
+
+        .research-brief-heading,
+        .research-quality {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }}
+
+        .research-brief-heading h3 {{
+            margin: 0 !important;
+        }}
+
+        .section-eyebrow {{
+            color: {theme["accent"]};
+            font-size: 0.72rem;
+            font-weight: 850;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.3rem;
+        }}
+
+        .research-status {{
+            border-left: 3px solid {theme["border"]};
+            color: {theme["muted_text"]};
+            font-size: 0.92rem;
+            font-weight: 850;
+            padding-left: 0.55rem;
+        }}
+
+        .research-status--ready {{
+            border-left-color: {theme["success"]};
+            color: {theme["success"]};
+        }}
+
+        .research-status--caution {{
+            border-left-color: {theme["warning"]};
+            color: {theme["warning"]};
+        }}
+
+        .research-quality {{
+            border-bottom: 1px solid {theme["border"]};
+            color: {theme["muted_text"]};
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-top: 0.8rem;
+            padding: 0 0 0.8rem;
+        }}
+
+        .research-quality strong {{
+            color: {theme["text"]};
+        }}
+
+        .research-warnings {{
+            color: {theme["muted_text"]};
+            font-size: 0.94rem;
+            line-height: 1.5;
+            margin: 0.75rem 0 0;
+            padding-left: 1.15rem;
+        }}
+
+        .research-evidence {{
+            background: {theme["card"]};
+            border: 1px solid {theme["border"]};
+            border-radius: var(--ui-radius);
+            min-height: 188px;
+            padding: 1rem;
+        }}
+
+        .research-evidence--positive {{ border-top: 3px solid {theme["success"]}; }}
+        .research-evidence--neutral {{ border-top: 3px solid {theme["secondary"]}; }}
+        .research-evidence--risk {{ border-top: 3px solid {theme["danger"]}; }}
+        .research-evidence--unavailable {{ border-top: 3px solid {theme["border"]}; }}
+
+        .research-evidence-headline {{
+            color: {theme["text"]};
+            font-size: 1.12rem;
+            font-weight: 850;
+            line-height: 1.35;
+            margin: 0.5rem 0;
+        }}
+
+        .research-evidence-metrics {{
+            color: {theme["muted_text"]};
+            font-size: 0.92rem;
+            line-height: 1.45;
+            margin-top: 0.85rem;
+        }}
         .dashboard-topline {{
             display: flex;
             justify-content: space-between;
@@ -1306,7 +1409,100 @@ def inject_global_css(theme: dict) -> None:
                 line-height: 1.1 !important;
             }}
 
-            .dashboard-topline {{
+            .research-brief {{
+            border-top: 2px solid {theme["accent"]};
+            margin: 1.75rem 0 1.25rem;
+            padding: 1rem 0 0.25rem;
+        }}
+
+        .research-brief-heading,
+        .research-quality {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }}
+
+        .research-brief-heading h3 {{
+            margin: 0 !important;
+        }}
+
+        .section-eyebrow {{
+            color: {theme["accent"]};
+            font-size: 0.72rem;
+            font-weight: 850;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.3rem;
+        }}
+
+        .research-status {{
+            border-left: 3px solid {theme["border"]};
+            color: {theme["muted_text"]};
+            font-size: 0.92rem;
+            font-weight: 850;
+            padding-left: 0.55rem;
+        }}
+
+        .research-status--ready {{
+            border-left-color: {theme["success"]};
+            color: {theme["success"]};
+        }}
+
+        .research-status--caution {{
+            border-left-color: {theme["warning"]};
+            color: {theme["warning"]};
+        }}
+
+        .research-quality {{
+            border-bottom: 1px solid {theme["border"]};
+            color: {theme["muted_text"]};
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-top: 0.8rem;
+            padding: 0 0 0.8rem;
+        }}
+
+        .research-quality strong {{
+            color: {theme["text"]};
+        }}
+
+        .research-warnings {{
+            color: {theme["muted_text"]};
+            font-size: 0.94rem;
+            line-height: 1.5;
+            margin: 0.75rem 0 0;
+            padding-left: 1.15rem;
+        }}
+
+        .research-evidence {{
+            background: {theme["card"]};
+            border: 1px solid {theme["border"]};
+            border-radius: var(--ui-radius);
+            min-height: 188px;
+            padding: 1rem;
+        }}
+
+        .research-evidence--positive {{ border-top: 3px solid {theme["success"]}; }}
+        .research-evidence--neutral {{ border-top: 3px solid {theme["secondary"]}; }}
+        .research-evidence--risk {{ border-top: 3px solid {theme["danger"]}; }}
+        .research-evidence--unavailable {{ border-top: 3px solid {theme["border"]}; }}
+
+        .research-evidence-headline {{
+            color: {theme["text"]};
+            font-size: 1.12rem;
+            font-weight: 850;
+            line-height: 1.35;
+            margin: 0.5rem 0;
+        }}
+
+        .research-evidence-metrics {{
+            color: {theme["muted_text"]};
+            font-size: 0.92rem;
+            line-height: 1.45;
+            margin-top: 0.85rem;
+        }}
+        .dashboard-topline {{
                 flex-direction: column;
                 align-items: stretch;
                 gap: 0.85rem;
@@ -1669,75 +1865,6 @@ def format_percent(value: float) -> str:
     return f"{value:+.2f}%"
 
 
-def score_class(score: float) -> str:
-    if score >= 3.4:
-        return "positive"
-    if score >= 2.4:
-        return "neutral"
-    return "negative"
-
-
-def render_signal_cards(analysis: dict) -> None:
-    st.markdown('<h3 class="stock-section-title">技術摘要</h3>', unsafe_allow_html=True)
-    columns = st.columns(4)
-    technical = analysis["technical"]
-    metric_lookup = {
-        "趨勢": f"MA20 乖離 {format_percent(technical['ma20_distance'])}",
-        "RSI": f"RSI {technical['rsi14']:.1f}",
-        "量能": f"{technical['volume_ratio_20']:.2f} 倍均量",
-        "波動": f"20 日 {technical['volatility_20']:.2f}%",
-    }
-    for col, signal in zip(columns, analysis["signals"]):
-        css_class = score_class(float(signal["score"]))
-        col.markdown(
-            f"""
-            <div class="signal-card">
-                <div class="metric-label">{signal["label"]}</div>
-                <strong class="{css_class}">{signal["value"]}</strong>
-                <div class="metric-value" style="font-size:0.92rem;">{metric_lookup.get(signal["label"], "")}</div>
-                <div class="card-subtitle" style="margin-top:0.6rem;">{signal["note"]}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-
-def render_health_score(analysis: dict) -> None:
-    health = analysis["health"]
-    technical = analysis["technical"]
-    dimension_lines = []
-    for item in health["dimensions"]:
-        score = float(item["score"])
-        width = max(0, min(100, score / 5 * 100))
-        dimension_lines.append(
-            f'<div class="score-line"><div class="metric-label">{item["label"]}</div>'
-            f'<div class="health-bar"><div class="health-fill" style="width:{width:.0f}%;"></div></div>'
-            f'<div class="metric-value">{score:.1f}</div></div>'
-        )
-    marker_left = max(0, min(100, technical["range_position"]))
-    html = (
-        '<h3 class="stock-section-title">技術評分</h3>'
-        '<div class="score-wrap">'
-        '<div class="score-panel">'
-        '<div class="metric-label">綜合評分</div>'
-        f'<div class="score-number">{health["overall_score"]:.1f}</div>'
-        f'<div class="positive" style="font-size:1.1rem;margin-top:0.4rem;">{health["overall_label"]}</div>'
-        '<div class="card-subtitle" style="margin-top:0.8rem;">評分由趨勢、動能、量能、穩定度與價格位置組成，僅供分析參考。</div>'
-        '</div>'
-        '<div class="score-panel">'
-        f'{"".join(dimension_lines)}'
-        '<div style="margin-top:1.2rem;">'
-        '<div class="metric-label">52 週區間位置</div>'
-        f'<div class="range-track"><div class="range-marker" style="left:{marker_left:.1f}%;"></div></div>'
-        '<div class="range-labels">'
-        f'<span>{technical["low_52w"]:,.2f}</span>'
-        f'<span>{technical["range_position"]:.0f}%</span>'
-        f'<span>{technical["high_52w"]:,.2f}</span>'
-        '</div></div></div></div>'
-    )
-    st.markdown(html, unsafe_allow_html=True)
-
-
 def render_performance_cards(analysis: dict) -> None:
     st.markdown('<h3 class="stock-section-title">近期表現</h3>', unsafe_allow_html=True)
     columns = st.columns(4)
@@ -1754,10 +1881,83 @@ def render_performance_cards(analysis: dict) -> None:
         )
 
 
+def render_research_brief(brief: dict) -> None:
+    quality = brief["data_quality"]
+    quality_state = str(quality.get("state", "unavailable"))
+    quality_label = RESEARCH_STATE_LABELS.get(quality_state, RESEARCH_STATE_LABELS["unavailable"])
+    quality_class = "research-status--ready" if quality_state == "ready" else "research-status--caution"
+    source_name = str(quality.get("source", "unavailable"))
+    source_label = {"sample": "sample data", "yfinance": "yfinance"}.get(source_name, source_name)
+    warnings = [str(item) for item in quality.get("warnings", []) if str(item).strip()]
+    warnings_markup = "".join(f"<li>{escape_html(item)}</li>" for item in warnings)
+    warning_section = (
+        f'<ul class="research-warnings">{warnings_markup}</ul>'
+        if warnings_markup
+        else '<div class="research-warnings">目前欄位完整，可作為技術研究的起點。</div>'
+    )
+    observations = int(quality.get("observations", 0) or 0)
+    coverage_pct = float(quality.get("coverage_pct", 0.0) or 0.0)
+    latest_date = str(quality.get("latest_date", "")) or "無可用日期"
+    st.markdown(
+        f'''
+        <section class="research-brief" aria-label="研究摘要">
+            <div class="research-brief-heading">
+                <div>
+                    <div class="section-eyebrow">RESEARCH BRIEF</div>
+                    <h3>研究摘要</h3>
+                </div>
+                <span class="research-status {quality_class}">{escape_html(quality_label)}</span>
+            </div>
+            <div class="research-quality">
+                <strong>資料可信度</strong>
+                <span>{escape_html(source_label)} · 最新資料 {escape_html(latest_date)}</span>
+                <span>{observations} 筆觀測 · 覆蓋率 {coverage_pct:.0f}%</span>
+            </div>
+            {warning_section}
+        </section>
+        ''',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown('<h3 class="stock-section-title">證據矩陣</h3>', unsafe_allow_html=True)
+    evidence = list(brief.get("evidence", []))
+    if evidence:
+        evidence_columns = st.columns(len(evidence))
+        for column, item in zip(evidence_columns, evidence):
+            state = str(item.get("state", "unavailable"))
+            state_class = state if state in {"positive", "neutral", "risk", "unavailable"} else "unavailable"
+            metrics = " · ".join(escape_html(metric) for metric in item.get("metrics", [])) or "資料不足"
+            with column:
+                st.markdown(
+                    f'''
+                    <article class="research-evidence research-evidence--{state_class}">
+                        <div class="metric-label">{escape_html(item.get("label", ""))}</div>
+                        <div class="research-evidence-headline">{escape_html(item.get("headline", ""))}</div>
+                        <div class="card-subtitle">{escape_html(item.get("detail", ""))}</div>
+                        <div class="research-evidence-metrics">{metrics}</div>
+                    </article>
+                    ''',
+                    unsafe_allow_html=True,
+                )
+
+    st.markdown('<h3 class="stock-section-title">本期變化</h3>', unsafe_allow_html=True)
+    st.dataframe(pd.DataFrame(brief.get("changes", {}).get("rows", [])), width="stretch", hide_index=True)
+
+    st.markdown('<h3 class="stock-section-title">同業脈絡</h3>', unsafe_allow_html=True)
+    peer_context = brief.get("peer_context", {})
+    peer_summary = str(peer_context.get("summary", "資料不足以比較同業脈絡。"))
+    if peer_context.get("state") == "unavailable":
+        st.info(peer_summary)
+    else:
+        st.caption(peer_summary)
+        st.dataframe(pd.DataFrame(peer_context.get("rows", [])), width="stretch", hide_index=True)
+
 def render_stock_detail(
     selected_symbol: str,
     theme: dict,
     company_df: pd.DataFrame,
+    peer_cards: list[dict],
+    peer_industry: str,
     selected_indicators: list[str] | None = None,
 ) -> None:
     if selected_indicators is None:
@@ -1767,6 +1967,7 @@ def render_stock_detail(
     if not analysis:
         st.warning("目前沒有足夠的個股資料可供分析，請稍後重試或改選其他股票。")
         return
+    brief = build_research_brief(history, source, peer_cards, peer_industry)
     indicators = analysis["data"]
     latest = analysis["latest"]
     technical = analysis["technical"]
@@ -1800,8 +2001,7 @@ def render_stock_detail(
         unsafe_allow_html=True,
     )
 
-    render_signal_cards(analysis)
-    render_health_score(analysis)
+    render_research_brief(brief)
     render_performance_cards(analysis)
 
     st.markdown('<h3 class="stock-section-title">技術圖表</h3>', unsafe_allow_html=True)
@@ -1961,9 +2161,16 @@ def render_stock_analysis_page(theme: dict) -> None:
     st.caption(f"TWSE 上市公司清單：{company_source}；ESG 法律訴訟資料：{esg_source}")
     render_market_cards(theme, market_cards)
     render_popular_stocks(popular_cards, selected_industry)
-    render_peer_comparison(peer_cards, selected_yf_symbol, peer_industry, theme)
     with st.spinner(f"正在載入 {selected_stock_label} 個股詳情..."):
-        render_stock_detail(selected_yf_symbol, theme, company_reference, selected_indicators)
+        render_stock_detail(
+            selected_yf_symbol,
+            theme,
+            company_reference,
+            peer_cards,
+            peer_industry,
+            selected_indicators,
+        )
+    render_peer_comparison(peer_cards, selected_yf_symbol, peer_industry, theme)
 
 
 def render_anomaly_page(cfg: dict, theme: dict) -> None:
