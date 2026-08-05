@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from streamlit.testing.v1 import AppTest
 import streamlit.testing.v1.app_test as app_test_module
 
 from run_all import run_pipeline
 from src import market_api
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture(autouse=True)
@@ -19,7 +24,7 @@ def test_dashboard_pages_and_sidebar_interactions(monkeypatch) -> None:
     monkeypatch.setattr(market_api, "requests", None)
     monkeypatch.setattr(market_api, "yf", None)
 
-    app = AppTest.from_file("app.py")
+    app = AppTest.from_file(PROJECT_ROOT / "app.py")
     app.run(timeout=120)
     assert not app.exception
     assert len(app.get("plotly_chart")) >= 3
