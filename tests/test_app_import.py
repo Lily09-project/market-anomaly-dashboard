@@ -118,6 +118,13 @@ def test_app_frontend_contracts() -> None:
     assert "transform: translateY(-1px)" not in source
     assert "市場代表標的，依最新可用資料更新。" in source
 
+    readme = project_path("README.md").read_text(encoding="utf-8")
+    assert "可解釋研究工作台" in readme
+    assert "資料來源與降級" in readme
+    assert "不提供買賣建議" in readme
+    assert "研究工作流" in readme
+    assert "docs/research-workflow.md" in readme
+
     assert app.stock_display_pair("2330.TW", "台積電") == "2330.TW · 台積電"
     lookup = app.stock_symbol_lookup(app.get_stock_universe())
     assert app.anomaly_symbol_label("2330", lookup) == "2330.TW · 台積電"
