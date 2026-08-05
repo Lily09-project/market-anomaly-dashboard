@@ -26,6 +26,9 @@ def test_dashboard_pages_and_sidebar_interactions(monkeypatch) -> None:
     assert len(app.dataframe) >= 2
     assert [button.label for button in app.button] == ["套用代號", "清除代號"]
     assert any("本機快取 / sample data" in item.value for item in app.markdown)
+    assert any("研究摘要" in item.value for item in app.markdown)
+    assert any("資料可信度" in item.value for item in app.markdown)
+    assert any("sample data" in item.value for item in app.markdown)
 
     app.text_input[0].set_value("<script>")
     app.button[0].click()
