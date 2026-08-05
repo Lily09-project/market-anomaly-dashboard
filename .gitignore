@@ -3,6 +3,8 @@ __pycache__/
 .pytest_cache/
 .pytest_tmp/
 *.pyc
+# Internal agent planning records are intentionally local-only.
+docs/superpowers/
 .env
 data/raw/
 data/processed/
