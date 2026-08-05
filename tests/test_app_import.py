@@ -225,3 +225,19 @@ def test_plotly_theme_applies_without_invalid_axis_properties() -> None:
         assert fig.layout.xaxis.title.font.color == theme["text"]
         assert fig.layout.yaxis.title.font.color == theme["text"]
         assert fig.layout.paper_bgcolor == theme["card"]
+
+
+def test_research_snapshot_public_contract() -> None:
+    app_source = project_path("app.py").read_text(encoding="utf-8")
+    assert "render_snapshot_actions" in app_source
+    assert "st.download_button(" in app_source
+    assert "下載 JSON" in app_source
+    assert "列印 HTML" in app_source
+
+    readme = project_path("README.md").read_text(encoding="utf-8")
+    workflow = project_path("docs/research-workflow.md").read_text(encoding="utf-8")
+    assert "Research Snapshot" in readme
+    assert "snapshot_id" in readme
+    assert "offline" in readme.lower()
+    assert "raw OHLCV" in workflow
+    assert "does not predict" in workflow

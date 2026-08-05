@@ -91,3 +91,13 @@ yfinance 與 TWSE OpenAPI 的可用性、交易時段與資料延遲會影響畫
 - 如何讓分析邏輯可驗證？研究摘要拆成沒有 UI 或網路副作用的純模組，使用 deterministic pandas fixtures 測試短資料、缺欄位、fallback 與同業不足情境。
 - 為什麼保留異常偵測頁但不混在個股頁？兩者服務不同問題：個股頁支援可解釋研究，異常頁展示資料工程與模型工作流。
 - 公開倉庫如何維持可信度？只追蹤重現與理解所需的程式、測試、公開範例資料與文件；執行產物與私密資料一律排除。
+## Research Snapshot
+
+Each stock detail can produce two offline exports from the exact research context currently shown in the dashboard:
+
+- **JSON** is a machine-readable contract for inspection, automation, or future comparison.
+- **Printable HTML** is a self-contained report that can be opened or printed without the dashboard.
+
+Every export includes a `snapshot_id`, market `as_of_date`, capture timestamp, source label, data-quality warnings, derived evidence, change summary, peer context, and an SHA-256 fingerprint of the normalised OHLCV input. The `snapshot_id` is calculated from canonical research content and deliberately excludes the capture timestamp, so equal inputs produce the same ID.
+
+Snapshots are generated in memory and downloaded by the browser. The application does not create a cloud record, account, database row, or shareable public URL. Raw OHLCV rows are not embedded in either export; the provenance fingerprint keeps the report small while making the exact input dataset auditable. A `sample data`, cache, or unavailable source is retained as an explicit warning in both formats.
