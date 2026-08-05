@@ -91,6 +91,9 @@ def test_app_frontend_contracts() -> None:
     assert "近期表現" in source
     assert "異常偵測展示" in source
     assert "模型評估指標" not in source
+    assert "技術評分" not in source
+    assert "render_health_score" not in source
+    assert "render_signal_cards" not in source
     assert "開始日期" in source
     assert "結束日期" in source
     assert "本地端執行與測試指令" not in source
@@ -182,6 +185,10 @@ def test_global_css_uses_selected_light_theme(monkeypatch) -> None:
     assert light_theme["background"] in css
     assert light_theme["text"] in css
     assert f"color-scheme: {light_theme['mode']}" in css
+    assert ".research-brief" in css
+    assert ".research-evidence--positive" in css
+    assert light_theme["success"] in css
+    assert light_theme["danger"] in css
     assert "@media (prefers-reduced-motion: reduce)" in css
 
 
