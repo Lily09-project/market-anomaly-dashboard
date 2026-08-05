@@ -85,3 +85,13 @@ def test_html_export_escapes_dynamic_asset_values() -> None:
     assert "<script>alert(1)</script>" not in document
     assert "sample" in document
     assert snapshot["snapshot_id"] in document
+
+def test_history_fingerprint_normalizes_missing_numeric_values() -> None:
+    missing_column = make_history().drop(columns="volume")
+    explicit_nulls = make_history()
+    explicit_nulls["volume"] = np.nan
+
+    missing_snapshot = build_research_snapshot(ASSET, missing_column, "sample", BRIEF, CAPTURED_AT)
+    null_snapshot = build_research_snapshot(ASSET, explicit_nulls, "sample", BRIEF, CAPTURED_AT)
+
+    assert missing_snapshot["provenance"]["history_fingerprint"] == null_snapshot["provenance"]["history_fingerprint"]
