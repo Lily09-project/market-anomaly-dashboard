@@ -66,3 +66,15 @@ def test_dashboard_pages_and_sidebar_interactions(monkeypatch) -> None:
     app.run(timeout=120)
     assert not app.exception
     assert app.date_input[0].value <= app.date_input[1].value
+
+
+def test_dashboard_exposes_research_snapshot_downloads(monkeypatch) -> None:
+    run_pipeline("sample")
+    monkeypatch.setattr(market_api, "requests", None)
+    monkeypatch.setattr(market_api, "yf", None)
+
+    app = AppTest.from_file(PROJECT_ROOT / "app.py")
+    app.run(timeout=120)
+
+    labels = {item.label for item in app.get("download_button")}
+    assert {"下載 JSON", "列印 HTML"} <= labels

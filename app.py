@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+from datetime import datetime, timezone
 import re
 from concurrent.futures import ThreadPoolExecutor
 
@@ -32,6 +33,7 @@ from src.market_api import (
     to_yfinance_symbol,
 )
 from src.research_brief import build_research_brief
+from src.research_snapshot import build_research_snapshot, render_snapshot_html, snapshot_to_json_bytes
 from src.theme import get_theme, validate_theme_contrast
 from src.utils import load_config
 
@@ -1952,6 +1954,36 @@ def render_research_brief(brief: dict) -> None:
         st.caption(peer_summary)
         st.dataframe(pd.DataFrame(peer_context.get("rows", [])), width="stretch", hide_index=True)
 
+
+def render_snapshot_actions(snapshot: dict) -> None:
+    as_of_date = str(snapshot.get("as_of_date", "")) or "unknown-date"
+    symbol = str(snapshot.get("asset", {}).get("symbol", "stock"))
+    safe_symbol = re.sub(r"[^A-Za-z0-9._-]+", "_", symbol).strip("._-") or "stock"
+    safe_date = re.sub(r"[^0-9-]+", "", as_of_date) or "unknown-date"
+    filename_base = f"research-snapshot-{safe_symbol}-{safe_date}"
+    snapshot_id = str(snapshot.get("snapshot_id", ""))
+
+    action_label, json_action, html_action = st.columns([1.2, 1, 1], gap="small", vertical_alignment="center")
+    with action_label:
+        st.caption(f"研究快照 · 截至 {as_of_date} · {snapshot_id[:12]}")
+    with json_action:
+        st.download_button(
+            "下載 JSON",
+            data=snapshot_to_json_bytes(snapshot),
+            file_name=f"{filename_base}.json",
+            mime="application/json",
+            key=f"{filename_base}-json",
+            use_container_width=True,
+        )
+    with html_action:
+        st.download_button(
+            "列印 HTML",
+            data=render_snapshot_html(snapshot),
+            file_name=f"{filename_base}.html",
+            mime="text/html",
+            key=f"{filename_base}-html",
+            use_container_width=True,
+        )
 def render_stock_detail(
     selected_symbol: str,
     theme: dict,
@@ -1978,6 +2010,18 @@ def render_stock_detail(
     safe_stock_label = escape_html(stock_label)
     safe_source = escape_html(source)
     css_class = change_class(change_pct)
+    snapshot = build_research_snapshot(
+        {
+            "symbol": selected_symbol,
+            "display_name": display_name,
+            "industry": peer_industry,
+            "currency": str(latest.get("currency", "")),
+        },
+        history,
+        source,
+        brief,
+        datetime.now(timezone.utc),
+    )
 
     st.header("個股分析")
     st.markdown(
@@ -2000,6 +2044,8 @@ def render_stock_detail(
         """,
         unsafe_allow_html=True,
     )
+
+    render_snapshot_actions(snapshot)
 
     render_research_brief(brief)
     render_performance_cards(analysis)
