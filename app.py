@@ -343,6 +343,15 @@ def inject_global_css(theme: dict) -> None:
             --ui-space-4: 1rem;
             --ui-space-6: 1.5rem;
             --ui-space-8: 2rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 2rem;
+            --space-8: 3rem;
+            --ui-raised: color-mix(in srgb, {theme["card"]} 92%, {theme["text"]});
+            --ui-accent-muted: color-mix(in srgb, {theme["accent"]} 14%, transparent);
+            --ui-data-font: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
             --ui-radius: 6px;
         }}
 
@@ -1575,6 +1584,334 @@ def inject_global_css(theme: dict) -> None:
                 grid-template-columns: 64px 1fr 40px;
             }}
         }}
+
+        /* Research terminal visual system */
+        .research-shell {{
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(260px, 0.62fr);
+            align-items: end;
+            gap: var(--space-6);
+            margin: 0 0 var(--space-6);
+            padding: var(--space-4) 0 var(--space-6);
+            border-top: 2px solid {theme["accent"]};
+            border-bottom: 1px solid {theme["border"]};
+        }}
+
+        .research-shell .page-header-copy {{
+            padding-top: var(--space-2);
+        }}
+
+        .research-shell h1 {{
+            font-size: 2.6rem !important;
+            font-weight: 800 !important;
+            line-height: 1.06 !important;
+        }}
+
+        .research-shell .page-date {{
+            max-width: 54rem;
+            margin-top: var(--space-3);
+            color: {theme["muted_text"]};
+        }}
+
+        .data-rail {{
+            display: flex;
+            align-items: stretch;
+            justify-content: flex-end;
+            gap: var(--space-2);
+            min-width: 0;
+            padding-left: var(--space-4);
+            border-left: 1px solid {theme["border"]};
+        }}
+
+        .data-rail .status-pill {{
+            align-self: stretch;
+            justify-content: flex-start;
+            min-height: 44px;
+            padding: 0.55rem 0.75rem;
+            background: {theme["surface"]};
+            border: 1px solid {theme["border"]};
+            border-left: 3px solid {theme["border"]};
+            font-variant-numeric: tabular-nums;
+        }}
+
+        .data-rail .status-pill.live {{
+            border-left-color: {theme["success"]};
+            color: {theme["text"]};
+        }}
+
+        .market-grid {{
+            gap: var(--space-4);
+            margin-bottom: var(--space-6);
+        }}
+
+        .market-card {{
+            min-height: 152px;
+            padding: 1.15rem 1.2rem 1.1rem 1.35rem;
+            border-left: 3px solid {theme["accent"]};
+        }}
+
+        .market-card::before {{
+            display: none;
+        }}
+
+        .market-card .price-text,
+        .watch-card .price-text,
+        .metric-value,
+        [data-testid="stMetricValue"] {{
+            font-family: var(--ui-data-font);
+            font-variant-numeric: tabular-nums;
+        }}
+
+        .market-card .price-text {{
+            font-size: 1.72rem;
+        }}
+
+        .market-card .positive,
+        .market-card .negative,
+        .watch-card .positive,
+        .watch-card .negative {{
+            display: inline-flex;
+            align-items: center;
+            min-height: 1.55rem;
+            margin-top: var(--space-2);
+            padding: 0.05rem 0;
+            font-family: var(--ui-data-font);
+            font-size: 0.95rem;
+        }}
+
+        .watch-card {{
+            min-height: 292px;
+            padding: 1.3rem 1.35rem;
+            border-top: 0;
+            border-left: 3px solid {theme["border"]};
+        }}
+
+        .watch-card::before {{
+            inset: auto 0 0 0;
+            height: 1px;
+            background: {theme["border"]};
+            opacity: 1;
+        }}
+
+        .watch-card:hover {{
+            border-left-color: {theme["accent"]};
+        }}
+
+        .card-spacer {{
+            padding-bottom: var(--space-4);
+        }}
+
+        .metric-row {{
+            column-gap: var(--space-6);
+            row-gap: var(--space-3);
+            margin-top: var(--space-4);
+        }}
+
+        .metric-label {{
+            font-size: 0.88rem;
+            font-weight: 700;
+        }}
+
+        .metric-value {{
+            font-size: 1.04rem;
+            line-height: 1.35;
+        }}
+
+        .instrument-workspace {{
+            position: relative;
+            margin-top: var(--space-3);
+            padding: 1.45rem 1.5rem;
+            border-top: 2px solid {theme["accent"]};
+            background: {theme["card"]};
+        }}
+
+        .instrument-workspace .detail-header {{
+            gap: var(--space-6);
+        }}
+
+        .instrument-workspace .detail-title {{
+            font-size: 2.25rem;
+            line-height: 1.12;
+        }}
+
+        .instrument-workspace .price-text {{
+            margin-top: var(--space-4);
+            font-size: 2.4rem;
+            font-family: var(--ui-data-font);
+            font-variant-numeric: tabular-nums;
+        }}
+
+        .instrument-workspace .detail-tag-group {{
+            max-width: 30rem;
+            gap: var(--space-2);
+        }}
+
+        .research-brief {{
+            margin: var(--space-8) 0 var(--space-4);
+            padding: var(--space-4) 0 0.25rem;
+            border-top-width: 2px;
+        }}
+
+        .research-quality {{
+            display: grid;
+            grid-template-columns: minmax(9rem, 1fr) repeat(2, auto);
+            column-gap: var(--space-4);
+            align-items: center;
+            padding-bottom: var(--space-4);
+        }}
+
+        .evidence-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: var(--space-3);
+            margin-bottom: var(--space-6);
+        }}
+
+        .research-evidence {{
+            min-height: 216px;
+            padding: 1.15rem;
+            display: flex;
+            flex-direction: column;
+        }}
+
+        .research-evidence-headline {{
+            font-size: 1.08rem;
+            line-height: 1.42;
+        }}
+
+        .research-evidence-metrics {{
+            margin-top: auto;
+            padding-top: var(--space-3);
+            border-top: 1px solid {theme["border"]};
+            font-family: var(--ui-data-font);
+            font-size: 0.82rem;
+        }}
+
+        .stock-section-title {{
+            margin-top: var(--space-8);
+            margin-bottom: var(--space-3);
+            font-size: 1.3rem;
+        }}
+
+        .stPlotlyChart {{
+            margin: var(--space-3) 0 var(--space-6);
+            border-top: 2px solid {theme["border"]};
+        }}
+
+        div[data-testid="stDataFrame"] {{
+            margin-bottom: var(--space-6);
+        }}
+
+        @media (max-width: 1024px) {{
+            .research-shell {{
+                grid-template-columns: 1fr;
+                gap: var(--space-4);
+            }}
+
+            .data-rail {{
+                justify-content: flex-start;
+                padding: var(--space-3) 0 0;
+                border-top: 1px solid {theme["border"]};
+                border-left: 0;
+            }}
+
+            .market-grid,
+            .evidence-grid {{
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }}
+
+            .research-quality {{
+                grid-template-columns: 1fr 1fr;
+                row-gap: var(--space-2);
+            }}
+
+            .research-quality strong {{
+                grid-column: 1 / -1;
+            }}
+        }}
+
+        @media (max-width: 760px) {{
+            [data-testid="stSidebar"] {{
+                position: fixed !important;
+                inset: 0 auto 0 0;
+                z-index: 1200 !important;
+                width: min(86vw, 320px) !important;
+                max-width: 320px !important;
+                overflow-y: auto;
+                box-shadow: {theme["hover_shadow"]};
+            }}
+
+            .block-container {{
+                padding-top: 4.5rem;
+                padding-bottom: var(--space-6);
+            }}
+
+            .research-shell {{
+                margin-bottom: var(--space-4);
+                padding-top: var(--space-3);
+            }}
+
+            .research-shell h1 {{
+                font-size: 2rem !important;
+                line-height: 1.12 !important;
+            }}
+
+            .data-rail {{
+                display: block;
+            }}
+
+            .data-rail .status-pill {{
+                width: 100%;
+            }}
+
+            .market-grid,
+            .evidence-grid {{
+                grid-template-columns: minmax(0, 1fr);
+                gap: var(--space-3);
+            }}
+
+            .market-card {{
+                min-height: 142px;
+            }}
+
+            .watch-card {{
+                min-height: 0;
+                padding: 1.15rem;
+            }}
+
+            .metric-row {{
+                column-gap: var(--space-4);
+            }}
+
+            .instrument-workspace {{
+                padding: 1.2rem;
+            }}
+
+            .instrument-workspace .detail-header {{
+                display: block;
+            }}
+
+            .instrument-workspace .detail-title {{
+                font-size: 1.75rem;
+            }}
+
+            .instrument-workspace .price-text {{
+                font-size: 1.92rem;
+            }}
+
+            .instrument-workspace .detail-tag-group {{
+                justify-content: flex-start;
+                margin-top: var(--space-4);
+            }}
+
+            .research-quality {{
+                grid-template-columns: 1fr;
+            }}
+
+            .research-evidence {{
+                min-height: 0;
+            }}
+        }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -1924,24 +2261,26 @@ def render_research_brief(brief: dict) -> None:
     st.markdown('<h3 class="stock-section-title">證據矩陣</h3>', unsafe_allow_html=True)
     evidence = list(brief.get("evidence", []))
     if evidence:
-        evidence_columns = st.columns(len(evidence))
-        for column, item in zip(evidence_columns, evidence):
+        evidence_items = []
+        for item in evidence:
             state = str(item.get("state", "unavailable"))
             state_class = state if state in {"positive", "neutral", "risk", "unavailable"} else "unavailable"
-            metrics = " · ".join(escape_html(metric) for metric in item.get("metrics", [])) or "資料不足"
-            with column:
-                st.markdown(
-                    f'''
-                    <article class="research-evidence research-evidence--{state_class}">
-                        <div class="metric-label">{escape_html(item.get("label", ""))}</div>
-                        <div class="research-evidence-headline">{escape_html(item.get("headline", ""))}</div>
-                        <div class="card-subtitle">{escape_html(item.get("detail", ""))}</div>
-                        <div class="research-evidence-metrics">{metrics}</div>
-                    </article>
-                    ''',
-                    unsafe_allow_html=True,
-                )
-
+            metrics = " | ".join(escape_html(metric) for metric in item.get("metrics", [])) or "資料不足"
+            evidence_items.append(
+                f'''
+                <article class="research-evidence research-evidence--{state_class}" role="listitem">
+                    <div class="metric-label">{escape_html(item.get("label", ""))}</div>
+                    <div class="research-evidence-headline">{escape_html(item.get("headline", ""))}</div>
+                    <div class="card-subtitle">{escape_html(item.get("detail", ""))}</div>
+                    <div class="research-evidence-metrics">{metrics}</div>
+                </article>
+                '''
+            )
+        evidence_markup = "".join(item.strip() for item in evidence_items)
+        st.markdown(
+            f'<div class="evidence-grid" role="list">{evidence_markup}</div>',
+            unsafe_allow_html=True,
+        )
     st.markdown('<h3 class="stock-section-title">本期變化</h3>', unsafe_allow_html=True)
     st.dataframe(pd.DataFrame(brief.get("changes", {}).get("rows", [])), width="stretch", hide_index=True)
 
@@ -2026,7 +2365,7 @@ def render_stock_detail(
     st.header("個股分析")
     st.markdown(
         f"""
-        <div class="section-card">
+        <div class="section-card instrument-workspace">
             <div class="detail-header">
                 <div class="detail-header-copy">
                     <div class="card-title detail-title">{safe_stock_label}</div>
@@ -2105,12 +2444,12 @@ def render_page_header(title: str, subtitle: str, status_text: str, status_live:
     st.markdown(
         f"""
         <a class="skip-link" href="#main-content">跳到主要內容</a>
-        <div class="dashboard-topline">
+        <div class="dashboard-topline research-shell">
             <div class="page-header-copy" id="main-content" tabindex="-1">
                 <h1>{safe_title}</h1>
                 <div class="page-date help-text">{pd.Timestamp.today().strftime('%Y年%m月%d日')} · {safe_subtitle}</div>
             </div>
-            <div class="status-group">
+            <div class="status-group data-rail">
                 <span class="{status_class}" role="status" aria-live="polite">{safe_status}</span>
             </div>
         </div>
@@ -2149,7 +2488,7 @@ def render_stock_analysis_page(theme: dict) -> None:
         with st.form("custom_stock_form", clear_on_submit=False):
             custom_stock_symbol = st.text_input(
                 "自訂股票代號",
-                placeholder="例如 2881、00919、TSLA、SPY…",
+                placeholder="例如 2881、TSLA、SPY",
                 help="台股可輸入 4 到 6 碼，系統會自動轉為 yfinance 的 .TW 格式。",
                 key="custom_stock_symbol_input",
                 autocomplete="off",
@@ -2348,7 +2687,7 @@ def main() -> None:
         return
 
     cfg = load_config()
-    st.set_page_config(page_title="股票分析與追蹤 Dashboard", layout="wide")
+    st.set_page_config(page_title="股票分析與追蹤 Dashboard", layout="wide", initial_sidebar_state="collapsed")
 
     context_theme_type = st.context.theme.get("type") if hasattr(st.context, "theme") else None
     theme_name = resolve_dashboard_theme_name(cfg, context_theme_type)

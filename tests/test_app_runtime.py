@@ -34,6 +34,9 @@ def test_dashboard_pages_and_sidebar_interactions(monkeypatch) -> None:
     assert any("研究摘要" in item.value for item in app.markdown)
     assert any("資料可信度" in item.value for item in app.markdown)
     assert any("sample data" in item.value for item in app.markdown)
+    assert any("research-shell" in item.value for item in app.markdown)
+    assert any("instrument-workspace" in item.value for item in app.markdown)
+    assert any("evidence-grid" in item.value for item in app.markdown)
 
     app.text_input[0].set_value("<script>")
     app.button[0].click()
