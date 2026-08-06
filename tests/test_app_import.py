@@ -98,8 +98,14 @@ def test_app_frontend_contracts() -> None:
     assert "結束日期" in source
     assert "本地端執行與測試指令" not in source
     assert "@media (max-width: 760px)" in source
+    assert "@media (max-width: 1024px)" in source
     assert "@media (prefers-reduced-motion: reduce)" in source
     assert ":focus-visible" in source
+    assert "font-variant-numeric: tabular-nums" in source
+    assert 'initial_sidebar_state="collapsed"' in source
+    assert 'placeholder="例如 2881、TSLA、SPY"' in source
+    assert 'width: min(86vw, 320px)' in source
+    assert 'evidence_markup = "".join(item.strip() for item in evidence_items)' in source
     assert "filter_start_date" in source
     assert "filter_end_date" in source
     assert "card-spacer" in source
@@ -187,6 +193,11 @@ def test_global_css_uses_selected_light_theme(monkeypatch) -> None:
     assert f"color-scheme: {light_theme['mode']}" in css
     assert ".research-brief" in css
     assert ".research-evidence--positive" in css
+    assert "--space-6" in css
+    assert ".research-shell" in css
+    assert ".data-rail" in css
+    assert ".instrument-workspace" in css
+    assert ".evidence-grid" in css
     assert light_theme["success"] in css
     assert light_theme["danger"] in css
     assert "@media (prefers-reduced-motion: reduce)" in css
