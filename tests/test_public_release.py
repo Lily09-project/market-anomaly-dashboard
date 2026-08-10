@@ -1,0 +1,50 @@
+from __future__ import annotations
+
+from src.utils import project_path
+
+
+def test_runtime_and_development_dependencies_are_separated() -> None:
+    runtime = project_path("requirements.txt").read_text(encoding="utf-8")
+    development = project_path("requirements-dev.txt").read_text(encoding="utf-8")
+
+    assert "pytest" not in runtime
+    assert "bandit" not in runtime
+    assert "pip-audit" not in runtime
+    assert "-r requirements.txt" in development
+    assert "pytest" in development
+    assert "bandit" in development
+    assert "pip-audit" in development
+
+
+def test_container_runs_unprivileged_with_healthcheck() -> None:
+    dockerfile = project_path("Dockerfile").read_text(encoding="utf-8")
+
+    assert "USER appuser" in dockerfile
+    assert "HEALTHCHECK" in dockerfile
+    assert "/_stcore/health" in dockerfile
+    assert "--server.address=0.0.0.0" in dockerfile
+    assert "python run_all.py --mode sample" in dockerfile
+    assert "chown -R appuser:appuser /app" in dockerfile
+    assert dockerfile.index("python run_all.py --mode sample") < dockerfile.index("USER appuser")
+    assert dockerfile.index("USER appuser") < dockerfile.index("CMD [\"streamlit\"")
+
+
+def test_public_user_and_deployment_guides_cover_product_states() -> None:
+    user_guide = project_path("docs/user-guide.md").read_text(encoding="utf-8")
+    deployment = project_path("docs/deployment.md").read_text(encoding="utf-8")
+    launcher = project_path("run_project.bat").read_text(encoding="utf-8")
+
+    for state in ("LIVE", "部分連線", "DEMO", "離線"):
+        assert state in user_guide
+    assert "不寫入磁碟" in user_guide
+    assert "unprivileged" in deployment
+    assert "requirements-dev.txt" in launcher
+
+def test_github_actions_builds_and_health_checks_container() -> None:
+    workflow = project_path(".github/workflows/security.yml").read_text(encoding="utf-8")
+
+    assert "container-build:" in workflow
+    assert "docker build --tag research-trust-workbench:ci ." in workflow
+    assert "docker run --detach --publish 8765:8765" in workflow
+    assert "http://127.0.0.1:8765/_stcore/health" in workflow
+    assert "docker logs" in workflow

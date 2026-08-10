@@ -80,6 +80,15 @@ def _asset_payload(asset: Mapping[str, Any]) -> dict[str, str]:
     }
 
 
+def calculate_snapshot_id(snapshot: Mapping[str, Any]) -> str:
+    """Calculate the deterministic ID for snapshot research content."""
+    content = {
+        str(key): value
+        for key, value in snapshot.items()
+        if key not in {"snapshot_id", "captured_at_utc"}
+    }
+    return hashlib.sha256(_canonical_json(content)).hexdigest()
+
 def build_research_snapshot(
     asset: Mapping[str, Any],
     history: pd.DataFrame,
@@ -115,7 +124,7 @@ def build_research_snapshot(
         },
         "limitations": list(LIMITATIONS),
     }
-    snapshot_id = hashlib.sha256(_canonical_json(content)).hexdigest()
+    snapshot_id = calculate_snapshot_id(content)
     return {**content, "snapshot_id": snapshot_id, "captured_at_utc": _utc_timestamp(captured_at)}
 
 

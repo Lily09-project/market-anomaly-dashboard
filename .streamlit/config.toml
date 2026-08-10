@@ -41,3 +41,4 @@ textColor = "#111827"
 headless = true
 port = 8765
 address = "localhost"
+maxUploadSize = 2

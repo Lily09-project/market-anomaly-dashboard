@@ -66,6 +66,7 @@ def test_build_watchlist_cards_keeps_stock_metadata(monkeypatch) -> None:
     cards = build_watchlist_cards(["2330.TW"])
     assert cards[0]["display"] == "台積電"
     assert cards[0]["category"] == "台股上市"
+    assert cards[0]["latest_date"] == "2026-02-11"
     assert requested_periods == ["1y"]
 
 
@@ -127,6 +128,7 @@ def test_yfinance_history_fallback_or_live_shape() -> None:
     assert len(history) > 0
     summary = summarize_history(history)
     assert "latest_close" in summary
+    assert summary["latest_date"] == pd.Timestamp(history["date"].max()).date().isoformat()
 
 
 def test_yfinance_download_noise_is_suppressed(monkeypatch, capsys) -> None:
@@ -161,6 +163,19 @@ def test_yfinance_none_response_uses_sample_fallback(monkeypatch) -> None:
     assert not history.empty
     assert {"date", "open", "high", "low", "close", "volume", "symbol"} <= set(history.columns)
 
+
+def test_sample_fallback_is_deterministic_and_symbol_specific(monkeypatch) -> None:
+    from src import market_api
+
+    monkeypatch.setattr(market_api, "yf", None)
+    first = market_api.fetch_yfinance_histories(["AAPL", "NVDA"], period="1mo")
+    second = market_api.fetch_yfinance_histories(["AAPL", "NVDA"], period="1mo")
+
+    aapl_first = first["AAPL"][0]["close"].tolist()
+    nvda_first = first["NVDA"][0]["close"].tolist()
+    assert aapl_first == second["AAPL"][0]["close"].tolist()
+    assert nvda_first == second["NVDA"][0]["close"].tolist()
+    assert aapl_first != nvda_first
 
 def test_twse_dataset_unwraps_list_payload(monkeypatch, tmp_path) -> None:
     from src import market_api

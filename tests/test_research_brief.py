@@ -36,7 +36,7 @@ def test_short_history_marks_technical_evidence_unavailable() -> None:
     brief = build_research_brief(make_history(rows=12), "sample", [], "半導體")
 
     assert brief["data_quality"]["state"] == "caution"
-    assert any("sample data" in warning for warning in brief["data_quality"]["warnings"])
+    assert any("DEMO 示範資料" in warning for warning in brief["data_quality"]["warnings"])
     assert all(item["state"] == "unavailable" for item in brief["evidence"])
 
 

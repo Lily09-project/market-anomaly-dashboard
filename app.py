@@ -32,8 +32,21 @@ from src.market_api import (
     lookup_twse_company,
     to_yfinance_symbol,
 )
+from src.product_state import (
+    PAGE_ROUTES,
+    build_data_service_state,
+    page_label_from_route,
+    route_from_page_label,
+)
 from src.research_brief import build_research_brief
 from src.research_snapshot import build_research_snapshot, render_snapshot_html, snapshot_to_json_bytes
+from src.snapshot_compare import (
+    SnapshotValidationError,
+    compare_snapshots,
+    comparison_to_json_bytes,
+    parse_snapshot_bytes,
+)
+
 from src.theme import get_theme, validate_theme_contrast
 from src.utils import load_config
 
@@ -228,17 +241,9 @@ def resolve_dashboard_theme_name(cfg: dict, context_theme_type: str | None = Non
 
 
 def build_stock_source_status(company_source: str, cards: list[dict]) -> tuple[str, bool]:
-    has_yfinance = any(card.get("source") == "yfinance" for card in cards)
-    has_twse = company_source == "twse_openapi"
-    if has_yfinance and has_twse:
-        return "外部資料已連線：yfinance / TWSE", True
-    if has_yfinance:
-        return "yfinance 已連線 · TWSE 使用快取或內建清單", True
-    if has_twse:
-        return "TWSE 已連線 · 行情使用 sample data", False
-    return "目前使用本機快取 / sample data", False
-
-
+    state = build_data_service_state(company_source, cards)
+    as_of_text = f' · 資料截至 {state["as_of_date"]}' if state["as_of_date"] else ""
+    return f'{state["label"]}{as_of_text}', bool(state["is_live"])
 def get_industry_options(stock_universe: list[dict[str, str]]) -> list[str]:
     categories = sorted({item.get("category", "").strip() for item in stock_universe if item.get("category", "").strip()})
     return ["全部"] + categories
@@ -1607,7 +1612,71 @@ def inject_global_css(theme: dict) -> None:
             line-height: 1.06 !important;
         }}
 
-        .research-shell .page-date {{
+        .st-key-active_page {{
+            max-width: 760px;
+            margin: 0 0 var(--space-6);
+        }}
+
+        .st-key-active_page [role="radiogroup"] {{
+            display: grid !important;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: var(--space-2) !important;
+            padding: var(--space-2);
+            background: {theme["surface"]};
+            border: 1px solid {theme["border"]};
+            border-radius: var(--ui-radius);
+        }}
+
+        .st-key-active_page label {{
+            min-width: 0;
+            min-height: 44px;
+            justify-content: center;
+            padding: 0.55rem 0.7rem !important;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            color: {theme["muted_text"]} !important;
+            font-weight: 750 !important;
+            text-align: center;
+            transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+        }}
+
+        .st-key-active_page label > div:first-child {{
+            display: none;
+        }}
+
+        .st-key-active_page label input {{
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }}
+
+        .st-key-active_page label:hover {{
+            background: {theme["card"]};
+            border-color: {theme["border"]};
+            color: {theme["text"]} !important;
+        }}
+
+        .st-key-active_page label:has(input:checked) {{
+            background: {theme["card"]};
+            border-color: {theme["accent"]};
+            color: {theme["text"]} !important;
+        }}
+
+        .product-footer {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-2) var(--space-6);
+            margin-top: var(--space-8);
+            padding: var(--space-4) 0 var(--space-6);
+            border-top: 1px solid {theme["border"]};
+            color: {theme["muted_text"]};
+            font-size: 0.86rem;
+            line-height: 1.55;
+        }}
+
+        .product-footer strong {{
+            color: {theme["text"]};
+        }}        .research-shell .page-date {{
             max-width: 54rem;
             margin-top: var(--space-3);
             color: {theme["muted_text"]};
@@ -1846,7 +1915,28 @@ def inject_global_css(theme: dict) -> None:
                 padding-bottom: var(--space-6);
             }}
 
-            .research-shell {{
+            .st-key-active_page {{
+                max-width: none;
+                margin-bottom: var(--space-4);
+            }}
+
+            .st-key-active_page [role="radiogroup"] {{
+                gap: var(--space-1) !important;
+                padding: var(--space-1);
+            }}
+
+            .st-key-active_page label {{
+                min-height: 68px;
+                padding: 0.45rem 0.25rem !important;
+                font-size: 0.78rem !important;
+                line-height: 1.2;
+                white-space: normal;
+            }}
+
+            .product-footer {{
+                display: grid;
+                gap: var(--space-2);
+            }}            .research-shell {{
                 margin-bottom: var(--space-4);
                 padding-top: var(--space-3);
             }}
@@ -2010,6 +2100,15 @@ def change_class(value: float) -> str:
     return "neutral"
 
 
+def market_source_label(source: object) -> str:
+    return {
+        "sample": "DEMO",
+        "yfinance": "LIVE",
+        "twse_openapi": "LIVE",
+        "local_cache": "快取",
+        "unavailable": "離線",
+    }.get(str(source or "").strip(), str(source or "未知"))
+
 def render_market_cards(theme: dict, cards: list[dict] | None = None) -> None:
     st.header("大盤指數")
     cards = cards if cards is not None else build_market_cards()
@@ -2021,14 +2120,14 @@ def render_market_cards(theme: dict, cards: list[dict] | None = None) -> None:
         css_class = change_class(card["change_pct"])
         card_label = escape_html(stock_display_pair(card["symbol"], card["display"]))
         card_region = escape_html(card["region"])
-        card_source = escape_html(card["source"])
+        card_source = escape_html(market_source_label(card["source"]))
         card_items.append(
             f"""
             <div class="market-card">
                 <div class="market-card-header">
                     <div class="market-card-copy">
                         <div class="card-title">{card_label}</div>
-                        <div class="card-subtitle">{card_region} · {card_source}</div>
+                        <div class="card-subtitle">{card_region} · {card_source} · 截至 {escape_html(card.get("latest_date", "未知"))}</div>
                     </div>
                     <span class="tag market-symbol-tag">{card_region}</span>
                 </div>
@@ -2057,7 +2156,7 @@ def render_popular_stocks(cards: list[dict], industry: str = "全部") -> None:
         css_class = change_class(card["change_pct"])
         card_label = escape_html(stock_display_pair(card["symbol"], card["display"]))
         card_category = escape_html(card["category"])
-        card_source = escape_html(card["source"])
+        card_source = escape_html(market_source_label(card["source"]))
         with columns[index % 2]:
             st.markdown(
                 f"""
@@ -2065,7 +2164,7 @@ def render_popular_stocks(cards: list[dict], industry: str = "全部") -> None:
                     <div class="watch-card-header">
                         <div class="watch-card-copy">
                             <div class="card-title">{card_label}</div>
-                            <div class="card-subtitle">{card_category}</div>
+                            <div class="card-subtitle">{card_category} · 截至 {escape_html(card.get("latest_date", "未知"))}</div>
                         </div>
                         <span class="tag">{card_source}</span>
                     </div>
@@ -2226,7 +2325,7 @@ def render_research_brief(brief: dict) -> None:
     quality_label = RESEARCH_STATE_LABELS.get(quality_state, RESEARCH_STATE_LABELS["unavailable"])
     quality_class = "research-status--ready" if quality_state == "ready" else "research-status--caution"
     source_name = str(quality.get("source", "unavailable"))
-    source_label = {"sample": "sample data", "yfinance": "yfinance"}.get(source_name, source_name)
+    source_label = market_source_label(source_name)
     warnings = [str(item) for item in quality.get("warnings", []) if str(item).strip()]
     warnings_markup = "".join(f"<li>{escape_html(item)}</li>" for item in warnings)
     warning_section = (
@@ -2347,7 +2446,7 @@ def render_stock_detail(
     display_name = lookup_stock_display_name(selected_symbol, company_df)
     stock_label = stock_display_pair(selected_symbol, display_name)
     safe_stock_label = escape_html(stock_label)
-    safe_source = escape_html(source)
+    safe_source = escape_html(market_source_label(source))
     css_class = change_class(change_pct)
     snapshot = build_research_snapshot(
         {
@@ -2458,12 +2557,70 @@ def render_page_header(title: str, subtitle: str, status_text: str, status_live:
     )
 
 
+def render_data_service_notice(state: dict) -> None:
+    mode = str(state.get("mode", "unavailable"))
+    message = str(state.get("message", ""))
+    if mode == "demo":
+        st.warning(f"DEMO 示範模式：{message}")
+    elif mode == "mixed":
+        st.warning(f"部分資料已降級：{message}")
+    elif mode == "unavailable":
+        st.error(message)
+    else:
+        st.caption(message)
+
+    status_column, action_column = st.columns([5, 1], gap="medium", vertical_alignment="center")
+    with status_column:
+        as_of_date = state.get("as_of_date")
+        if as_of_date:
+            st.caption(f"最新可用市場資料日：{as_of_date} · 行情快取最長 15 分鐘")
+        else:
+            st.caption("目前沒有可確認的市場資料日期。")
+    with action_column:
+        if st.button(
+            "重新取得資料",
+            key="refresh_market_data",
+            help="清除本機快取並重新連線 yfinance 與 TWSE。",
+            use_container_width=True,
+        ):
+            st.cache_data.clear()
+            st.session_state["market_refresh_completed"] = True
+            st.rerun()
+    if st.session_state.pop("market_refresh_completed", False):
+        st.success("已重新連線資料來源並更新畫面。")
+
+
+def render_product_footer() -> None:
+    st.markdown(
+        """
+        <footer class="product-footer">
+            <strong>Research Trust Workbench</strong>
+            <span>資料來源：yfinance、TWSE OpenAPI</span>
+            <span>不建立帳號、不儲存上傳快照、不提供投資建議</span>
+        </footer>
+        """,
+        unsafe_allow_html=True,
+    )
+
 def render_stock_analysis_page(theme: dict) -> None:
     with st.spinner("正在載入 TWSE 上市公司清單..."):
         company_profiles, company_source, esg_data, esg_source = cached_load_twse_sources()
     stock_universe = get_stock_universe(company_profiles)
     company_reference = company_profiles if not company_profiles.empty else esg_data
     industry_options = get_industry_options(stock_universe)
+
+    if not st.session_state.get("stock_query_initialized"):
+        query_symbol = str(st.query_params.get("symbol", "")).strip()
+        resolved_query_symbol = resolve_custom_stock_symbol(query_symbol) if query_symbol else None
+        if resolved_query_symbol:
+            universe_lookup = stock_symbol_lookup(stock_universe)
+            if resolved_query_symbol in universe_lookup:
+                st.session_state["industry_filter"] = "全部"
+                st.session_state["stock_analysis_symbol"] = resolved_query_symbol
+                st.session_state["active_custom_stock_symbol"] = ""
+            else:
+                st.session_state["active_custom_stock_symbol"] = resolved_query_symbol
+        st.session_state["stock_query_initialized"] = True
 
     with st.sidebar:
         selected_industry = st.selectbox("產業篩選", industry_options, key="industry_filter")
@@ -2511,6 +2668,7 @@ def render_stock_analysis_page(theme: dict) -> None:
             st.warning(custom_symbol_error)
         active_custom_symbol = st.session_state.get("active_custom_stock_symbol", "")
         selected_yf_symbol = active_custom_symbol or selected_stock_symbol
+        st.query_params["symbol"] = selected_yf_symbol
         all_stock_lookup = stock_symbol_lookup(stock_universe)
         selected_item = all_stock_lookup.get(selected_yf_symbol) or all_stock_lookup.get(to_yfinance_symbol(selected_yf_symbol))
         selected_stock_label = stock_display_pair(
@@ -2529,13 +2687,15 @@ def render_stock_analysis_page(theme: dict) -> None:
         peer_symbols, peer_industry = get_peer_comparison_symbols(stock_universe, selected_yf_symbol, selected_industry)
         peer_cards = cached_watchlist_cards(tuple(peer_symbols))
 
+    data_service_state = build_data_service_state(company_source, market_cards + popular_cards)
     source_status, source_is_live = build_stock_source_status(company_source, market_cards + popular_cards)
     render_page_header(
-        "股票分析儀表板",
-        "台股 / 美股追蹤 · 技術分析 · 熱門股",
+        "股票研究工作台",
+        "台股 / 美股追蹤 · 技術證據 · 同業脈絡",
         source_status,
         source_is_live,
     )
+    render_data_service_notice(data_service_state)
     st.markdown(
         '<div class="notice"><b>免責聲明：</b>本專案僅供資料分析與技術展示，不構成任何投資建議。</div>',
         unsafe_allow_html=True,
@@ -2558,6 +2718,187 @@ def render_stock_analysis_page(theme: dict) -> None:
     render_peer_comparison(peer_cards, selected_yf_symbol, peer_industry, theme)
 
 
+def render_snapshot_comparison_page(theme: dict) -> None:
+    render_page_header(
+        "\u7814\u7a76\u5feb\u7167\u6bd4\u8f03",
+        "\u96e2\u7dda\u5dee\u7570\u6aa2\u8996 \u00b7 \u8cc7\u6599\u4f86\u6e90 \u00b7 \u8b49\u64da\u72c0\u614b",
+        "SHA-256 \u5b8c\u6574\u6027\u9a57\u8b49",
+        status_live=True,
+    )
+    st.markdown(
+        '<div class="notice"><b>\u6bd4\u8f03\u908a\u754c\uff1a</b>'
+        "\u50c5\u6bd4\u8f03\u672c\u5c08\u6848\u532f\u51fa\u7684\u540c\u4e00\u80a1\u7968\u5feb\u7167\uff0c"
+        "\u4e0a\u50b3\u5167\u5bb9\u4e0d\u6703\u5beb\u5165\u78c1\u789f\u6216\u50b3\u9001\u5230\u5916\u90e8\u670d\u52d9\u3002</div>",
+        unsafe_allow_html=True,
+    )
+
+    baseline_column, current_column = st.columns(2, gap="large")
+    with baseline_column:
+        baseline_file = st.file_uploader(
+            "\u57fa\u6e96\u5feb\u7167",
+            type=["json"],
+            key="baseline_snapshot_upload",
+            help="\u8f03\u65e9\u7684 Research Snapshot JSON\u3002",
+        )
+    with current_column:
+        current_file = st.file_uploader(
+            "\u76ee\u524d\u5feb\u7167",
+            type=["json"],
+            key="current_snapshot_upload",
+            help="\u8f03\u65b0\u7684 Research Snapshot JSON\u3002",
+        )
+    st.caption(
+        "\u6bcf\u500b\u6a94\u6848\u4e0a\u9650 2 MiB\uff1b"
+        "\u50c5\u63a5\u53d7 schema 1.0\u3001UTF-8 \u7de8\u78bc\u4e14\u901a\u904e snapshot_id \u9a57\u8b49\u7684 JSON\u3002"
+    )
+
+    parsed_snapshots: dict[str, dict] = {}
+    upload_errors = False
+    for key, label, uploaded_file in (
+        ("baseline", "\u57fa\u6e96\u5feb\u7167", baseline_file),
+        ("current", "\u76ee\u524d\u5feb\u7167", current_file),
+    ):
+        if uploaded_file is None:
+            continue
+        try:
+            parsed_snapshots[key] = parse_snapshot_bytes(uploaded_file.getvalue())
+        except SnapshotValidationError as exc:
+            upload_errors = True
+            st.error(f"{label}\uff1a{exc}")
+
+    if upload_errors:
+        return
+    if len(parsed_snapshots) < 2:
+        st.info("\u7b49\u5f85\u5169\u4efd\u5feb\u7167\u4ee5\u5efa\u7acb\u53ef\u9a57\u8b49\u7684\u5dee\u7570\u3002")
+        return
+
+    try:
+        comparison = compare_snapshots(
+            parsed_snapshots["baseline"],
+            parsed_snapshots["current"],
+        )
+    except SnapshotValidationError as exc:
+        st.error(str(exc))
+        return
+
+    asset = comparison["asset"]
+    chronology = comparison["chronology"]
+    symbol_label = stock_display_pair(asset["symbol"], asset.get("display_name"))
+    elapsed_days = int(chronology["elapsed_days"])
+    if chronology["state"] == "reverse":
+        st.warning(
+            "\u76ee\u524d\u5feb\u7167\u7684\u5e02\u5834\u65e5\u671f\u65e9\u65bc\u57fa\u6e96\u5feb\u7167\uff1b"
+            "\u5dee\u7570\u4ecd\u4fdd\u7559\u4e0a\u50b3\u9806\u5e8f\u986f\u793a\u3002"
+        )
+
+    st.header("\u6bd4\u8f03\u6458\u8981")
+    summary_values = (
+        ("\u80a1\u7968", symbol_label),
+        (
+            "\u671f\u9593",
+            f'{comparison["baseline_as_of_date"]} \u2192 {comparison["current_as_of_date"]}',
+        ),
+        ("\u76f8\u9694\u65e5\u6578", f"{elapsed_days:+d} \u65e5"),
+        (
+            "\u8b49\u64da\u8b8a\u66f4",
+            f'{comparison["changed_evidence_count"]} / {len(comparison["evidence"])}',
+        ),
+    )
+    for column, (label, value) in zip(
+        st.columns(4, gap="medium"),
+        summary_values,
+    ):
+        column.markdown(
+            f'<div class="info-card">'
+            f'<div class="metric-label">{escape_html(label)}</div>'
+            f'<div class="metric-value" style="font-size:1.12rem;">{escape_html(value)}</div>'
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.subheader("\u8cc7\u6599\u4f86\u6e90\u8207\u5b8c\u6574\u6027")
+    provenance_rows = []
+    for row in comparison["provenance"]:
+        baseline_value = row.get("baseline")
+        current_value = row.get("current")
+        if row["field"] == "\u6b77\u53f2\u8cc7\u6599\u6307\u7d0b":
+            baseline_text = str(baseline_value or "")
+            current_text = str(current_value or "")
+            baseline_value = (
+                f"{baseline_text[:12]}\u2026{baseline_text[-8:]}"
+                if len(baseline_text) > 24
+                else baseline_text
+            )
+            current_value = (
+                f"{current_text[:12]}\u2026{current_text[-8:]}"
+                if len(current_text) > 24
+                else current_text
+            )
+        provenance_rows.append(
+            {
+                "\u6b04\u4f4d": row["field"],
+                "\u57fa\u6e96\u5feb\u7167": baseline_value,
+                "\u76ee\u524d\u5feb\u7167": current_value,
+                "\u72c0\u614b": "\u5df2\u8b8a\u66f4" if row["changed"] else "\u76f8\u540c",
+            }
+        )
+    st.dataframe(pd.DataFrame(provenance_rows), width="stretch", hide_index=True)
+
+    warning_groups = (
+        ("\u57fa\u6e96\u5feb\u7167", comparison.get("baseline_warnings", [])),
+        ("\u76ee\u524d\u5feb\u7167", comparison.get("current_warnings", [])),
+    )
+    for label, warnings in warning_groups:
+        if warnings:
+            st.warning(f"{label}\uff1a" + "\uff1b".join(str(item) for item in warnings))
+
+    st.subheader("\u8b49\u64da\u72c0\u614b\u5dee\u7570")
+    evidence_rows = []
+    for row in comparison["evidence"]:
+        baseline_state = RESEARCH_STATE_LABELS.get(
+            row["baseline_state"],
+            row["baseline_state"],
+        )
+        current_state = RESEARCH_STATE_LABELS.get(
+            row["current_state"],
+            row["current_state"],
+        )
+        baseline_metrics = " \u00b7 ".join(row["baseline_metrics"])
+        current_metrics = " \u00b7 ".join(row["current_metrics"])
+        evidence_rows.append(
+            {
+                "\u8b49\u64da": row["label"],
+                "\u57fa\u6e96\u72c0\u614b": baseline_state,
+                "\u76ee\u524d\u72c0\u614b": current_state,
+                "\u57fa\u6e96\u89c0\u5bdf": " | ".join(
+                    item
+                    for item in (row["baseline_headline"], baseline_metrics)
+                    if item
+                ),
+                "\u76ee\u524d\u89c0\u5bdf": " | ".join(
+                    item
+                    for item in (row["current_headline"], current_metrics)
+                    if item
+                ),
+                "\u8b8a\u66f4": "\u6709" if row["changed"] else "\u7121",
+            }
+        )
+    st.dataframe(pd.DataFrame(evidence_rows), width="stretch", hide_index=True)
+
+    safe_symbol = re.sub(r"[^A-Za-z0-9._-]+", "_", asset["symbol"])
+    st.download_button(
+        "\u4e0b\u8f09\u6bd4\u8f03 JSON",
+        data=comparison_to_json_bytes(comparison),
+        file_name=(
+            f"research-comparison-{safe_symbol}-"
+            f'{comparison["baseline_as_of_date"]}-'
+            f'{comparison["current_as_of_date"]}.json'
+        ),
+        mime="application/json",
+        key="download_snapshot_comparison",
+    )
+
+
 def render_anomaly_page(cfg: dict, theme: dict) -> None:
     render_page_header(
         "異常偵測展示",
@@ -2572,12 +2913,12 @@ def render_anomaly_page(cfg: dict, theme: dict) -> None:
         data, error = load_dashboard_data(cfg)
     if error:
         st.error(error)
-        st.info("API 讀取失敗或尚未產生資料時，系統可切換為 sample data。")
+        st.info("API 讀取失敗或尚未產生資料時，系統可切換為 DEMO 示範資料。")
         return
 
     symbols = get_available_symbols(data)
     if not symbols:
-        st.error("目前資料不足，請先產生 sample data。")
+        st.error("目前資料不足，請先產生 DEMO 示範資料。")
         return
     stock_lookup = stock_symbol_lookup(get_stock_universe())
 
@@ -2698,15 +3039,31 @@ def main() -> None:
         theme = get_theme(fallback_name)
     inject_global_css(theme)
 
-    with st.sidebar:
-        st.header("導覽")
-        page_name = st.radio("頁面", ["股票分析", "異常偵測展示"], key="active_page")
-        st.header("篩選條件")
+    if "active_page" not in st.session_state:
+        st.session_state["active_page"] = page_label_from_route(
+            st.query_params.get("page", "stocks")
+        )
+    page_name = st.radio(
+        "主功能",
+        list(PAGE_ROUTES.values()),
+        horizontal=True,
+        key="active_page",
+        label_visibility="collapsed",
+    )
+    st.query_params["page"] = route_from_page_label(page_name)
 
-    if page_name == "股票分析":
+    if page_name != "快照比較":
+        with st.sidebar:
+            st.header("篩選條件")
+
+    if page_name == "\u80a1\u7968\u5206\u6790":
         render_stock_analysis_page(theme)
+    elif page_name == "\u5feb\u7167\u6bd4\u8f03":
+        render_snapshot_comparison_page(theme)
     else:
         render_anomaly_page(cfg, theme)
+
+    render_product_footer()
 
 
 if __name__ == "__main__":

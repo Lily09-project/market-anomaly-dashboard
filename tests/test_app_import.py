@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import tomllib
 from datetime import date
 
 import pandas as pd
@@ -59,7 +60,7 @@ def test_app_frontend_contracts() -> None:
 
     source = project_path("app.py").read_text(encoding="utf-8")
     assert "選擇深色主題" not in source
-    assert "股票分析儀表板" in source
+    assert "股票研究工作台" in source
     assert "股票分析代號" in source
     assert "產業篩選" in source
     assert "熱門股" in source
@@ -126,6 +127,12 @@ def test_app_frontend_contracts() -> None:
     assert "linear-gradient" not in source
     assert "transform: translateY(-1px)" not in source
     assert "市場代表標的，依最新可用資料更新。" in source
+    assert "PAGE_ROUTES" in source
+    assert 'st.query_params["page"]' in source
+    assert 'st.query_params["symbol"]' in source
+    assert ".st-key-active_page label > div:first-child" in source
+    assert "render_data_service_notice" in source
+    assert "render_product_footer" in source
 
     readme = project_path("README.md").read_text(encoding="utf-8")
     assert "可解釋研究工作台" in readme
@@ -133,6 +140,8 @@ def test_app_frontend_contracts() -> None:
     assert "不提供買賣建議" in readme
     assert "研究工作流" in readme
     assert "docs/research-workflow.md" in readme
+    assert "docs/user-guide.md" in readme
+    assert "docs/deployment.md" in readme
 
     assert app.stock_display_pair("2330.TW", "台積電") == "2330.TW · 台積電"
     lookup = app.stock_symbol_lookup(app.get_stock_universe())
@@ -158,18 +167,20 @@ def test_custom_symbol_validation_and_theme_resolution() -> None:
     assert app.resolve_dashboard_theme_name(cfg, "light") == "paper_orange"
     assert app.resolve_dashboard_theme_name(cfg, None) == "charcoal_orange"
     assert app.hex_to_rgba("#FDB338", 0.08) == "rgba(253, 179, 56, 0.080)"
+    assert app.market_source_label("sample") == "DEMO"
+    assert app.market_source_label("yfinance") == "LIVE"
 
     status, is_live = app.build_stock_source_status(
         "twse_openapi",
         [{"source": "yfinance"}],
     )
-    assert status == "外部資料已連線：yfinance / TWSE"
+    assert status == "LIVE"
     assert is_live is True
     fallback_status, fallback_live = app.build_stock_source_status(
         "unavailable",
         [{"source": "sample"}],
     )
-    assert "sample data" in fallback_status
+    assert fallback_status == "DEMO"
     assert fallback_live is False
 
 
@@ -205,12 +216,14 @@ def test_global_css_uses_selected_light_theme(monkeypatch) -> None:
 
 def test_streamlit_config_defines_both_native_themes() -> None:
     config_source = project_path(".streamlit/config.toml").read_text(encoding="utf-8")
+    config = tomllib.loads(config_source)
     assert '[theme]' in config_source
     assert '[theme.dark]' in config_source
     assert '[theme.light]' in config_source
     assert '[theme.dark.sidebar]' in config_source
     assert '[theme.light.sidebar]' in config_source
     assert 'port = 8765' in config_source
+    assert config["server"]["maxUploadSize"] == 2
 
 
 def test_date_clamp_handles_out_of_range_values() -> None:
@@ -252,3 +265,17 @@ def test_research_snapshot_public_contract() -> None:
     assert "offline" in readme.lower()
     assert "raw OHLCV" in workflow
     assert "does not predict" in workflow
+
+
+def test_snapshot_comparison_public_contract() -> None:
+    source = project_path("app.py").read_text(encoding="utf-8")
+
+    assert "\\u5feb\\u7167\\u6bd4\\u8f03" in source
+    assert "render_snapshot_comparison_page" in source
+    assert "\\u57fa\\u6e96\\u5feb\\u7167" in source
+    assert "\\u76ee\\u524d\\u5feb\\u7167" in source
+
+    readme = project_path("README.md").read_text(encoding="utf-8")
+    workflow = project_path("docs/research-workflow.md").read_text(encoding="utf-8")
+    assert "Snapshot Comparison" in readme
+    assert "integrity verification" in workflow

@@ -27,7 +27,7 @@ jobs:
           cache: "pip"
 
       - name: Install project and audit tools
-        run: python -m pip install -r requirements.txt pip-audit bandit pytest-github-actions-annotate-failures
+        run: python -m pip install -r requirements-dev.txt pytest-github-actions-annotate-failures
 
       - name: Audit dependencies
         run: python -m pip_audit --progress-spinner off
@@ -37,3 +37,27 @@ jobs:
 
       - name: Run tests
         run: python -m pytest -q -p no:cacheprovider
+  container-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Build production image
+        run: docker build --tag research-trust-workbench:ci .
+
+      - name: Verify container health
+        shell: bash
+        run: |
+          container_id="$(docker run --detach --publish 8765:8765 research-trust-workbench:ci)"
+          trap 'docker rm --force "$container_id" >/dev/null 2>&1 || true' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8765/_stcore/health | grep --quiet ok; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs "$container_id"
+          exit 1

@@ -35,7 +35,7 @@ def assert_bat_files_are_valid() -> None:
         'set "STREAMLIT_PORT=8765"',
         'set "VENV_PY=%CD%\\.venv\\Scripts\\python.exe"',
         '"%PY_EXE%" %PY_ARGS% -m venv .venv',
-        '"%VENV_PY%" -m pip install -r requirements.txt',
+        '"%VENV_PY%" -m pip install -r requirements-dev.txt',
         '"%VENV_PY%" -m pytest -q',
         '"%VENV_PY%" -m streamlit run app.py',
         "--server.port %STREAMLIT_PORT%",
