@@ -45,12 +45,20 @@ Streamlit research workspace
 
 | 資料 | 主要來源 | 用途 | 無法取得時的行為 |
 | --- | --- | --- | --- |
-| 台股與美股歷史行情 | yfinance | OHLCV、K 線、均線、RSI、成交量 | 使用明確標示的 `sample data` |
+| 台股與美股歷史行情 | yfinance | OHLCV、K 線、均線、RSI、成交量 | 使用明確標示為非真實行情的 `DEMO` 示範資料 |
 | 上市公司清單與公司脈絡 | TWSE OpenAPI | 台股名稱、類別與公司資料 | 保留可用本機資料，並顯示來源狀態 |
 | 異常偵測展示資料 | 本機資料流程 | 特徵工程、Z-score 與 Isolation Forest 展示 | 使用可重現的 sample pipeline |
 
 資料狀態會分為 `ready`、`caution`、`unavailable`。技術證據只在至少有 20 筆有效收盤價時才產生；若資料不足、欄位缺失或使用 fallback，頁面會直接揭露限制。
 
+## 消費者版行為
+
+- 頂部主導覽保持可見，頁面與股票代號會同步到網址，可直接分享特定研究畫面。
+- 每張行情卡都顯示 `LIVE` 或 `DEMO` 與資料截止日；示範資料明確標示為非真實行情。
+- 「重新取得資料」會清除 15 分鐘行情快取並重新連線資料來源。
+- 服務不需要帳號、不儲存上傳快照，也不收集個人投資組合。
+
+操作與資料狀態說明見 [docs/user-guide.md](docs/user-guide.md)，容器部署與公開環境要求見 [docs/deployment.md](docs/deployment.md)。
 ## 系統架構
 
 - `src/market_api.py`：市場資料、TWSE 來源、fallback 與技術指標。
@@ -60,6 +68,18 @@ Streamlit research workspace
 - `tests/`：資料流程、前端契約、Streamlit runtime、模型 fallback 與安全行為測試。
 
 ### Local Run
+
+Production dependencies:
+
+```powershell
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+Development and verification dependencies:
+
+```powershell
+.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+```
 
 ```powershell
 .venv\Scripts\python.exe run_all.py --mode sample
@@ -82,12 +102,12 @@ Windows 可直接執行 `run_project.bat`；它會印出專案路徑與固定網
 
 本專案不提供買賣建議、目標價、保證式評分或報酬預測。技術指標僅描述可觀察的價格與成交量狀態，不能代表因果關係或未來結果。
 
-yfinance 與 TWSE OpenAPI 的可用性、交易時段與資料延遲會影響畫面內容；當系統使用 fallback 或 sample data 時，研究摘要會顯示警示。此專案不包含帳號、投組同步、資料庫或 LLM 生成投資結論，刻意將範圍限制在可驗證的資料產品能力。
+yfinance 與 TWSE OpenAPI 的可用性、交易時段與資料延遲會影響畫面內容；當系統使用 fallback 或 DEMO 示範資料時，研究摘要會顯示警示。此專案不包含帳號、投組同步、資料庫或 LLM 生成投資結論，刻意將範圍限制在可驗證的資料產品能力。
 
 ## Interview Talking Points
 
 - 為什麼不以單一「健診分數」作為核心？因為資料品質、證據來源與不確定性比看似精準的分數更能支持負責任的研究。
-- 如何處理外部來源失敗？以來源狀態與 sample fallback 保持可操作，同時把降級狀態公開顯示。
+- 如何處理外部來源失敗？以來源狀態與 DEMO fallback 保持可操作，同時把降級狀態公開顯示。
 - 如何讓分析邏輯可驗證？研究摘要拆成沒有 UI 或網路副作用的純模組，使用 deterministic pandas fixtures 測試短資料、缺欄位、fallback 與同業不足情境。
 - 為什麼保留異常偵測頁但不混在個股頁？兩者服務不同問題：個股頁支援可解釋研究，異常頁展示資料工程與模型工作流。
 - 公開倉庫如何維持可信度？只追蹤重現與理解所需的程式、測試、公開範例資料與文件；執行產物與私密資料一律排除。
@@ -100,4 +120,12 @@ Each stock detail can produce two offline exports from the exact research contex
 
 Every export includes a `snapshot_id`, market `as_of_date`, capture timestamp, source label, data-quality warnings, derived evidence, change summary, peer context, and an SHA-256 fingerprint of the normalised OHLCV input. The `snapshot_id` is calculated from canonical research content and deliberately excludes the capture timestamp, so equal inputs produce the same ID.
 
-Snapshots are generated in memory and downloaded by the browser. The application does not create a cloud record, account, database row, or shareable public URL. Raw OHLCV rows are not embedded in either export; the provenance fingerprint keeps the report small while making the exact input dataset auditable. A `sample data`, cache, or unavailable source is retained as an explicit warning in both formats.
+
+## Snapshot Comparison
+
+The dashboard includes an offline comparison workspace for two Research Snapshot JSON exports from the same stock. It verifies the schema, required fields, SHA-256 snapshot_id, and history fingerprint before presenting any difference.
+
+The result joins evidence by stable identifiers rather than list position, shows provenance changes and chronology, and can be downloaded as a machine-readable comparison JSON. Uploads remain in memory and are not written to disk or sent to an external service. Cross-symbol, oversized, malformed, unsupported, and tampered snapshots are rejected explicitly.
+
+This workflow demonstrates a practical research-data contract: an observation can be exported, independently verified, compared later, and traced back to a normalised input fingerprint without embedding raw OHLCV history.
+Snapshots are generated in memory and downloaded by the browser. The application does not create a cloud record, account, database row, or shareable public URL. Raw OHLCV rows are not embedded in either export; the provenance fingerprint keeps the report small while making the exact input dataset auditable. A demo, cache, or unavailable source is retained as an explicit warning in both formats.

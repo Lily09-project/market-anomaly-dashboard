@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import logging
 from dataclasses import dataclass
@@ -241,7 +242,8 @@ def _fallback_history(symbol: str, rows: int = 90) -> pd.DataFrame:
                 }
             )
 
-    rng = np.random.default_rng(42)
+    seed = int.from_bytes(hashlib.sha256(symbol.encode("utf-8")).digest()[:8], "big")
+    rng = np.random.default_rng(seed)
     dates = pd.bdate_range(end=pd.Timestamp.today().normalize(), periods=rows)
     price = 100 + np.cumsum(rng.normal(0.2, 1.8, size=len(dates)))
     price = np.maximum(price, 10)
@@ -341,6 +343,7 @@ def summarize_history(history: pd.DataFrame) -> dict[str, Any]:
     change = float(latest["close"] - previous["close"])
     change_pct = float(change / previous["close"] * 100) if previous["close"] else 0.0
     return {
+        "latest_date": pd.Timestamp(latest["date"]).date().isoformat(),
         "latest_close": float(latest["close"]),
         "change": change,
         "change_pct": change_pct,

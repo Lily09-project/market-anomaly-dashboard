@@ -23,6 +23,11 @@ if not exist "requirements.txt" (
     exit /b 1
 )
 
+if not exist "requirements-dev.txt" (
+    echo [ERROR] requirements-dev.txt not found. Put this BAT file in the project root.
+    pause
+    exit /b 1
+)
 if not exist "run_all.py" (
     echo [ERROR] run_all.py not found. Put this BAT file in the project root.
     pause
@@ -125,9 +130,9 @@ if errorlevel 1 (
     exit /b 1
 )
 
-"%VENV_PY%" -m pip install -r requirements.txt
+"%VENV_PY%" -m pip install -r requirements-dev.txt
 if errorlevel 1 (
-    echo [ERROR] Failed to install requirements.txt.
+    echo [ERROR] Failed to install requirements-dev.txt.
     pause
     exit /b 1
 )

@@ -58,7 +58,7 @@ def _normalize_history(history: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
 
 def _source_warning(source: str) -> str | None:
     if source == "sample":
-        return "目前使用 sample data，並非即時行情。"
+        return "目前使用 DEMO 示範資料，所有價格與漲跌均非真實行情。"
     if source in {"", "unavailable", "unknown"}:
         return "資料來源目前不可確認，請先檢查來源狀態。"
     if source != "yfinance":
