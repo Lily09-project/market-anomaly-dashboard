@@ -230,3 +230,66 @@ def test_twse_governance_lookup_aliases() -> None:
     assert info["twse_name"] == "台積電"
     assert info["governance_level"] == "前 5%"
     assert TWSE_GOVERNANCE_URL.endswith("t187ap46_L_20")
+
+
+def test_rsi_handles_one_sided_and_flat_windows() -> None:
+    dates = pd.bdate_range("2026-01-02", periods=30)
+    cases = [
+        (range(100, 130), 100.0),
+        (range(130, 100, -1), 0.0),
+        ([100.0] * 30, 50.0),
+    ]
+
+    for closes, expected in cases:
+        close = pd.Series(closes, dtype="float64")
+        history = pd.DataFrame(
+            {
+                "date": dates,
+                "open": close,
+                "high": close + 1,
+                "low": close - 1,
+                "close": close,
+                "volume": 1_000_000,
+            }
+        )
+
+        result = compute_technical_indicators(history)
+
+        assert result.iloc[-1]["rsi14"] == expected
+
+def test_batch_fallback_reads_sample_file_once(monkeypatch, tmp_path) -> None:
+    from src import market_api
+
+    sample_path = tmp_path / "market_anomaly_results.csv"
+    rows = []
+    for symbol in ("2330", "2454"):
+        for date in pd.bdate_range("2026-01-02", periods=5):
+            rows.append(
+                {
+                    "date": date,
+                    "symbol": symbol,
+                    "open": 100.0,
+                    "high": 102.0,
+                    "low": 99.0,
+                    "close": 101.0,
+                    "volume": 1_000_000,
+                }
+            )
+    pd.DataFrame(rows).to_csv(sample_path, index=False)
+
+    read_count = 0
+    original_read_csv = pd.read_csv
+
+    def counting_read_csv(*args, **kwargs):
+        nonlocal read_count
+        read_count += 1
+        return original_read_csv(*args, **kwargs)
+
+    monkeypatch.setattr(market_api, "yf", None)
+    monkeypatch.setattr(market_api, "project_path", lambda *_parts: sample_path)
+    monkeypatch.setattr(market_api.pd, "read_csv", counting_read_csv)
+
+    histories = fetch_yfinance_histories(["2330.TW", "2454.TW", "AAPL"], period="1mo")
+
+    assert set(histories) == {"2330.TW", "2454.TW", "AAPL"}
+    assert read_count == 1

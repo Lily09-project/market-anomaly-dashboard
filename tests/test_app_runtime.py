@@ -19,14 +19,18 @@ def button_by_label(app: AppTest, label: str):
     return next(button for button in app.button if button.label == label)
 
 
+@pytest.fixture(scope="module")
+def sample_pipeline_outputs() -> None:
+    run_pipeline("sample")
+
+
 @pytest.fixture(autouse=True)
 def cleanup_streamlit_test_directory():
     yield
     app_test_module.TMP_DIR.cleanup()
 
 
-def test_dashboard_pages_and_sidebar_interactions(monkeypatch) -> None:
-    run_pipeline("sample")
+def test_dashboard_pages_and_sidebar_interactions(monkeypatch, sample_pipeline_outputs: None) -> None:
     monkeypatch.setattr(market_api, "requests", None)
     monkeypatch.setattr(market_api, "yf", None)
 
@@ -84,8 +88,7 @@ def test_dashboard_pages_and_sidebar_interactions(monkeypatch) -> None:
     assert app.date_input[0].value <= app.date_input[1].value
 
 
-def test_dashboard_exposes_research_snapshot_downloads(monkeypatch) -> None:
-    run_pipeline("sample")
+def test_dashboard_exposes_research_snapshot_downloads(monkeypatch, sample_pipeline_outputs: None) -> None:
     monkeypatch.setattr(market_api, "requests", None)
     monkeypatch.setattr(market_api, "yf", None)
 

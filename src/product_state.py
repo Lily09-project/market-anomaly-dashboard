@@ -6,6 +6,7 @@ from typing import Any
 
 PAGE_ROUTES = {
     "stocks": "股票分析",
+    "radar": "市場雷達",
     "anomalies": "異常偵測展示",
     "compare": "快照比較",
 }

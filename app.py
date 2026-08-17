@@ -26,12 +26,14 @@ from src.market_api import (
     compute_technical_indicators,
     fetch_twse_company_profiles,
     fetch_twse_esg_legal_data,
+    fetch_yfinance_histories,
     fetch_yfinance_history,
     format_number,
     get_stock_universe,
     lookup_twse_company,
     to_yfinance_symbol,
 )
+from src.market_radar_page import render_market_radar
 from src.product_state import (
     PAGE_ROUTES,
     build_data_service_state,
@@ -128,6 +130,10 @@ if st is not None and st.runtime.exists():
     def cached_stock_history(symbol: str, period: str = "1y") -> tuple[pd.DataFrame, str]:
         return fetch_yfinance_history(symbol, period=period)
 
+    @st.cache_data(ttl=900, show_spinner=False)
+    def cached_radar_histories(symbols: tuple[str, ...]) -> dict[str, tuple[pd.DataFrame, str]]:
+        return fetch_yfinance_histories(list(symbols), period="1y")
+
 else:
     cached_load_twse_sources = _load_twse_sources
     cached_market_cards = build_market_cards
@@ -138,6 +144,9 @@ else:
     def cached_stock_history(symbol: str, period: str = "1y") -> tuple[pd.DataFrame, str]:
         return fetch_yfinance_history(symbol, period=period)
 
+
+    def cached_radar_histories(symbols: tuple[str, ...]) -> dict[str, tuple[pd.DataFrame, str]]:
+        return fetch_yfinance_histories(list(symbols), period="1y")
 
 def require_streamlit() -> bool:
     if st is None:
@@ -1619,7 +1628,7 @@ def inject_global_css(theme: dict) -> None:
 
         .st-key-active_page [role="radiogroup"] {{
             display: grid !important;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: var(--space-2) !important;
             padding: var(--space-2);
             background: {theme["surface"]};
@@ -1921,13 +1930,14 @@ def inject_global_css(theme: dict) -> None:
             }}
 
             .st-key-active_page [role="radiogroup"] {{
+                grid-template-columns: repeat(2, minmax(0, 1fr));
                 gap: var(--space-1) !important;
                 padding: var(--space-1);
             }}
 
             .st-key-active_page label {{
-                min-height: 68px;
-                padding: 0.45rem 0.25rem !important;
+                min-height: 52px;
+                padding: 0.45rem 0.4rem !important;
                 font-size: 0.78rem !important;
                 line-height: 1.2;
                 white-space: normal;
@@ -2602,6 +2612,16 @@ def render_product_footer() -> None:
         unsafe_allow_html=True,
     )
 
+def render_market_radar_page(theme: dict) -> None:
+    del theme
+    render_market_radar(
+        cached_load_twse_sources,
+        cached_radar_histories,
+        render_page_header,
+        render_data_service_notice,
+    )
+
+
 def render_stock_analysis_page(theme: dict) -> None:
     with st.spinner("正在載入 TWSE 上市公司清單..."):
         company_profiles, company_source, esg_data, esg_source = cached_load_twse_sources()
@@ -3058,6 +3078,8 @@ def main() -> None:
 
     if page_name == "\u80a1\u7968\u5206\u6790":
         render_stock_analysis_page(theme)
+    elif page_name == "市場雷達":
+        render_market_radar_page(theme)
     elif page_name == "\u5feb\u7167\u6bd4\u8f03":
         render_snapshot_comparison_page(theme)
     else:

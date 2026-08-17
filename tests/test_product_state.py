@@ -11,6 +11,7 @@ from src.product_state import (
 def test_page_routes_are_stable_and_reversible() -> None:
     assert PAGE_ROUTES == {
         "stocks": "股票分析",
+        "radar": "市場雷達",
         "anomalies": "異常偵測展示",
         "compare": "快照比較",
     }

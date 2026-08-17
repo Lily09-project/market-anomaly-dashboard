@@ -1,131 +1,337 @@
 # Research Trust Workbench
 
-> A stock-analysis workspace that makes data quality and technical evidence visible before asking anyone to interpret a chart.
+繁體中文名稱：**股票研究可信度工作台**
 
-繁體中文名稱：股票研究可信度工作台。這是一個以台股與美股為範圍的資料產品 side project；異常偵測保留在獨立頁面，作為資料工程與模型流程展示。
+一個面向台股與美股的可解釋股票研究儀表板。它把行情資料、技術證據、資料來源狀態、同業脈絡與可驗證的研究快照放在同一個工作流中，讓使用者在解讀圖表之前，先知道資料是否可用、證據來自哪裡，以及目前結論有哪些限制。
 
-## Why This Exists
+本專案不是股價預測器，也不是交易訊號產生器。它刻意不提供買賣建議、目標價或報酬保證，而是展示一個可實際使用、可測試、可維護的金融資料產品應如何處理資料品質、外部 API 失敗、可解釋分析與安全公開。
 
-多數金融儀表板能快速畫出價格與技術指標，卻很少先回答四個必要問題：資料是否可用、結論依據是什麼、哪些訊號正在改變、以及這支股票和可比較標的相比位於何處。
+## 專案定位與可解釋研究工作台
 
-本專案把這四件事放到個股頁的第一層。它不是股價預測器，也不把單一分數包裝成投資建議；它是一個讓研究者能追溯資料狀態與技術證據的工作台。
+許多金融儀表板可以畫出價格和指標，但研究流程通常還缺少幾個重要問題：
 
-## 可解釋研究工作台
+- 目前資料是即時行情、快取資料，還是示範資料？
+- 最新可用交易日是哪一天？資料是否有缺欄位或觀測不足？
+- 技術判讀由哪些可追溯指標組成，而不是由一個無法解釋的分數決定？
+- 個股相對同業或候選標的處在什麼位置？
+- 研究結果能否離線保存、驗證並在稍後比較？
 
-選定個股後，頁面依序呈現：
+Research Trust Workbench 將這些問題設計成產品的一部分：資料狀態與限制會直接顯示在頁面上，分析邏輯與 UI 分離，外部服務失效時不會把示範資料偽裝成真實行情，匯出的研究快照也保留來源與完整性資訊。
 
-1. **資料可信度**：來源、最新可用交易日、觀測筆數、欄位覆蓋率與 fallback 警示。
-2. **證據矩陣**：趨勢、動能、量能、風險各自的狀態、數值與判讀理由。
-3. **本期變化**：收盤價、RSI、MA20 距離與 20 日波動率的近期變化。
-4. **同業脈絡**：以當日漲跌、52 週位置與量能倍率呈現相對排名；資料不足時直接標示無法比較。
+## 核心功能
 
-研究摘要由 [`src/research_brief.py`](src/research_brief.py) 產生。它是純函式，不讀寫檔案、不發送網路請求，也不依賴 Streamlit，因此能以固定資料直接測試。
+### 股票分析
 
-## 研究工作流
+股票分析是主要使用流程，支援熱門股票、自訂代號與台股／美股混合研究。
 
-```text
-Market history + company context
-            |
-            v
-Data quality checks and fallback state
-            |
-            v
-Explainable evidence: trend / momentum / participation / risk
-            |
-            v
-Change summary + peer context
-            |
-            v
-Streamlit research workspace
+- 大盤指數與熱門股總覽，股票代號與公司名稱會同時顯示。
+- 支援台股代號自動轉換，例如 `2330` 轉為 `2330.TW`。
+- 個股 K 線、移動平均線、成交量、RSI(14) 與近期變化。
+- 股票基本資料：市值、成交量、20 日均量、52 週高低點等可用欄位。
+- 四個可解釋證據面向：趨勢、動能、量能與風險／波動。
+- 近期價格、RSI、MA20 距離與 20 日波動率變化。
+- 產業同類比較，資料不足時直接顯示無法比較，不補造排名。
+- 匯出離線 Research Snapshot JSON 與可列印 HTML。
+
+### 可解釋市場雷達
+
+市場雷達是獨立的研究排序頁，不與異常偵測混在同一個畫面。它從熱門代表清單建立候選池，協助使用者整理研究優先順序；它不是全市場掃描器，也不是投資建議引擎。
+
+- 產業篩選：台股上市、ETF、美股及其他可用類別。
+- 四種透明研究配置：均衡研究、趨勢優先、動能量價、波動控制。
+- 最低證據分數與候選池規模控制。
+- 每個候選標的同時顯示代號、公司名稱、產業、資料來源與資料日期。
+- 排名卡呈現總分與四項分數，完整表格提供 RSI、量比、20 日波動率等細節。
+- 若同一批資料同時包含 LIVE 與 DEMO，只比較 LIVE 標的；全數離線時才以 DEMO 保留操作體驗。
+- 產業、研究配置、最低分數與候選池規模會同步到 URL，可重新整理或分享研究條件。
+
+市場雷達使用至少 60 個有效交易日計算長期均線與風險證據。資料不足、必要欄位缺失或指標非有限值的標的不會被包裝成假精準分數。
+
+### 異常偵測展示
+
+異常偵測保留為獨立頁面，服務的是資料工程與模型流程展示，而不是個股研究的核心判讀。
+
+- 市場價格趨勢與 20 日波動率。
+- Z-score 基準與 Isolation Forest 異常偵測結果。
+- 異常日期清單與模型結果展示。
+- 匯率趨勢與 USD/TWD 示範資料。
+- `pseudo-label` 評估流程，並清楚標示評估結果不代表投資績效。
+
+### Research Snapshot 與快照比較
+
+個股頁可以將目前畫面中的研究脈絡匯出成離線（offline）快照。快照包含：
+
+- `snapshot_id` 與資料日期。
+- 資料來源、來源狀態與資料品質警示。
+- 技術證據、近期變化與同業脈絡。
+- 正規化 OHLCV 輸入的 SHA-256 fingerprint。
+
+快照比較頁可以比較同一股票的兩份 schema `1.0` JSON：
+
+- 驗證 JSON 結構、必要欄位與檔案大小限制。
+- 重新計算並驗證 `snapshot_id` 與歷史資料 fingerprint。
+- 拒絕被竄改、跨股票、格式錯誤或不支援版本的快照。
+- 依穩定證據 ID 比較內容，而不是依清單位置比對。
+- 上傳資料只在記憶體中處理，不寫入伺服器，也不傳送到外部服務。
+
+## 研究工作流與使用流程
+
+```mermaid
+flowchart LR
+    A[選擇股票或研究頁] --> B{資料來源狀態}
+    B -->|LIVE| C[讀取 yfinance / TWSE]
+    B -->|部分連線| D[標示來源並逐卡檢查]
+    B -->|DEMO| E[使用可重現示範資料]
+    C --> F[正規化與資料品質檢查]
+    D --> F
+    E --> F
+    F --> G[技術指標與可解釋證據]
+    G --> H[股票分析 / 市場雷達]
+    H --> I[離線快照與比較]
 ```
 
-完整行為與狀態定義見 [docs/research-workflow.md](docs/research-workflow.md)。
+每個主要頁面都保留正常、載入、空資料、來源失敗與資料不足狀態。外部資料無法取得時，介面仍可操作，但會明確顯示 `DEMO` 或 `離線`，不會把 fallback 標成 `LIVE`。
 
-## 資料來源與降級
+## 資料來源與降級策略
 
-| 資料 | 主要來源 | 用途 | 無法取得時的行為 |
+| 資料 | 來源 | 用途 | 失敗時的行為 |
 | --- | --- | --- | --- |
-| 台股與美股歷史行情 | yfinance | OHLCV、K 線、均線、RSI、成交量 | 使用明確標示為非真實行情的 `DEMO` 示範資料 |
-| 上市公司清單與公司脈絡 | TWSE OpenAPI | 台股名稱、類別與公司資料 | 保留可用本機資料，並顯示來源狀態 |
-| 異常偵測展示資料 | 本機資料流程 | 特徵工程、Z-score 與 Isolation Forest 展示 | 使用可重現的 sample pipeline |
+| 台股與美股歷史行情 | [yfinance](https://github.com/ranaroussi/yfinance) | OHLCV、K 線、均線、RSI、成交量 | 使用明確標示為 `DEMO` 的本機 sample data |
+| 台股公司清單與分類 | [TWSE OpenAPI](https://openapi.twse.com.tw/) | 公司名稱、代號、產業與公司脈絡 | 使用可用快取或內建清單，並揭露來源狀態 |
+| TWSE 公司治理／ESG 法律資料 | TWSE OpenAPI `t187ap46_L_20` | 個股脈絡與展示資料 | 缺資料時保留可用個股分析，不偽造欄位 |
+| 異常偵測市場資料 | 本機 pipeline | 特徵工程、模型訓練與評估 | `sample` 模式產生可重現資料 |
+| 匯率資料 | 設定檔中的 API 或本機 sample | USD/TWD 趨勢展示 | 未設定 API 時使用 sample fallback |
 
-資料狀態會分為 `ready`、`caution`、`unavailable`。技術證據只在至少有 20 筆有效收盤價時才產生；若資料不足、欄位缺失或使用 fallback，頁面會直接揭露限制。
+畫面中的資料狀態有以下語意：
 
-## 消費者版行為
+| 顯示狀態 | 意義 |
+| --- | --- |
+| `LIVE` | 行情由 yfinance 取得，仍需檢查資料截至日期 |
+| `部分連線` | 同一批資料混有真實與示範行情，需逐卡查看來源 |
+| `DEMO` | 示範資料，價格與漲跌不可視為真實市場行情 |
+| `離線` | 目前沒有可用行情資料，應重新連線或稍後再試 |
 
-- 頂部主導覽保持可見，頁面與股票代號會同步到網址，可直接分享特定研究畫面。
-- 每張行情卡都顯示 `LIVE` 或 `DEMO` 與資料截止日；示範資料明確標示為非真實行情。
-- 「重新取得資料」會清除 15 分鐘行情快取並重新連線資料來源。
-- 服務不需要帳號、不儲存上傳快照，也不收集個人投資組合。
+行情快取最長 15 分鐘。交易休市、供應商限制、網路中斷或代號不存在，都可能讓最新資料日早於今天。股票研究摘要至少需要 20 筆有效收盤資料；市場雷達則要求至少 60 個有效交易日。
 
-操作與資料狀態說明見 [docs/user-guide.md](docs/user-guide.md)，容器部署與公開環境要求見 [docs/deployment.md](docs/deployment.md)。
+## 技術分析方法
+
+本專案使用透明的描述性技術證據，不使用黑箱模型產生股票建議。
+
+| 面向 | 主要證據 | 解讀方式 |
+| --- | --- | --- |
+| 趨勢 | Close、MA5、MA20、MA60 | 描述價格與均線結構的相對位置 |
+| 動能 | RSI(14) | 描述近期漲跌動能，不轉換成買賣指令 |
+| 量能 | 最新成交量與 20 日均量 | 判斷價格變化是否伴隨市場參與 |
+| 風險 | 20 日報酬波動率 | 描述近期波動，不等同於低風險保證 |
+
+市場雷達將四項因子轉為 35、70、100 等離散證據分數，再依公開配置加權。配置只改變研究排序，不改寫底層資料與因子計算。相同分數時以股票代號穩定排序，確保結果可重現。
+
 ## 系統架構
 
-- `src/market_api.py`：市場資料、TWSE 來源、fallback 與技術指標。
-- `src/research_brief.py`：可測試的資料可信度、證據、變化與同業脈絡邏輯。
-- `app.py`：Streamlit 介面、深淺主題、圖表與可及性樣式。
-- `run_all.py`：可重現的 sample data、前處理、特徵、模型評估與 smoke test 流程。
-- `tests/`：資料流程、前端契約、Streamlit runtime、模型 fallback 與安全行為測試。
+```text
+External providers
+  ├─ yfinance: historical market data
+  └─ TWSE OpenAPI: company metadata and public context
+              │
+              v
+src/market_api.py
+  ├─ provider requests and timeout handling
+  ├─ symbol normalization
+  ├─ source-aware fallback
+  └─ technical indicators
+              │
+              ├───────────────┐
+              v               v
+src/research_brief.py   src/market_screener.py
+  │                     │
+  ├─ evidence            ├─ radar factors
+  ├─ changes             ├─ scoring profiles
+  └─ peer context        └─ deterministic ranking
+              │               │
+              └───────┬───────┘
+                      v
+                 app.py
+          Streamlit pages and themes
+                      │
+              ┌───────┴────────┐
+              v                v
+      Research Snapshot   Snapshot Comparison
 
-### Local Run
-
-Production dependencies:
-
-```powershell
-.venv\Scripts\python.exe -m pip install -r requirements.txt
+Anomaly workflow is independently executed by run_all.py:
+fetch -> preprocess -> features -> Isolation Forest -> evaluation -> charts
 ```
 
-Development and verification dependencies:
+### 模組責任
+
+- `app.py`：Streamlit 入口、路由、頁面組裝、主題與全域 UI 樣式。
+- `src/market_api.py`：yfinance／TWSE 存取、代號轉換、timeout、fallback、快取支援與技術指標。
+- `src/research_brief.py`：股票研究摘要的純函式邏輯，不依賴 Streamlit 或網路。
+- `src/market_screener.py`：市場雷達的資料門檻、因子評分、研究配置與穩定排序。
+- `src/market_radar_page.py`：市場雷達控制項、候選池、表格與個股導覽。
+- `src/research_snapshot.py`：快照 schema、canonical content、fingerprint 與匯出資料。
+- `src/snapshot_compare.py`：快照驗證、內容比對、來源變化與比較結果。
+- `src/fetch_market_data.py`、`src/fetch_fx_data.py`：pipeline 外部資料抓取與欄位正規化。
+- `src/preprocess.py`、`src/features.py`：異常偵測資料清理與特徵工程。
+- `src/train_anomaly_model.py`、`src/evaluate.py`：模型訓練、pseudo-label 評估與圖表產生。
+- `run_all.py`：可重現的 sample／API pipeline 入口。
+- `tests/`：資料處理、模型、快照、UI contract、Streamlit runtime、fallback 與安全測試。
+
+## 頁面路由與可分享 URL
+
+| 頁面 | URL 範例 | 用途 |
+| --- | --- | --- |
+| 股票分析 | `/?page=stocks&symbol=2330.TW` | 個股研究與技術證據 |
+| 市場雷達 | `/?page=radar&industry=ETF&profile=defensive&min_score=65&pool_size=6` | 候選池排序與研究優先序 |
+| 異常偵測展示 | `/?page=anomalies` | 資料工程與模型流程展示 |
+| 快照比較 | `/?page=compare` | 離線驗證兩份研究快照 |
+
+URL 只保存頁面與研究篩選條件，不保存帳號、投資組合或伺服器端使用者資料。
+
+## 安裝與本機啟動
+
+### 環境需求
+
+- Python 3.12；專案主要依賴已在 CI 與本機驗證。
+- Windows 可使用 `run_project.bat` 一鍵建立或檢查 `.venv`。
+- Docker 可直接建置不依賴本機 Python 環境的 production image。
+
+### 手動安裝
 
 ```powershell
+cd "C:\path\to\market-anomaly-dashboard"
+py -3.12 -m venv .venv
+.venv\Scripts\python.exe -m pip install --upgrade pip
 .venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 ```
 
+### Windows 一鍵啟動
+
+```powershell
+.\run_project.bat
+```
+
+啟動器會：
+
+1. 切換到 BAT 所在的專案目錄。
+2. 印出實際專案路徑，避免從錯誤資料夾啟動。
+3. 建立或檢查 `.venv`，並安裝依賴。
+4. 執行 sample pipeline、smoke test 與 pytest。
+5. 使用固定 port `8765` 啟動 Streamlit。
+
+成功啟動後開啟：<http://localhost:8765>
+
+若 `8765` 已被使用，啟動器會停止並顯示目前 process ID，不會默默改用其他 port 造成連線混淆。
+
+### 手動執行
+
 ```powershell
 .venv\Scripts\python.exe run_all.py --mode sample
+.venv\Scripts\python.exe src\smoke_test.py
 .venv\Scripts\python.exe -m streamlit run app.py --server.port 8765
 ```
 
-Windows 可直接執行 `run_project.bat`；它會印出專案路徑與固定網址 `http://localhost:8765`。
+`sample` 模式適合離線展示與測試。`api` 模式會依 `config.yaml` 中的 `market_url` 與 `fx_url` 讀取外部資料；若 URL 未設定或請求失敗，pipeline 會清楚提示並使用 sample fallback。
 
-## 品質驗證
+## Docker 部署
 
-本專案將可靠性視為產品功能的一部分：
+Production image 使用 Python 3.12 slim、非 root 使用者 `appuser`、固定 port `8765`、health check 與關閉 Streamlit telemetry。
 
-- `pytest` 與 Streamlit `AppTest` 覆蓋資料流程與主要互動。
-- `run_all.py --mode sample` 會完成資料、特徵、模型、評估與 smoke test。
-- `Bandit` 掃描 Python 安全問題，`pip-audit` 檢查已知依賴漏洞。
-- GitHub Actions 在 push 與 pull request 執行安全檢查；Dependabot 追蹤 Python 與 Actions 更新。
-- `.gitignore` 排除憑證、原始資料、處理後資料、模型、快取、報表、日誌與本機環境。
+```powershell
+docker build -t research-trust-workbench .
+docker run --rm -p 8765:8765 research-trust-workbench
+```
 
-## 限制與不做的事
+健康檢查：
 
-本專案不提供買賣建議、目標價、保證式評分或報酬預測。技術指標僅描述可觀察的價格與成交量狀態，不能代表因果關係或未來結果。
+```powershell
+curl http://127.0.0.1:8765/_stcore/health
+```
 
-yfinance 與 TWSE OpenAPI 的可用性、交易時段與資料延遲會影響畫面內容；當系統使用 fallback 或 DEMO 示範資料時，研究摘要會顯示警示。此專案不包含帳號、投組同步、資料庫或 LLM 生成投資結論，刻意將範圍限制在可驗證的資料產品能力。
+預期回應為 `ok`。部署到公開環境時，請由平台終止 TLS、只允許必要的 outbound HTTPS、設定 request limits，並避免掛載使用者快照或其他個人資料儲存空間。詳細部署規範見 [`docs/deployment.md`](docs/deployment.md)。
 
-## Interview Talking Points
+## 測試與品質保證
 
-- 為什麼不以單一「健診分數」作為核心？因為資料品質、證據來源與不確定性比看似精準的分數更能支持負責任的研究。
-- 如何處理外部來源失敗？以來源狀態與 DEMO fallback 保持可操作，同時把降級狀態公開顯示。
-- 如何讓分析邏輯可驗證？研究摘要拆成沒有 UI 或網路副作用的純模組，使用 deterministic pandas fixtures 測試短資料、缺欄位、fallback 與同業不足情境。
-- 為什麼保留異常偵測頁但不混在個股頁？兩者服務不同問題：個股頁支援可解釋研究，異常頁展示資料工程與模型工作流。
-- 公開倉庫如何維持可信度？只追蹤重現與理解所需的程式、測試、公開範例資料與文件；執行產物與私密資料一律排除。
-## Research Snapshot
+本專案把資料品質與失敗狀態視為產品功能，而不是只測試 happy path。
 
-Each stock detail can produce two offline exports from the exact research context currently shown in the dashboard:
+```powershell
+# 完整測試
+.venv\Scripts\python.exe -m pytest -q
 
-- **JSON** is a machine-readable contract for inspection, automation, or future comparison.
-- **Printable HTML** is a self-contained report that can be opened or printed without the dashboard.
+# 編譯檢查
+.venv\Scripts\python.exe -m compileall -q app.py src tests
 
-Every export includes a `snapshot_id`, market `as_of_date`, capture timestamp, source label, data-quality warnings, derived evidence, change summary, peer context, and an SHA-256 fingerprint of the normalised OHLCV input. The `snapshot_id` is calculated from canonical research content and deliberately excludes the capture timestamp, so equal inputs produce the same ID.
+# Python 靜態安全掃描
+.venv\Scripts\python.exe -m bandit -q -r app.py src
 
+# 已安裝套件的依賴一致性
+.venv\Scripts\python.exe -m pip check
 
-## Snapshot Comparison
+# 已知漏洞掃描
+.venv\Scripts\python.exe -m pip_audit --local --skip-editable
 
-The dashboard includes an offline comparison workspace for two Research Snapshot JSON exports from the same stock. It verifies the schema, required fields, SHA-256 snapshot_id, and history fingerprint before presenting any difference.
+# 啟動與資料產物煙霧測試
+.venv\Scripts\python.exe src\smoke_test.py
+```
 
-The result joins evidence by stable identifiers rather than list position, shows provenance changes and chronology, and can be downloaded as a machine-readable comparison JSON. Uploads remain in memory and are not written to disk or sent to an external service. Cross-symbol, oversized, malformed, unsupported, and tampered snapshots are rejected explicitly.
+測試範圍包括：
 
-This workflow demonstrates a practical research-data contract: an observation can be exported, independently verified, compared later, and traced back to a normalised input fingerprint without embedding raw OHLCV history.
-Snapshots are generated in memory and downloaded by the browser. The application does not create a cloud record, account, database row, or shareable public URL. Raw OHLCV rows are not embedded in either export; the provenance fingerprint keeps the report small while making the exact input dataset auditable. A demo, cache, or unavailable source is retained as an explicit warning in both formats.
+- 資料欄位正規化、數值清理、日期解析與缺欄位處理。
+- RSI 單邊上漲、單邊下跌與盤整等邊界情境。
+- yfinance／TWSE 失敗時的 fallback 與來源狀態。
+- 市場雷達因子分數、最低資料門檻、LIVE／DEMO 排名策略與 URL 篩選還原。
+- Streamlit 頁面路由、主要互動、主題 contract 與 runtime 行為。
+- Research Snapshot schema、SHA-256 完整性、跨股票／竄改／超大檔案拒絕。
+- anomaly pipeline 的 preprocessing、features、model、evaluation 與 smoke test。
+- BAT 啟動器的 Python 搜尋、固定 port、專案路徑輸出與錯誤處理。
+
+目前本機完整驗證結果：`77 passed`，另通過 compile、Bandit、pip check、pip-audit 與 smoke test。
+
+GitHub Actions 位於 [`.github/workflows/security.yml`](.github/workflows/security.yml)，在 push、pull request 與每週排程執行依賴稽核、Bandit、pytest、Docker build 與 container health check；Dependabot 設定位於 [`.github/dependabot.yml`](.github/dependabot.yml)。
+
+## 安全與隱私
+
+- 不在前端或 repository 中放置 API key、token、password 或 private key。
+- API timeout、HTTP error 與解析錯誤會進入明確的降級流程。
+- 上傳的 Research Snapshot 只在記憶體中處理，不寫入磁碟或傳到第三方服務。
+- 不需要帳號，不收集姓名、Email 或投資組合資料。
+- `.gitignore` 排除 `.env`、快取、原始資料、處理後資料、模型、報表與本機產物。
+- Docker 以非 root 使用者執行。
+- 公開部署應由平台處理 TLS、request limits、監控與日誌政策，不應記錄上傳快照內容。
+
+漏洞回報方式見 [`SECURITY.md`](SECURITY.md)。
+
+## 限制與明確不做的事
+
+本專案不：
+
+- 預測股價方向或未來報酬。
+- 產生目標價、買進、賣出或持有建議。
+- 將異常事件解釋為交易訊號。
+- 將 pseudo-label 評估當成真實市場標籤或投資績效。
+- 把 DEMO 或 fallback 行情偽裝成 LIVE。
+- 提供完整全市場掃描、帳號、投資組合同步、資料庫或雲端使用者紀錄。
+
+yfinance 與 TWSE OpenAPI 的可用性、資料延遲、交易時段、供應商限制與股票代號有效性都會影響結果。任何研究結論都應先確認資料來源、資料截止日與頁面上的限制警示。
+
+## 面試與工程重點
+
+這個專案的價值不在於把圖表堆到畫面上，而在於把金融資料產品最容易被忽略的工程問題做成可驗證的設計：
+
+1. **Provenance-first**：每張行情卡與研究結果都保留來源、資料日與降級狀態。
+2. **Explainability over false precision**：用四個可追溯的證據面向呈現原因，不用單一黑箱分數代替判斷。
+3. **Safe degradation**：外部 API 失敗時保留可操作的 DEMO flow，但明確標示非真實行情。
+4. **Deterministic research contract**：快照以 canonical content 與 SHA-256 fingerprint 保留可驗證的研究脈絡。
+5. **Separated product concerns**：股票分析、市場雷達、異常偵測與快照比較分頁處理不同任務，避免將異常模型誤當成個股建議。
+6. **Testable architecture**：資料來源、純函式分析邏輯、UI 組裝與 pipeline 分離，讓大部分核心行為可以離線測試。
+7. **Public-release discipline**：只公開可重現的程式、測試、sample data 與文件，不公開 credentials、cache、模型產物或本機報表。
+
+## 專案狀態
+
+這是一個可執行的 side project 與面試作品基礎，已具備本機開發、Docker 建置、CI 安全檢查、資料來源降級、響應式 UI 與離線研究快照流程。後續若要擴展成正式服務，建議優先補上資料供應商的 production SLA、伺服器端快取策略、觀測性、使用者權限與正式市場資料授權，而不是直接把目前的 DEMO fallback 當作即時交易系統。
+
+## 相關文件
+
+- [`docs/user-guide.md`](docs/user-guide.md)：頁面操作、資料狀態與使用限制。
+- [`docs/research-workflow.md`](docs/research-workflow.md)：研究工作流、證據定義與快照驗證原則。
+- [`docs/deployment.md`](docs/deployment.md)：Docker、公開部署與健康檢查要求。
+- [`SECURITY.md`](SECURITY.md)：漏洞回報與敏感資料政策。
