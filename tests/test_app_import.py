@@ -77,6 +77,10 @@ def test_app_frontend_contracts() -> None:
     assert 'st.context.theme.get("type")' in source
     assert "get_theme(fallback_name)" in source
     assert "render_stock_analysis_page" in source
+    assert "render_market_radar_page" in source
+    radar_source = project_path("src/market_radar_page.py").read_text(encoding="utf-8")
+    assert "研究優先序" in radar_source
+    assert "最低證據分數" in radar_source
     assert "render_anomaly_page" in source
     assert "自訂股票代號" in source
     assert "套用代號" in source
@@ -131,14 +135,22 @@ def test_app_frontend_contracts() -> None:
     assert 'st.query_params["page"]' in source
     assert 'st.query_params["symbol"]' in source
     assert ".st-key-active_page label > div:first-child" in source
+    nav_grid_start = source.index('        .st-key-active_page [role="radiogroup"]')
+    nav_grid_end = source.index('        .st-key-active_page label {{', nav_grid_start)
+    assert "grid-template-columns: repeat(4, minmax(0, 1fr))" in source[nav_grid_start:nav_grid_end]
     assert "render_data_service_notice" in source
     assert "render_product_footer" in source
 
     readme = project_path("README.md").read_text(encoding="utf-8")
     assert "可解釋研究工作台" in readme
+    assert "可解釋市場雷達" in readme
+    assert "src/market_screener.py" in readme
     assert "資料來源與降級" in readme
     assert "不提供買賣建議" in readme
     assert "研究工作流" in readme
+
+    user_guide = project_path("docs/user-guide.md").read_text(encoding="utf-8")
+    assert "`r`n" not in user_guide
     assert "docs/research-workflow.md" in readme
     assert "docs/user-guide.md" in readme
     assert "docs/deployment.md" in readme

@@ -222,11 +222,25 @@ def _fallback_rows_for_period(period: str) -> int:
     }.get(str(period).lower(), 90)
 
 
-def _fallback_history(symbol: str, rows: int = 90) -> pd.DataFrame:
+def _load_fallback_data() -> pd.DataFrame:
     sample_path = project_path("data/processed/market_anomaly_results.csv")
+    if not sample_path.exists():
+        return pd.DataFrame()
+    try:
+        return pd.read_csv(sample_path, parse_dates=["date"])
+    except (OSError, ValueError):
+        return pd.DataFrame()
+
+
+def _fallback_history(
+    symbol: str,
+    rows: int = 90,
+    sample_data: pd.DataFrame | None = None,
+) -> pd.DataFrame:
     clean_symbol = symbol.replace(".TW", "")
-    if sample_path.exists():
-        data = pd.read_csv(sample_path, parse_dates=["date"])
+    data = _load_fallback_data() if sample_data is None else sample_data
+    required_columns = {"symbol", "date", "open", "high", "low", "close", "volume"}
+    if not data.empty and required_columns <= set(data.columns):
         match = data[data["symbol"].astype(str) == clean_symbol].copy()
         if not match.empty:
             match = match.tail(rows)
@@ -302,7 +316,11 @@ def fetch_yfinance_histories(
     if not yf_symbols:
         return {}
     if yf is None:
-        return {symbol: (_fallback_history(symbol, fallback_rows), "sample") for symbol in yf_symbols}
+        fallback_data = _load_fallback_data()
+        return {
+            symbol: (_fallback_history(symbol, fallback_rows, fallback_data), "sample")
+            for symbol in yf_symbols
+        }
 
     try:
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
@@ -320,10 +338,13 @@ def fetch_yfinance_histories(
         downloaded = pd.DataFrame()
 
     histories = {}
+    fallback_data = None
     for symbol in yf_symbols:
         normalized = _normalize_yfinance_download(downloaded, symbol)
         if normalized.empty:
-            histories[symbol] = (_fallback_history(symbol, fallback_rows), "sample")
+            if fallback_data is None:
+                fallback_data = _load_fallback_data()
+            histories[symbol] = (_fallback_history(symbol, fallback_rows, fallback_data), "sample")
         else:
             histories[symbol] = (normalized, "yfinance")
     return histories
@@ -476,6 +497,22 @@ def format_number(value: float | int | None, digits: int = 2) -> str:
     return f"{value:,.{digits}f}"
 
 
+def _compute_rsi(close: pd.Series, window: int = 14) -> pd.Series:
+    delta = close.diff()
+    average_gain = delta.clip(lower=0).rolling(window, min_periods=1).mean()
+    average_loss = (-delta.clip(upper=0)).rolling(window, min_periods=1).mean()
+
+    rsi = pd.Series(50.0, index=close.index, dtype="float64")
+    has_gain = average_gain > 0
+    has_loss = average_loss > 0
+    two_sided = has_gain & has_loss
+    relative_strength = average_gain[two_sided] / average_loss[two_sided]
+    rsi.loc[two_sided] = 100 - (100 / (1 + relative_strength))
+    rsi.loc[has_gain & ~has_loss] = 100.0
+    rsi.loc[~has_gain & has_loss] = 0.0
+    return rsi
+
+
 def compute_technical_indicators(history: pd.DataFrame) -> pd.DataFrame:
     data = history.sort_values("date").copy()
     data["ma5"] = data["close"].rolling(5, min_periods=1).mean()
@@ -487,11 +524,7 @@ def compute_technical_indicators(history: pd.DataFrame) -> pd.DataFrame:
     data["volume_ratio_20"] = data["volume"] / data["volume_ma20"].replace(0, np.nan)
     data["high_20"] = data["high"].rolling(20, min_periods=1).max()
     data["low_20"] = data["low"].rolling(20, min_periods=1).min()
-    delta = data["close"].diff()
-    gain = delta.clip(lower=0).rolling(14, min_periods=1).mean()
-    loss = (-delta.clip(upper=0)).rolling(14, min_periods=1).mean()
-    rs = gain / loss.replace(0, np.nan)
-    data["rsi14"] = (100 - (100 / (1 + rs))).fillna(50)
+    data["rsi14"] = _compute_rsi(data["close"])
     return data
 
 
