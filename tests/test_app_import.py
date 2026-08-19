@@ -94,6 +94,10 @@ def test_app_frontend_contracts() -> None:
     assert "本期變化" in source
     assert "同業脈絡" in source
     assert "render_research_brief" in source
+    assert "render_research_workflow" in source
+    assert source.index("render_research_workflow(workflow)") < source.index("render_research_brief(brief)")
+    assert "build_research_workflow" in source
+    assert "研究路徑" in source
     assert "build_research_brief" in source
     assert "近期表現" in source
     assert "異常偵測展示" in source
@@ -223,6 +227,8 @@ def test_global_css_uses_selected_light_theme(monkeypatch) -> None:
     assert ".data-rail" in css
     assert ".instrument-workspace" in css
     assert ".evidence-grid" in css
+    assert ".research-path" in css
+    assert ".research-path-grid" in css
     assert ".coherence-panel" in css
     assert ".coherence-grid" in css
     assert light_theme["success"] in css

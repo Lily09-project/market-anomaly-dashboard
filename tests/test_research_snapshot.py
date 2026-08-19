@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 
+from src.research_methodology import build_methodology_manifest
+from src.snapshot_compare import parse_snapshot_bytes
 from src.research_snapshot import build_research_snapshot, render_snapshot_html, snapshot_to_json_bytes
 
 
@@ -63,7 +65,21 @@ def test_snapshot_id_is_stable_when_capture_time_changes() -> None:
     assert first["as_of_date"] == "2025-01-31"
     assert first["provenance"]["history_fingerprint"]
     assert first["research"]["coherence"]["status"] == "aligned"
+    assert first["research"]["methodology"]["version"] == "1.0"
+    assert len(first["research"]["methodology_fingerprint"]) == 64
+    assert parse_snapshot_bytes(snapshot_to_json_bytes(first))["research"]["methodology"]["version"] == "1.0"
 
+
+def test_snapshot_id_changes_when_methodology_changes() -> None:
+    manifest = build_methodology_manifest()
+    changed_manifest = build_methodology_manifest()
+    changed_manifest["technical_indicators"]["rsi_period"] = 21
+
+    baseline = build_research_snapshot(ASSET, make_history(), "yfinance", {**BRIEF, "methodology": manifest}, CAPTURED_AT)
+    changed = build_research_snapshot(ASSET, make_history(), "yfinance", {**BRIEF, "methodology": changed_manifest}, CAPTURED_AT)
+
+    assert baseline["research"]["methodology_fingerprint"] != changed["research"]["methodology_fingerprint"]
+    assert baseline["snapshot_id"] != changed["snapshot_id"]
 
 def test_json_export_is_utf8_and_sanitizes_non_finite_values() -> None:
     brief = {**BRIEF, "changes": {"rows": [{"metric": "Close", "change": float("nan")} ]}}
@@ -88,6 +104,7 @@ def test_html_export_escapes_dynamic_asset_values() -> None:
     assert "sample" in document
     assert snapshot["snapshot_id"] in document
     assert "Evidence coherence" in document
+    assert "Methodology" in document
 
 def test_history_fingerprint_normalizes_missing_numeric_values() -> None:
     missing_column = make_history().drop(columns="volume")

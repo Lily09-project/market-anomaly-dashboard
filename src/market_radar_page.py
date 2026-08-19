@@ -78,7 +78,7 @@ def _score_markup(candidate: Mapping[str, Any]) -> str:
             <div class="radar-rank">#{int(candidate['rank'])}</div>
             <div class="radar-card-main">
                 <div class="radar-stock">{html.escape(str(candidate['stock_label']))}</div>
-                <div class="radar-meta">{html.escape(str(candidate['category']))} · {_source_label(candidate['source'])} · 截至 {html.escape(str(candidate['latest_date']))}</div>
+                <div class="radar-meta">{html.escape(str(candidate['category']))} · {html.escape(_source_label(candidate['source']))} · 截至 {html.escape(str(candidate['latest_date']))}</div>
                 <div class="radar-reason">{html.escape(str(candidate['ranking_reason']))}</div>
                 <a class="radar-link" href="{detail_url}" target="_self">查看個股分析</a>
             </div>

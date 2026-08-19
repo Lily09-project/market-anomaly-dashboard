@@ -48,6 +48,7 @@ Research Trust Workbench 將這些問題設計成產品的一部分：資料狀�
 - 品質硬性上限：DEMO／非 yfinance 來源、超過 14 天的舊資料、低於 80% 覆蓋率或不足 20 筆觀測，都會限制最高分並列出下一步修正。
 
 研究就緒度不是股票評分，也不代表投資價值。它回答的是「這份資料是否足以進入技術研究」，並將來源降級、資料過期與樣本不足轉成可驗證的產品狀態，避免畫面正常就被誤認為資料可信。
+- 研究路徑（Research Path）：把資料條件、技術證據、同業脈絡與研究紀錄排成可掃讀的下一步；它是操作導覽，不是股票評分。
 - 近期價格、RSI、MA20 距離與 20 日波動率變化。
 - 產業同類比較，資料不足時直接顯示無法比較，不補造排名。
 - 匯出離線 Research Snapshot JSON 與可列印 HTML。
@@ -84,6 +85,7 @@ Research Trust Workbench 將這些問題設計成產品的一部分：資料狀�
 - 資料來源、來源狀態與資料品質警示。
 - 技術證據、近期變化與同業脈絡。
 - 快照也保存證據一致性摘要，讓下載後的研究紀錄與頁面判讀保持一致。
+- 研究方法指紋：快照封存 MA、RSI、波動率與資料門檻版本，方法變更時可被辨識。
 - 正規化 OHLCV 輸入的 SHA-256 fingerprint。
 
 快照比較頁可以比較同一股票的兩份 schema `1.0` JSON：
@@ -188,6 +190,8 @@ fetch -> preprocess -> features -> Isolation Forest -> evaluation -> charts
 - `src/research_brief.py`：股票研究摘要的純函式邏輯，不依賴 Streamlit 或網路。
 - `src/research_readiness.py`：以可測試規則建立研究就緒度、品質上限與修正建議。
 - `src/research_coherence.py`：以固定證據狀態辨識同向、分歧、風險偏多與資料不完整。
+- `src/research_workflow.py`：將研究狀態轉成有順序的使用者下一步，避免用單一分數隱藏限制。
+- `src/research_methodology.py`：集中管理技術指標、研究門檻與方法 fingerprint。
 - `src/market_screener.py`：市場雷達的資料門檻、因子評分、研究配置與穩定排序。
 - `src/market_radar_page.py`：市場雷達控制項、候選池、表格與個股導覽。
 - `src/research_snapshot.py`：快照 schema、canonical content、fingerprint 與匯出資料。
@@ -271,6 +275,18 @@ curl http://127.0.0.1:8765/_stcore/health
 
 預期回應為 `ok`。部署到公開環境時，請由平台終止 TLS、只允許必要的 outbound HTTPS、設定 request limits，並避免掛載使用者快照或其他個人資料儲存空間。詳細部署規範見 [`docs/deployment.md`](docs/deployment.md)。
 
+## 安全、穩定性與公開部署邊界
+
+本專案把輸入與外部資料來源視為不可信邊界，但它仍是無帳號的研究工具，不應被誤解成已完成身份驗證、權限管理或 DDoS 防護的 SaaS：
+
+- 快照比較只在記憶體處理；每個檔案上限 2 MiB、JSON 巢狀深度上限 64，拒絕重複 JSON key 與 `NaN`／`Infinity` 等非標準常數。
+- TWSE、market API 與 FX API 使用 timeout、串流讀取與 8 MiB response body 上限；來源失敗時回到明確標示的 cache／DEMO 狀態。
+- 外部請求錯誤訊息會遮罩 URL query 中的 `api_key`、token、secret 與 password，避免把設定值寫入終端或部署日誌。
+- 快照會驗證 schema、股票代號、日期、歷史資料 fingerprint、研究方法 fingerprint 與 snapshot ID，拒絕竄改內容。
+- 外部行情欄位會拒絕非純量、超長數值、非法科學記號、非有限數值與不合法日期，避免錯誤資料讓 pipeline 崩潰或被誤解讀。
+- 公開部署仍必須由平台提供 TLS、request／upload rate limit、健康重啟、上游錯誤監控與不記錄上傳內容的日誌政策；應用程式本身不建立帳號，也不保存使用者快照。
+
+這些限制是產品邊界，不是缺少的 UI 功能。若要演進成多人正式服務，下一階段應先補 authentication、authorization、server-side rate limiting、structured audit log 與正式資料授權，再開放持久化資料。
 ## 測試與品質保證
 
 本專案把資料品質與失敗狀態視為產品功能，而不是只測試 happy path。
@@ -303,10 +319,11 @@ curl http://127.0.0.1:8765/_stcore/health
 - 市場雷達因子分數、最低資料門檻、LIVE／DEMO 排名策略與 URL 篩選還原。
 - Streamlit 頁面路由、主要互動、主題 contract 與 runtime 行為。
 - Research Snapshot schema、SHA-256 完整性、跨股票／竄改／超大檔案拒絕。
+- 研究方法 manifest 與 fingerprint 的穩定性、變更辨識與快照保存。
 - anomaly pipeline 的 preprocessing、features、model、evaluation 與 smoke test。
 - BAT 啟動器的 Python 搜尋、固定 port、專案路徑輸出與錯誤處理。
 
-目前本機完整驗證結果：`77 passed`，另通過 compile、Bandit、pip check、pip-audit 與 smoke test。
+目前本機完整驗證結果會以最新 CI／本機執行結果為準；發布前應重新執行 pytest、compileall、Bandit、pip check、pip-audit 與 smoke test。
 
 GitHub Actions 位於 [`.github/workflows/security.yml`](.github/workflows/security.yml)，在 push、pull request 與每週排程執行依賴稽核、Bandit、pytest、Docker build 與 container health check；Dependabot 設定位於 [`.github/dependabot.yml`](.github/dependabot.yml)。
 
@@ -417,6 +434,10 @@ yfinance 與 TWSE OpenAPI 的可用性、資料延遲、交易時段、供應商
 | app.py | Streamlit 入口、頁面路由、全域 UI 與主題 |
 | src/market_api.py | yfinance、TWSE OpenAPI、代號正規化與 fallback |
 | src/research_brief.py | 個股研究摘要與技術證據 |
+| src/research_readiness.py | 研究就緒度與資料品質門檻 |
+| src/research_coherence.py | 證據一致性與分歧判讀 |
+| src/research_workflow.py | 研究路徑與下一步狀態 |
+| src/research_methodology.py | 研究方法參數與 fingerprint |
 | src/market_screener.py | 市場雷達門檻、因子與穩定排序 |
 | src/market_radar_page.py | 雷達頁面控制項、表格與導覽 |
 | src/research_snapshot.py | 快照 schema、canonical content 與 fingerprint |

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from src.utils import MAX_HTTP_RESPONSE_BYTES
+
 import sys
 
 import pandas as pd
@@ -293,3 +295,27 @@ def test_batch_fallback_reads_sample_file_once(monkeypatch, tmp_path) -> None:
 
     assert set(histories) == {"2330.TW", "2454.TW", "AAPL"}
     assert read_count == 1
+
+
+def test_twse_dataset_rejects_oversized_response(monkeypatch, tmp_path) -> None:
+    from src import market_api
+
+    class OversizedResponse:
+        headers = {"content-length": str(MAX_HTTP_RESPONSE_BYTES + 1)}
+
+        def raise_for_status(self):
+            return None
+
+        def iter_content(self, chunk_size: int):
+            yield b"not-read"
+
+    class OversizedRequests:
+        @staticmethod
+        def get(*args, **kwargs):
+            return OversizedResponse()
+
+    monkeypatch.setattr(market_api, "requests", OversizedRequests)
+    data, source = _fetch_twse_dataset("https://example.test", tmp_path / "twse.csv", 1)
+
+    assert data.empty
+    assert source == "unavailable"

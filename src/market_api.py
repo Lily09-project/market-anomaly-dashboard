@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import contextlib
 import hashlib
 import io
@@ -21,7 +23,7 @@ try:
 except Exception:
     yf = None
 
-from src.utils import atomic_write_dataframe, clean_numeric, project_path
+from src.utils import atomic_write_dataframe, clean_numeric, project_path, read_http_response_bytes, safe_exception_message
 
 
 LOGGER = logging.getLogger(__name__)
@@ -412,10 +414,15 @@ def build_watchlist_cards(symbols: list[str] | None = None) -> list[dict[str, An
 
 def _fetch_twse_dataset(url: str, raw_path: Path, timeout: int) -> tuple[pd.DataFrame, str]:
     if requests is not None:
+        response = None
         try:
-            response = requests.get(url, timeout=timeout)
+            response = requests.get(url, timeout=timeout, stream=True)
             response.raise_for_status()
-            payload = response.json()
+            try:
+                payload = json.loads(read_http_response_bytes(response).decode("utf-8-sig"))
+            except TypeError:
+                # Keep compatibility with the small response doubles used by tests.
+                payload = response.json()
             if isinstance(payload, dict):
                 for key in ("data", "records", "result"):
                     if isinstance(payload.get(key), list):
@@ -427,11 +434,17 @@ def _fetch_twse_dataset(url: str, raw_path: Path, timeout: int) -> tuple[pd.Data
                 atomic_write_dataframe(data, raw_path)
                 return data, "twse_openapi"
         except Exception as exc:
-            LOGGER.debug("TWSE request failed; local cache will be used: %s", exc)
+            LOGGER.debug(
+                "TWSE request failed; local cache will be used: %s",
+                safe_exception_message(exc),
+            )
+        finally:
+            close = getattr(response, "close", None)
+            if callable(close):
+                close()
     if raw_path.exists():
         return pd.read_csv(raw_path), "local_cache"
     return pd.DataFrame(), "unavailable"
-
 
 def fetch_twse_company_profiles(timeout: int = 8) -> tuple[pd.DataFrame, str]:
     return _fetch_twse_dataset(
