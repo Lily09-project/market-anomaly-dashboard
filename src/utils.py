@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 import os
 import re
 import tempfile
+from numbers import Number
 from pathlib import Path
 from typing import Any
 
@@ -89,6 +91,67 @@ def normalize_http_timeout(value: Any, default: float = 15.0) -> float:
     return min(timeout, 60.0)
 
 
+MAX_HTTP_RESPONSE_BYTES = 8 * 1024 * 1024
+
+
+def read_http_response_bytes(response: Any, max_bytes: int = MAX_HTTP_RESPONSE_BYTES) -> bytes:
+    """Read an HTTP response without allowing an unbounded body allocation."""
+    if max_bytes <= 0:
+        raise ValueError("HTTP response size limit must be positive.")
+    headers = getattr(response, "headers", {}) or {}
+    content_length = headers.get("content-length") or headers.get("Content-Length")
+    if content_length:
+        try:
+            if int(content_length) > max_bytes:
+                raise ValueError(f"HTTP response exceeds the {max_bytes}-byte limit.")
+        except (TypeError, ValueError) as exc:
+            if isinstance(exc, ValueError) and "exceeds" in str(exc):
+                raise
+
+    iterator = getattr(response, "iter_content", None)
+    if callable(iterator):
+        chunks: list[bytes] = []
+        total = 0
+        for chunk in iterator(chunk_size=64 * 1024):
+            if not chunk:
+                continue
+            chunk_bytes = bytes(chunk)
+            total += len(chunk_bytes)
+            if total > max_bytes:
+                raise ValueError(f"HTTP response exceeds the {max_bytes}-byte limit.")
+            chunks.append(chunk_bytes)
+        return b"".join(chunks)
+
+    raw = getattr(response, "content", None)
+    if raw is not None:
+        body = bytes(raw)
+        if len(body) > max_bytes:
+            raise ValueError(f"HTTP response exceeds the {max_bytes}-byte limit.")
+        return body
+
+    text = getattr(response, "text", None)
+    if text is not None:
+        body = str(text).encode(getattr(response, "encoding", None) or "utf-8")
+        if len(body) > max_bytes:
+            raise ValueError(f"HTTP response exceeds the {max_bytes}-byte limit.")
+        return body
+
+    raise TypeError("HTTP response does not expose a readable body.")
+
+
+def safe_exception_message(error: BaseException, max_length: int = 240) -> str:
+    """Return a bounded error message with URL credentials removed."""
+    message = str(error).strip()
+    message = re.sub(
+        r"(?i)([?&](?:api[_-]?key|token|secret|password)=)[^&\s]+",
+        r"\1[REDACTED]",
+        message,
+    )
+    message = re.sub(r"(?i)(https?://[^\s?]+)\?[^\s]*", r"\1?[REDACTED]", message)
+    message = message[:max(32, int(max_length))]
+    return message or error.__class__.__name__
+
+
 def ensure_parent(path: str | Path) -> Path:
     resolved = project_path(path)
     resolved.parent.mkdir(parents=True, exist_ok=True)
@@ -134,29 +197,52 @@ def ensure_project_dirs(config: dict[str, Any] | None = None) -> None:
 
 
 def clean_numeric(value: Any) -> float | None:
-    if pd.isna(value):
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(value, (str, Number)):
         return None
     text = str(value).strip()
-    if not text or text in {"--", "-", "NA", "N/A", "null", "None"}:
+    if not text or len(text) > 256 or text in {"--", "-", "NA", "N/A", "null", "None"}:
         return None
     text = re.sub(r"[,，$％%]", "", text)
+    if re.fullmatch(r"[+-]?\d+(?:\.\d+)?[eE][+-]?\d+", text):
+        try:
+            numeric = float(text)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        return numeric if math.isfinite(numeric) else None
     text = re.sub(r"[^\d.\-]", "", text)
     if text in {"", "-", "."}:
         return None
-    return float(text)
+    try:
+        numeric = float(text)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return numeric if math.isfinite(numeric) else None
 
 
 def parse_date(value: Any) -> pd.Timestamp | pd.NaT:
-    if pd.isna(value):
+    try:
+        if pd.isna(value):
+            return pd.NaT
+    except (TypeError, ValueError):
+        return pd.NaT
+    if isinstance(value, (list, tuple, dict, set)):
         return pd.NaT
     text = str(value).strip()
-    if not text:
+    if not text or len(text) > 128:
         return pd.NaT
     roc_match = re.match(r"^(\d{2,3})[/-](\d{1,2})[/-](\d{1,2})$", text)
     if roc_match:
         year, month, day = map(int, roc_match.groups())
         if year < 1911:
-            return pd.Timestamp(year + 1911, month, day)
+            try:
+                return pd.Timestamp(year + 1911, month, day)
+            except (ValueError, OverflowError):
+                return pd.NaT
     return pd.to_datetime(text, errors="coerce")
 
 

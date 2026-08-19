@@ -41,6 +41,7 @@ from src.product_state import (
     route_from_page_label,
 )
 from src.research_brief import build_research_brief
+from src.research_workflow import build_research_workflow
 from src.research_snapshot import build_research_snapshot, render_snapshot_html, snapshot_to_json_bytes
 from src.snapshot_compare import (
     SnapshotValidationError,
@@ -2096,6 +2097,127 @@ def inject_global_css(theme: dict) -> None:
                 grid-template-columns: minmax(0, 1fr);
             }}
         }}
+        .research-path {{
+            margin: 0 0 var(--space-6);
+            padding: var(--space-4);
+            background: {theme["surface"]};
+            border: 1px solid {theme["border"]};
+            border-top: 3px solid {theme["accent"]};
+            border-radius: var(--ui-radius);
+        }}
+
+        .research-path-heading {{
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: var(--space-3);
+            flex-wrap: wrap;
+        }}
+
+        .research-path-heading h3 {{ margin: 0 !important; }}
+
+        .research-path-heading > span {{
+            color: {theme["accent"]};
+            font-size: 0.84rem;
+            font-weight: 850;
+        }}
+
+        .research-path-summary {{
+            max-width: 70rem;
+            margin: var(--space-2) 0 var(--space-4);
+            color: {theme["muted_text"]};
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }}
+
+        .research-path-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: var(--space-3);
+        }}
+
+        .research-path-step {{
+            min-width: 0;
+            padding: var(--space-3);
+            background: {theme["card"]};
+            border: 1px solid {theme["border"]};
+            border-top: 3px solid {theme["secondary"]};
+            border-radius: calc(var(--ui-radius) - 2px);
+        }}
+
+        .research-path-step--complete {{ border-top-color: {theme["success"]}; }}
+        .research-path-step--review {{ border-top-color: {theme["warning"]}; }}
+        .research-path-step--blocked {{ border-top-color: {theme["danger"]}; }}
+
+        .research-path-step-heading {{
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }}
+
+        .research-path-step-index {{
+            display: inline-flex;
+            flex: 0 0 auto;
+            align-items: center;
+            justify-content: center;
+            width: 1.65rem;
+            height: 1.65rem;
+            border: 1px solid {theme["border"]};
+            border-radius: 50%;
+            color: {theme["text"]};
+            font-family: var(--ui-data-font);
+            font-size: 0.8rem;
+            font-weight: 850;
+        }}
+
+        .research-path-step-label {{
+            flex: 1 1 auto;
+            min-width: 0;
+            color: {theme["text"]};
+            font-size: 0.94rem;
+            font-weight: 850;
+        }}
+
+        .research-path-step-status {{
+            flex: 0 0 auto;
+            color: {theme["muted_text"]};
+            font-size: 0.74rem;
+            font-weight: 800;
+            white-space: nowrap;
+        }}
+
+        .research-path-step--complete .research-path-step-status {{ color: {theme["success"]}; }}
+        .research-path-step--review .research-path-step-status {{ color: {theme["warning"]}; }}
+        .research-path-step--blocked .research-path-step-status {{ color: {theme["danger"]}; }}
+
+        .research-path-step-detail {{
+            margin: var(--space-2) 0 0;
+            color: {theme["muted_text"]};
+            font-size: 0.8rem;
+            line-height: 1.48;
+        }}
+
+        .research-path-next {{
+            margin-top: var(--space-4);
+            padding-top: var(--space-3);
+            border-top: 1px solid {theme["border"]};
+            color: {theme["muted_text"]};
+            font-size: 0.88rem;
+            line-height: 1.5;
+        }}
+
+        .research-path-next strong {{ color: {theme["text"]}; }}
+
+        @media (max-width: 1024px) {{
+            .research-path-grid {{
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }}
+        }}
+
+        @media (max-width: 760px) {{
+            .research-path {{ padding: var(--space-3); }}
+            .research-path-grid {{ grid-template-columns: minmax(0, 1fr); }}
+        }}
         .evidence-grid {{
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2425,6 +2547,7 @@ def render_popular_stocks(cards: list[dict], industry: str = "全部") -> None:
         card_label = escape_html(stock_display_pair(card["symbol"], card["display"]))
         card_category = escape_html(card["category"])
         card_source = escape_html(market_source_label(card["source"]))
+        card_currency = escape_html(card.get("currency", ""))
         with columns[index % 2]:
             st.markdown(
                 f"""
@@ -2436,7 +2559,7 @@ def render_popular_stocks(cards: list[dict], industry: str = "全部") -> None:
                         </div>
                         <span class="tag">{card_source}</span>
                     </div>
-                    <div class="price-text">{card["latest_close"]:,.2f} <span class="currency-label">{card["currency"]}</span></div>
+                    <div class="price-text">{card["latest_close"]:,.2f} <span class="currency-label">{card_currency}</span></div>
                     <div class="{css_class}">{card["change_pct"]:+.2f}%（{card["change"]:+.2f}）</div>
                     <div class="metric-row">
                         <div><div class="metric-label">成交量</div><div class="metric-value">{format_number(card["volume"], 1)}</div></div>
@@ -2575,11 +2698,12 @@ def render_performance_cards(analysis: dict) -> None:
     st.markdown('<h3 class="stock-section-title">近期表現</h3>', unsafe_allow_html=True)
     columns = st.columns(4)
     for col, (label, value) in zip(columns, analysis["performance"].items()):
+        safe_label = escape_html(label)
         css_class = change_class(value)
         col.markdown(
             f"""
             <div class="info-card">
-                <div class="metric-label">{label}</div>
+                <div class="metric-label">{safe_label}</div>
                 <div class="metric-value {css_class}" style="font-size:1.35rem;">{format_percent(value)}</div>
             </div>
             """,
@@ -2751,6 +2875,46 @@ def render_research_brief(brief: dict) -> None:
         st.dataframe(pd.DataFrame(peer_context.get("rows", [])), width="stretch", hide_index=True)
 
 
+def render_research_workflow(workflow: dict) -> None:
+    steps = workflow.get("steps", []) if isinstance(workflow, dict) else []
+    if not steps:
+        return
+    next_step = workflow.get("next_step", {}) if isinstance(workflow, dict) else {}
+    next_label = escape_html(next_step.get("label", "研究紀錄"))
+    next_detail = escape_html(next_step.get("detail", "依序完成研究檢查後再保存快照。"))
+    step_markup = []
+    for index, item in enumerate(steps, start=1):
+        status = str(item.get("status", "review"))
+        if status not in {"complete", "review", "blocked"}:
+            status = "review"
+        step_markup.append(
+            f'''<article class="research-path-step research-path-step--{status}" role="listitem">
+                <div class="research-path-step-heading">
+                    <span class="research-path-step-index" aria-hidden="true">{index}</span>
+                    <span class="research-path-step-label">{escape_html(item.get("label", ""))}</span>
+                    <span class="research-path-step-status">{escape_html(item.get("status_label", "需要覆核"))}</span>
+                </div>
+                <p class="research-path-step-detail">{escape_html(item.get("detail", ""))}</p>
+            </article>'''
+        )
+    st.markdown(
+        f'''
+        <section class="research-path" aria-label="研究路徑">
+            <div class="research-path-heading">
+                <div>
+                    <div class="section-eyebrow">RESEARCH PATH</div>
+                    <h3>研究路徑</h3>
+                </div>
+                <span>下一步：{next_label}</span>
+            </div>
+            <p class="research-path-summary">{escape_html(workflow.get("summary", "依序檢查資料、證據、脈絡，再保存紀錄。"))}</p>
+            <div class="research-path-grid" role="list">{"".join(step_markup)}</div>
+            <div class="research-path-next"><strong>建議先做：</strong>{next_detail}</div>
+        </section>
+        ''',
+        unsafe_allow_html=True,
+    )
+
 def render_snapshot_actions(snapshot: dict) -> None:
     as_of_date = str(snapshot.get("as_of_date", "")) or "unknown-date"
     symbol = str(snapshot.get("asset", {}).get("symbol", "stock"))
@@ -2805,6 +2969,7 @@ def render_stock_detail(
     stock_label = stock_display_pair(selected_symbol, display_name)
     safe_stock_label = escape_html(stock_label)
     safe_source = escape_html(market_source_label(source))
+    safe_currency = escape_html(latest.get("currency", ""))
     css_class = change_class(change_pct)
     snapshot = build_research_snapshot(
         {
@@ -2827,7 +2992,7 @@ def render_stock_detail(
                 <div class="detail-header-copy">
                     <div class="card-title detail-title">{safe_stock_label}</div>
                     <div class="card-subtitle">{safe_source} · 股票追蹤與技術分析</div>
-                    <div class="price-text">{latest["close"]:,.2f} <span class="currency-label">{latest["currency"]}</span></div>
+                    <div class="price-text">{latest["close"]:,.2f} <span class="currency-label">{safe_currency}</span></div>
                     <div class="{css_class}">{change_pct:+.2f}%（{change:+.2f}）</div>
                 </div>
                 <div class="detail-tag-group">
@@ -2841,9 +3006,14 @@ def render_stock_detail(
         unsafe_allow_html=True,
     )
 
-    render_snapshot_actions(snapshot)
-
+    workflow = build_research_workflow(
+        brief.get("readiness", {}),
+        brief.get("coherence", {}),
+        brief.get("peer_context", {}),
+    )
+    render_research_workflow(workflow)
     render_research_brief(brief)
+    render_snapshot_actions(snapshot)
     render_performance_cards(analysis)
 
     st.markdown('<h3 class="stock-section-title">技術圖表</h3>', unsafe_allow_html=True)

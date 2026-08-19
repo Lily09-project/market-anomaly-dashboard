@@ -9,6 +9,7 @@ import pandas as pd
 
 from src.market_api import compute_technical_indicators
 from src.research_coherence import build_evidence_coherence
+from src.research_methodology import build_methodology_manifest
 from src.research_readiness import build_research_readiness
 
 
@@ -345,6 +346,7 @@ def build_research_brief(
         "data_quality": quality,
         "readiness": build_research_readiness(quality, reference_date),
         "coherence": build_evidence_coherence(evidence),
+        "methodology": build_methodology_manifest(),
         "evidence": evidence,
         "changes": changes,
         "peer_context": _build_peer_context(peer_cards or [], industry),

@@ -33,6 +33,7 @@ def test_complete_history_exposes_quality_and_four_evidence_sections() -> None:
     assert [item["id"] for item in brief["evidence"]] == ["trend", "momentum", "participation", "risk"]
     assert all(item["state"] != "unavailable" for item in brief["evidence"])
     assert brief["coherence"]["status"] in {"aligned", "mixed", "divergent", "risk-heavy"}
+    assert brief["methodology"]["version"] == "1.0"
 
 
 def test_short_history_marks_technical_evidence_unavailable() -> None:

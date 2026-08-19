@@ -51,6 +51,8 @@ def test_dashboard_pages_and_sidebar_interactions(monkeypatch, sample_pipeline_o
     assert any("這不是股票評分，不代表投資價值" in item.value for item in app.markdown)
     assert any("證據一致性" in item.value for item in app.markdown)
     assert any("EVIDENCE COHERENCE" in item.value for item in app.markdown)
+    assert any("研究路徑" in item.value for item in app.markdown)
+    assert any("下一步：" in item.value for item in app.markdown)
 
     button_by_label(app, "重新取得資料").click()
     app.run(timeout=120)

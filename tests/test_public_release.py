@@ -39,6 +39,9 @@ def test_public_user_and_deployment_guides_cover_product_states() -> None:
     assert "不寫入磁碟" in user_guide
     assert "unprivileged" in deployment
     assert "requirements-dev.txt" in launcher
+    assert "Operational security boundary" in deployment
+    assert "rate limits" in deployment
+    assert "2 MiB" in deployment
 
 def test_github_actions_builds_and_health_checks_container() -> None:
     workflow = project_path(".github/workflows/security.yml").read_text(encoding="utf-8")

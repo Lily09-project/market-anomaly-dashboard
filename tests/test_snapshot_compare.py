@@ -9,6 +9,7 @@ import pytest
 from src.research_snapshot import build_research_snapshot, snapshot_to_json_bytes
 from src.snapshot_compare import (
     MAX_SNAPSHOT_BYTES,
+    MAX_SNAPSHOT_NESTING,
     SnapshotValidationError,
     compare_snapshots,
     comparison_to_json_bytes,
@@ -78,6 +79,14 @@ def test_parse_snapshot_bytes_accepts_valid_snapshot() -> None:
     assert parsed["schema_version"] == "1.0"
 
 
+def test_parse_snapshot_bytes_rejects_mismatched_methodology_fingerprint() -> None:
+    snapshot = make_snapshot()
+    snapshot["research"]["methodology"] = {"version": "1.0", "technical_indicators": {"rsi_period": 21}}
+    snapshot["research"]["methodology_fingerprint"] = "0" * 64
+
+    with pytest.raises(SnapshotValidationError, match="方法指紋"):
+        parse_snapshot_bytes(json.dumps(snapshot, ensure_ascii=False).encode("utf-8"))
+
 def test_parse_snapshot_bytes_rejects_tampered_snapshot_id() -> None:
     snapshot = make_snapshot()
     snapshot["as_of_date"] = "2099-01-01"
@@ -127,3 +136,24 @@ def test_comparison_json_is_utf8_and_contains_snapshot_ids() -> None:
     assert parsed["baseline_snapshot_id"] == baseline["snapshot_id"]
     assert parsed["current_snapshot_id"] == current["snapshot_id"]
     assert "台積電" in payload.decode("utf-8")
+
+
+def test_parse_snapshot_bytes_rejects_duplicate_json_keys() -> None:
+    payload = b'{"schema_version":"1.0","schema_version":"1.0"}'
+
+    with pytest.raises(SnapshotValidationError, match="重複"):
+        parse_snapshot_bytes(payload)
+
+
+def test_parse_snapshot_bytes_rejects_non_standard_json_constants() -> None:
+    payload = b'{"value": NaN}'
+
+    with pytest.raises(SnapshotValidationError, match="有效的 JSON"):
+        parse_snapshot_bytes(payload)
+
+
+def test_parse_snapshot_bytes_rejects_excessive_json_nesting() -> None:
+    payload = ("[" * (MAX_SNAPSHOT_NESTING + 1) + "]" * (MAX_SNAPSHOT_NESTING + 1)).encode("ascii")
+
+    with pytest.raises(SnapshotValidationError, match="巢狀"):
+        parse_snapshot_bytes(payload)

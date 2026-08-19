@@ -10,6 +10,8 @@ from typing import Any
 
 import pandas as pd
 
+from src.research_methodology import build_methodology_manifest, methodology_fingerprint
+
 
 SNAPSHOT_SCHEMA_VERSION = "1.0"
 HISTORY_COLUMNS = ("date", "open", "high", "low", "close", "volume")
@@ -82,6 +84,7 @@ def _asset_payload(asset: Mapping[str, Any]) -> dict[str, str]:
 
 def calculate_snapshot_id(snapshot: Mapping[str, Any]) -> str:
     """Calculate the deterministic ID for snapshot research content."""
+
     content = {
         str(key): value
         for key, value in snapshot.items()
@@ -112,6 +115,12 @@ def build_research_snapshot(
         "history_end_date": records[-1]["date"] if records else "",
         "history_fingerprint": hashlib.sha256(_canonical_json(records)).hexdigest(),
     }
+    methodology = brief.get("methodology")
+    if not isinstance(methodology, Mapping):
+        methodology = build_methodology_manifest()
+    methodology = _json_value(methodology)
+    methodology_mapping = dict(methodology) if isinstance(methodology, Mapping) else build_methodology_manifest()
+    methodology_hash = methodology_fingerprint(methodology_mapping)
     content = {
         "schema_version": SNAPSHOT_SCHEMA_VERSION,
         "as_of_date": as_of_date,
@@ -120,6 +129,8 @@ def build_research_snapshot(
         "research": {
             "evidence": _json_value(brief.get("evidence", [])),
             "coherence": _json_value(brief.get("coherence", {})),
+            "methodology": methodology,
+            "methodology_fingerprint": methodology_hash,
             "changes": _json_value(brief.get("changes", {})),
             "peer_context": _json_value(brief.get("peer_context", {})),
         },
@@ -177,6 +188,20 @@ def render_snapshot_html(snapshot: Mapping[str, Any]) -> bytes:
     changes = safe_research.get("changes", {})
     peers = safe_research.get("peer_context", {})
     coherence = safe_research.get("coherence", {})
+    methodology = safe_research.get("methodology", {})
+    methodology_section = ""
+    if isinstance(methodology, Mapping):
+        indicators = methodology.get("technical_indicators", {})
+        thresholds = methodology.get("research_thresholds", {})
+        methodology_section = (
+            f'<section><h2>Methodology</h2>'
+            f'<p>Version: {_html_text(methodology.get("version", ""))}<br>'
+            f'Methodology fingerprint: {_html_text(safe_research.get("methodology_fingerprint", ""))}<br>'
+            f'MA windows: {_html_text(indicators.get("moving_average_windows", ""))}<br>'
+            f'RSI period: {_html_text(indicators.get("rsi_period", ""))}<br>'
+            f'Volatility window: {_html_text(indicators.get("volatility_window", ""))}<br>'
+            f'Stock minimum observations: {_html_text(thresholds.get("stock_min_observations", ""))}</p></section>'
+        )
     coherence_counts = coherence.get("counts", {}) if isinstance(coherence, Mapping) else {}
     coherence_section = ""
     if isinstance(coherence, Mapping) and coherence.get("label"):
@@ -221,6 +246,7 @@ table {{ width:100%; border-collapse:collapse; }} th,td {{ border:1px solid var(
 {f'<section class="warning"><h2>Warnings</h2><ul>{warning_items}</ul></section>' if warning_items else ''}
 <section><h2>Evidence</h2><div class="evidence-grid">{evidence_cards or '<p class="empty">No evidence is available.</p>'}</div></section>
 {coherence_section}
+{methodology_section}
 <section><h2>Recent changes</h2>{_html_table(change_rows)}</section>
 <section><h2>Peer context</h2>{_html_table(peer_rows)}</section>
 <section><h2>Limitations</h2><ul>{limitation_items}</ul></section>
