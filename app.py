@@ -1838,6 +1838,264 @@ def inject_global_css(theme: dict) -> None:
             padding-bottom: var(--space-4);
         }}
 
+        .readiness-panel {{
+            display: grid;
+            grid-template-columns: minmax(9.5rem, 0.7fr) minmax(0, 3.3fr);
+            margin: 0 0 var(--space-6);
+            overflow: hidden;
+            background: {theme["card"]};
+            border: 1px solid {theme["border"]};
+            border-top: 3px solid {theme["warning"]};
+            border-radius: var(--ui-radius);
+        }}
+
+        .readiness-panel--ready {{ border-top-color: {theme["success"]}; }}
+        .readiness-panel--limited {{ border-top-color: {theme["danger"]}; }}
+
+        .readiness-score {{
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 11rem;
+            padding: var(--space-5);
+            background: {theme["surface"]};
+            border-right: 1px solid {theme["border"]};
+        }}
+
+        .readiness-score > span,
+        .readiness-action-label {{
+            color: {theme["muted_text"]};
+            font-size: 0.78rem;
+            font-weight: 800;
+        }}
+
+        .readiness-score strong {{
+            color: {theme["text"]};
+            font-family: var(--ui-data-font);
+            font-size: 3rem;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+        }}
+
+        .readiness-score small {{
+            color: {theme["muted_text"]};
+            font-family: var(--ui-data-font);
+            font-size: 0.9rem;
+        }}
+
+        .readiness-content {{
+            min-width: 0;
+            padding: var(--space-5);
+        }}
+
+        .readiness-heading {{
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: var(--space-3);
+            flex-wrap: wrap;
+        }}
+
+        .readiness-heading h4 {{
+            margin: 0;
+            color: {theme["text"]};
+            font-size: 1.15rem;
+        }}
+
+        .readiness-heading span {{
+            color: {theme["muted_text"]};
+            font-size: 0.78rem;
+        }}
+
+        .readiness-summary {{
+            margin: var(--space-2) 0 var(--space-4);
+            color: {theme["muted_text"]};
+            line-height: 1.55;
+        }}
+
+        .readiness-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: var(--space-3);
+        }}
+
+        .readiness-dimension {{
+            min-width: 0;
+            padding: var(--space-3);
+            background: {theme["surface"]};
+            border: 1px solid {theme["border"]};
+            border-radius: calc(var(--ui-radius) - 2px);
+        }}
+
+        .readiness-dimension-heading {{
+            display: flex;
+            justify-content: space-between;
+            gap: var(--space-2);
+            color: {theme["text"]};
+            font-size: 0.85rem;
+        }}
+
+        .readiness-dimension-heading span {{
+            color: {theme["muted_text"]};
+            font-family: var(--ui-data-font);
+            white-space: nowrap;
+        }}
+
+        .readiness-track {{
+            height: 4px;
+            margin: var(--space-2) 0;
+            overflow: hidden;
+            background: {theme["border"]};
+        }}
+
+        .readiness-track span {{
+            display: block;
+            height: 100%;
+            background: {theme["accent"]};
+        }}
+
+        .readiness-dimension p {{
+            margin: 0;
+            color: {theme["muted_text"]};
+            font-size: 0.78rem;
+            line-height: 1.45;
+        }}
+
+        .readiness-action-label {{
+            margin-top: var(--space-4);
+        }}
+
+        .readiness-actions {{
+            margin: var(--space-2) 0 0;
+            padding-left: 1.1rem;
+            color: {theme["muted_text"]};
+            font-size: 0.82rem;
+            line-height: 1.5;
+        }}
+
+        @media (max-width: 1024px) {{
+            .readiness-grid {{
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }}
+        }}
+
+        @media (max-width: 760px) {{
+            .readiness-panel,
+            .readiness-grid {{
+                grid-template-columns: minmax(0, 1fr);
+            }}
+
+            .readiness-score {{
+                min-height: 0;
+                flex-direction: row;
+                align-items: center;
+                justify-content: space-between;
+                padding: var(--space-4);
+                border-right: 0;
+                border-bottom: 1px solid {theme["border"]};
+            }}
+
+            .readiness-score strong {{
+                font-size: 2.25rem;
+            }}
+
+            .readiness-content {{
+                padding: var(--space-4);
+            }}
+        }}
+        .coherence-panel {{
+            margin: 0 0 var(--space-6);
+            padding: var(--space-4);
+            background: {theme["card"]};
+            border: 1px solid {theme["border"]};
+            border-left: 3px solid {theme["secondary"]};
+            border-radius: var(--ui-radius);
+        }}
+
+        .coherence-panel--aligned {{ border-left-color: {theme["success"]}; }}
+        .coherence-panel--divergent {{ border-left-color: {theme["warning"]}; }}
+        .coherence-panel--risk-heavy {{ border-left-color: {theme["danger"]}; }}
+        .coherence-panel--incomplete {{ border-left-color: {theme["border"]}; }}
+
+        .coherence-heading {{
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: var(--space-3);
+            flex-wrap: wrap;
+        }}
+
+        .coherence-heading h3 {{
+            margin: 0 !important;
+        }}
+
+        .coherence-heading > span {{
+            color: {theme["muted_text"]};
+            font-size: 0.78rem;
+        }}
+
+        .coherence-status {{
+            margin-top: var(--space-3);
+            color: {theme["text"]};
+            font-size: 1.02rem;
+            font-weight: 850;
+        }}
+
+        .coherence-summary,
+        .coherence-next {{
+            color: {theme["muted_text"]};
+            line-height: 1.5;
+        }}
+
+        .coherence-summary {{
+            margin: var(--space-1) 0 var(--space-3);
+        }}
+
+        .coherence-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: var(--space-2);
+        }}
+
+        .coherence-count {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-2);
+            padding: 0.55rem 0.7rem;
+            background: {theme["surface"]};
+            border: 1px solid {theme["border"]};
+            border-radius: calc(var(--ui-radius) - 2px);
+            color: {theme["muted_text"]};
+            font-size: 0.82rem;
+        }}
+
+        .coherence-count strong {{
+            color: {theme["text"]};
+            font-family: var(--ui-data-font);
+            font-size: 1.1rem;
+        }}
+
+        .coherence-next {{
+            margin: var(--space-3) 0 0;
+            font-size: 0.82rem;
+        }}
+
+        .coherence-next strong {{
+            color: {theme["text"]};
+        }}
+
+        @media (max-width: 1024px) {{
+            .coherence-grid {{
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }}
+        }}
+
+        @media (max-width: 760px) {{
+            .coherence-grid {{
+                grid-template-columns: minmax(0, 1fr);
+            }}
+        }}
         .evidence-grid {{
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2329,6 +2587,92 @@ def render_performance_cards(analysis: dict) -> None:
         )
 
 
+def render_research_readiness(readiness: dict) -> None:
+    score = max(0, min(100, int(readiness.get("score", 0) or 0)))
+    level = str(readiness.get("level", "limited"))
+    if level not in {"ready", "review", "limited"}:
+        level = "limited"
+    label = escape_html(readiness.get("label", "資料條件受限"))
+    summary = escape_html(readiness.get("summary", "目前沒有足夠資料完成品質判讀。"))
+
+    dimension_items = []
+    for item in readiness.get("dimensions", []):
+        dimension_score = max(0, int(item.get("score", 0) or 0))
+        max_score = max(1, int(item.get("max_score", 1) or 1))
+        progress = min(100, round(dimension_score / max_score * 100))
+        dimension_items.append(
+            f'''<article class="readiness-dimension" role="listitem">
+                <div class="readiness-dimension-heading">
+                    <strong>{escape_html(item.get("label", ""))}</strong>
+                    <span>{dimension_score} / {max_score}</span>
+                </div>
+                <div class="readiness-track" aria-hidden="true"><span style="width:{progress}%"></span></div>
+                <p>{escape_html(item.get("detail", ""))}</p>
+            </article>'''
+        )
+    dimensions_markup = "".join(dimension_items)
+
+    actions = [str(item) for item in readiness.get("actions", []) if str(item).strip()]
+    actions_markup = "".join(f"<li>{escape_html(item)}</li>" for item in actions)
+    st.markdown(
+        f'''
+        <section class="readiness-panel readiness-panel--{level}" aria-label="研究就緒度">
+            <div class="readiness-score">
+                <span>研究就緒度</span>
+                <div><strong>{score}</strong><small>/100</small></div>
+            </div>
+            <div class="readiness-content">
+                <div class="readiness-heading">
+                    <h4>{label}</h4>
+                    <span>這不是股票評分，不代表投資價值</span>
+                </div>
+                <p class="readiness-summary">{summary}</p>
+                <div class="readiness-grid" role="list">{dimensions_markup}</div>
+                <div class="readiness-action-label">下一步檢查</div>
+                <ul class="readiness-actions">{actions_markup}</ul>
+            </div>
+        </section>
+        ''',
+        unsafe_allow_html=True,
+    )
+
+def render_evidence_coherence(coherence: dict) -> None:
+    status = str(coherence.get("status", "incomplete"))
+    allowed_statuses = {"aligned", "divergent", "risk-heavy", "mixed", "incomplete"}
+    if status not in allowed_statuses:
+        status = "incomplete"
+    label = escape_html(coherence.get("label", "證據尚不完整"))
+    summary = escape_html(coherence.get("summary", "目前沒有足夠證據完成一致性判讀。"))
+    next_focus = escape_html(coherence.get("next_focus", "先補足資料，再解讀技術證據。"))
+    counts = coherence.get("counts", {})
+    count_items = []
+    for key, item_label in (("positive", "正向"), ("neutral", "中性"), ("risk", "風險"), ("unavailable", "不可用")):
+        count = max(0, int(counts.get(key, 0) or 0)) if isinstance(counts, dict) else 0
+        count_items.append(
+            f'''<div class="coherence-count">
+                <span>{item_label}</span><strong>{count}</strong>
+            </div>'''
+        )
+    counts_markup = "".join(count_items)
+    st.markdown(
+        f'''
+        <section class="coherence-panel coherence-panel--{status}" aria-label="證據一致性">
+            <div class="coherence-heading">
+                <div>
+                    <div class="section-eyebrow">EVIDENCE COHERENCE</div>
+                    <h3>證據一致性</h3>
+                </div>
+                <span>描述證據關係，不是股票評分</span>
+            </div>
+            <div class="coherence-status">{label}</div>
+            <p class="coherence-summary">{summary}</p>
+            <div class="coherence-grid" role="list">{counts_markup}</div>
+            <p class="coherence-next"><strong>下一步：</strong>{next_focus}</p>
+        </section>
+        ''',
+        unsafe_allow_html=True,
+    )
+
 def render_research_brief(brief: dict) -> None:
     quality = brief["data_quality"]
     quality_state = str(quality.get("state", "unavailable"))
@@ -2366,6 +2710,10 @@ def render_research_brief(brief: dict) -> None:
         ''',
         unsafe_allow_html=True,
     )
+
+    render_research_readiness(brief.get("readiness", {}))
+
+    render_evidence_coherence(brief.get("coherence", {}))
 
     st.markdown('<h3 class="stock-section-title">證據矩陣</h3>', unsafe_allow_html=True)
     evidence = list(brief.get("evidence", []))

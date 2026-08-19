@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+from datetime import date, datetime
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from src.market_api import compute_technical_indicators
+from src.research_coherence import build_evidence_coherence
+from src.research_readiness import build_research_readiness
 
 
 EVIDENCE_ORDER = ("trend", "momentum", "participation", "risk")
@@ -326,6 +329,7 @@ def build_research_brief(
     source: str,
     peer_cards: Iterable[Mapping[str, Any]] | None = None,
     industry: str = "",
+    reference_date: date | datetime | str | None = None,
 ) -> dict[str, Any]:
     """Build display-ready research evidence without network or UI dependencies."""
     data, missing_columns = _normalize_history(history)
@@ -339,6 +343,8 @@ def build_research_brief(
         changes = _build_changes(indicators)
     return {
         "data_quality": quality,
+        "readiness": build_research_readiness(quality, reference_date),
+        "coherence": build_evidence_coherence(evidence),
         "evidence": evidence,
         "changes": changes,
         "peer_context": _build_peer_context(peer_cards or [], industry),

@@ -119,6 +119,7 @@ def build_research_snapshot(
         "provenance": provenance,
         "research": {
             "evidence": _json_value(brief.get("evidence", [])),
+            "coherence": _json_value(brief.get("coherence", {})),
             "changes": _json_value(brief.get("changes", {})),
             "peer_context": _json_value(brief.get("peer_context", {})),
         },
@@ -175,6 +176,20 @@ def render_snapshot_html(snapshot: Mapping[str, Any]) -> bytes:
     )
     changes = safe_research.get("changes", {})
     peers = safe_research.get("peer_context", {})
+    coherence = safe_research.get("coherence", {})
+    coherence_counts = coherence.get("counts", {}) if isinstance(coherence, Mapping) else {}
+    coherence_section = ""
+    if isinstance(coherence, Mapping) and coherence.get("label"):
+        count_text = " · ".join(
+            f"{_html_text(label)} {_html_text(coherence_counts.get(key, 0))}"
+            for key, label in (("positive", "Positive"), ("neutral", "Neutral"), ("risk", "Risk"), ("unavailable", "Unavailable"))
+        )
+        coherence_section = (
+            f'<section><h2>Evidence coherence</h2>'
+            f'<p><strong>{_html_text(coherence.get("label"))}</strong><br>'
+            f'{_html_text(coherence.get("summary", ""))}<br>'
+            f'<span class="meta">{count_text}</span></p></section>'
+        )
     change_rows = changes.get("rows", []) if isinstance(changes, Mapping) else []
     peer_rows = peers.get("rows", []) if isinstance(peers, Mapping) else []
     limitations = snapshot.get("limitations", [])
@@ -205,6 +220,7 @@ table {{ width:100%; border-collapse:collapse; }} th,td {{ border:1px solid var(
 <section class="provenance"><h2>Data provenance</h2><p>Source: {_html_text(safe_provenance.get('source', 'unavailable'))}<br>Quality: {_html_text(safe_provenance.get('quality_state', 'unavailable'))}<br>History fingerprint: {_html_text(safe_provenance.get('history_fingerprint', ''))}</p></section>
 {f'<section class="warning"><h2>Warnings</h2><ul>{warning_items}</ul></section>' if warning_items else ''}
 <section><h2>Evidence</h2><div class="evidence-grid">{evidence_cards or '<p class="empty">No evidence is available.</p>'}</div></section>
+{coherence_section}
 <section><h2>Recent changes</h2>{_html_table(change_rows)}</section>
 <section><h2>Peer context</h2>{_html_table(peer_rows)}</section>
 <section><h2>Limitations</h2><ul>{limitation_items}</ul></section>
