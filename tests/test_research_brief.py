@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 import pandas as pd
 
 from src.research_brief import build_research_brief
@@ -30,6 +32,7 @@ def test_complete_history_exposes_quality_and_four_evidence_sections() -> None:
     assert brief["data_quality"]["latest_date"] == "2026-03-25"
     assert [item["id"] for item in brief["evidence"]] == ["trend", "momentum", "participation", "risk"]
     assert all(item["state"] != "unavailable" for item in brief["evidence"])
+    assert brief["coherence"]["status"] in {"aligned", "mixed", "divergent", "risk-heavy"}
 
 
 def test_short_history_marks_technical_evidence_unavailable() -> None:
@@ -89,3 +92,53 @@ def test_peer_context_reports_rank_when_cards_are_comparable() -> None:
     assert brief["peer_context"]["state"] == "ready"
     assert brief["peer_context"]["sample_size"] == 3
     assert brief["peer_context"]["ranks"]["daily_change"] == {"rank": 1, "total": 3}
+
+def test_fresh_live_history_is_research_ready() -> None:
+    brief = build_research_brief(
+        make_history(),
+        "yfinance",
+        [],
+        "半導體",
+        reference_date=date(2026, 3, 26),
+    )
+
+    readiness = brief["readiness"]
+    assert readiness["score"] == 100
+    assert readiness["level"] == "ready"
+    assert readiness["label"] == "資料條件完整"
+    assert [item["id"] for item in readiness["dimensions"]] == [
+        "provenance",
+        "freshness",
+        "coverage",
+        "depth",
+    ]
+
+
+def test_demo_history_is_capped_below_research_ready() -> None:
+    brief = build_research_brief(
+        make_history(),
+        "sample",
+        [],
+        "半導體",
+        reference_date=date(2026, 3, 26),
+    )
+
+    readiness = brief["readiness"]
+    assert readiness["score"] <= 59
+    assert readiness["level"] == "limited"
+    assert any("yfinance" in action for action in readiness["actions"])
+
+
+def test_stale_live_history_is_capped_and_explains_refresh_action() -> None:
+    brief = build_research_brief(
+        make_history(),
+        "yfinance",
+        [],
+        "半導體",
+        reference_date=date(2026, 4, 20),
+    )
+
+    readiness = brief["readiness"]
+    assert readiness["score"] <= 59
+    assert readiness["level"] == "limited"
+    assert any("資料日期" in action for action in readiness["actions"])

@@ -27,6 +27,7 @@ BRIEF = {
     },
     "evidence": [{"id": "trend", "state": "positive", "headline": "Trend intact", "metrics": ["MA20 100.00"]}],
     "changes": {"rows": [{"metric": "Close", "change": "+1.00%"}]},
+    "coherence": {"status": "aligned", "label": "多數證據同向", "summary": "證據一致", "counts": {"positive": 3, "neutral": 1, "risk": 0, "unavailable": 0}},
     "peer_context": {"state": "ready", "industry": "Semiconductors", "rows": []},
 }
 
@@ -61,6 +62,7 @@ def test_snapshot_id_is_stable_when_capture_time_changes() -> None:
     assert first["snapshot_id"] == second["snapshot_id"]
     assert first["as_of_date"] == "2025-01-31"
     assert first["provenance"]["history_fingerprint"]
+    assert first["research"]["coherence"]["status"] == "aligned"
 
 
 def test_json_export_is_utf8_and_sanitizes_non_finite_values() -> None:
@@ -85,6 +87,7 @@ def test_html_export_escapes_dynamic_asset_values() -> None:
     assert "<script>alert(1)</script>" not in document
     assert "sample" in document
     assert snapshot["snapshot_id"] in document
+    assert "Evidence coherence" in document
 
 def test_history_fingerprint_normalizes_missing_numeric_values() -> None:
     missing_column = make_history().drop(columns="volume")

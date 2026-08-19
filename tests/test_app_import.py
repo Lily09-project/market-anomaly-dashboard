@@ -89,6 +89,8 @@ def test_app_frontend_contracts() -> None:
     assert "研究摘要" in source
     assert "資料可信度" in source
     assert "證據矩陣" in source
+    assert "證據一致性" in source
+    assert "render_evidence_coherence" in source
     assert "本期變化" in source
     assert "同業脈絡" in source
     assert "render_research_brief" in source
@@ -221,6 +223,8 @@ def test_global_css_uses_selected_light_theme(monkeypatch) -> None:
     assert ".data-rail" in css
     assert ".instrument-workspace" in css
     assert ".evidence-grid" in css
+    assert ".coherence-panel" in css
+    assert ".coherence-grid" in css
     assert light_theme["success"] in css
     assert light_theme["danger"] in css
     assert "@media (prefers-reduced-motion: reduce)" in css
@@ -291,3 +295,10 @@ def test_snapshot_comparison_public_contract() -> None:
     workflow = project_path("docs/research-workflow.md").read_text(encoding="utf-8")
     assert "Snapshot Comparison" in readme
     assert "integrity verification" in workflow
+
+def test_stock_page_exposes_research_readiness_panel() -> None:
+    source = project_path("app.py").read_text(encoding="utf-8")
+
+    assert "研究就緒度" in source
+    assert "readiness-grid" in source
+    assert "這不是股票評分" in source

@@ -2,9 +2,23 @@
 
 繁體中文名稱：**股票研究可信度工作台**
 
+[![CI](https://github.com/Lily09-project/market-anomaly-dashboard/actions/workflows/security.yml/badge.svg)](https://github.com/Lily09-project/market-anomaly-dashboard/actions/workflows/security.yml)
+
 一個面向台股與美股的可解釋股票研究儀表板。它把行情資料、技術證據、資料來源狀態、同業脈絡與可驗證的研究快照放在同一個工作流中，讓使用者在解讀圖表之前，先知道資料是否可用、證據來自哪裡，以及目前結論有哪些限制。
 
 本專案不是股價預測器，也不是交易訊號產生器。它刻意不提供買賣建議、目標價或報酬保證，而是展示一個可實際使用、可測試、可維護的金融資料產品應如何處理資料品質、外部 API 失敗、可解釋分析與安全公開。
+
+## 三分鐘快速體驗
+
+如果只想快速確認目前版本是否能啟動，請使用 Windows 啟動器：
+
+~~~powershell
+git clone https://github.com/Lily09-project/market-anomaly-dashboard.git
+cd market-anomaly-dashboard
+.\run_project.bat
+~~~
+
+啟動器會依序檢查專案路徑、建立或確認 .venv、安裝 requirements-dev.txt、執行 sample pipeline、smoke test 與 pytest，最後啟動固定網址 http://localhost:8765。這個流程刻意把資料產物生成與測試放在啟動前，讓展示畫面不會建立在未驗證的本機殘留檔案上。
 
 ## 專案定位與可解釋研究工作台
 
@@ -29,6 +43,11 @@ Research Trust Workbench 將這些問題設計成產品的一部分：資料狀�
 - 個股 K 線、移動平均線、成交量、RSI(14) 與近期變化。
 - 股票基本資料：市值、成交量、20 日均量、52 週高低點等可用欄位。
 - 四個可解釋證據面向：趨勢、動能、量能與風險／波動。
+- 研究就緒度（Research Readiness）：以資料來源（30 分）、更新時效（25 分）、OHLCV 覆蓋（25 分）與樣本深度（20 分）揭露目前分析條件。
+- 證據一致性（Evidence Coherence）：辨識趨勢、動能、量能與風險是否同向、分歧或資料不完整，不把四項證據壓成買賣分數。
+- 品質硬性上限：DEMO／非 yfinance 來源、超過 14 天的舊資料、低於 80% 覆蓋率或不足 20 筆觀測，都會限制最高分並列出下一步修正。
+
+研究就緒度不是股票評分，也不代表投資價值。它回答的是「這份資料是否足以進入技術研究」，並將來源降級、資料過期與樣本不足轉成可驗證的產品狀態，避免畫面正常就被誤認為資料可信。
 - 近期價格、RSI、MA20 距離與 20 日波動率變化。
 - 產業同類比較，資料不足時直接顯示無法比較，不補造排名。
 - 匯出離線 Research Snapshot JSON 與可列印 HTML。
@@ -64,6 +83,7 @@ Research Trust Workbench 將這些問題設計成產品的一部分：資料狀�
 - `snapshot_id` 與資料日期。
 - 資料來源、來源狀態與資料品質警示。
 - 技術證據、近期變化與同業脈絡。
+- 快照也保存證據一致性摘要，讓下載後的研究紀錄與頁面判讀保持一致。
 - 正規化 OHLCV 輸入的 SHA-256 fingerprint。
 
 快照比較頁可以比較同一股票的兩份 schema `1.0` JSON：
@@ -166,6 +186,8 @@ fetch -> preprocess -> features -> Isolation Forest -> evaluation -> charts
 - `app.py`：Streamlit 入口、路由、頁面組裝、主題與全域 UI 樣式。
 - `src/market_api.py`：yfinance／TWSE 存取、代號轉換、timeout、fallback、快取支援與技術指標。
 - `src/research_brief.py`：股票研究摘要的純函式邏輯，不依賴 Streamlit 或網路。
+- `src/research_readiness.py`：以可測試規則建立研究就緒度、品質上限與修正建議。
+- `src/research_coherence.py`：以固定證據狀態辨識同向、分歧、風險偏多與資料不完整。
 - `src/market_screener.py`：市場雷達的資料門檻、因子評分、研究配置與穩定排序。
 - `src/market_radar_page.py`：市場雷達控制項、候選池、表格與個股導覽。
 - `src/research_snapshot.py`：快照 schema、canonical content、fingerprint 與匯出資料。
@@ -267,7 +289,7 @@ curl http://127.0.0.1:8765/_stcore/health
 .venv\Scripts\python.exe -m pip check
 
 # 已知漏洞掃描
-.venv\Scripts\python.exe -m pip_audit --local --skip-editable
+.venv\Scripts\python.exe -m pip_audit --strict
 
 # 啟動與資料產物煙霧測試
 .venv\Scripts\python.exe src\smoke_test.py
@@ -335,3 +357,88 @@ yfinance 與 TWSE OpenAPI 的可用性、資料延遲、交易時段、供應商
 - [`docs/research-workflow.md`](docs/research-workflow.md)：研究工作流、證據定義與快照驗證原則。
 - [`docs/deployment.md`](docs/deployment.md)：Docker、公開部署與健康檢查要求。
 - [`SECURITY.md`](SECURITY.md)：漏洞回報與敏感資料政策。
+## 快速導覽與實際產出預覽
+
+這個 repository 的公開入口分成四個使用情境：
+
+1. 股票分析：以股票代號與公司名稱為主鍵，查看 K 線、均線、RSI、成交量、基本資料與產業比較。
+2. 市場雷達：以透明的研究配置整理候選標的，提供產業篩選、最低證據分數與可追溯排名。
+3. 異常偵測展示：獨立展示資料清理、特徵工程、Isolation Forest 與異常日期，不混入個股研究頁。
+4. 快照比較：把研究結果保存成可驗證 JSON，再比較兩個時間點的證據、來源與完整性。
+
+### Sample pipeline 的實際圖表
+
+下列圖片由目前專案執行 run_all.py --mode sample 產生，與測試使用同一套資料流程。圖片是可重現的 pipeline 輸出，不是即時行情，也不是手工製作的產品 mockup。
+
+![Sample price trend](docs/screenshots/sample-price-trend.png)
+
+價格趨勢與異常事件：驗證清理後的價格資料、日期排序與異常標記是否能正確產生。
+
+![Sample volatility trend](docs/screenshots/sample-volatility-trend.png)
+
+波動率趨勢：呈現近期風險行為，不能直接解讀為投資建議或低風險保證。
+
+![Sample anomaly cases](docs/screenshots/sample-anomaly-cases.png)
+
+異常案例摘要：驗證模型輸出能轉成可閱讀的報告產物。
+
+目前開發環境沒有瀏覽器截圖驅動，因此 repository 不放未經目前 commit 驗證的舊 UI 截圖。要更新 UI 截圖時，請先啟動固定網址 http://localhost:8765，再以同一版本重新截圖並更新圖片說明。
+
+## 面試展示建議
+
+建議用以下順序展示，能在短時間內說清楚產品價值與工程取捨：
+
+1. 先從股票分析頁輸入 2330，說明台股代號會轉換成 2330.TW，並且畫面同時保留股票代號、公司名稱、產業與資料來源。
+2. 切換產業篩選與同業比較，說明這不是單一指標下結論，而是把趨勢、動能、量能與波動拆成可讀證據。
+3. 關閉網路或使用 sample 模式，展示 LIVE、DEMO、快取與離線狀態如何被明確區分。
+4. 進入市場雷達，調整研究配置與最低分數，展示 deterministic ranking 與 URL 可分享研究條件。
+5. 最後進入異常偵測展示，說明這一頁是資料工程與模型流程展示，刻意與股票分析分頁隔離，避免把異常標記包裝成交易訊號。
+6. 匯出 Research Snapshot，展示 schema 驗證、SHA-256 fingerprint 與跨版本比較。
+
+## 公開 Release Checklist
+
+發布或面試展示前，建議確認：
+
+- [ ] git status 沒有未提交的意外檔案。
+- [ ] .env、API key、token、private key 沒有進入 Git history。
+- [ ] models、reports、data/raw、data/processed 與 cache 沒有被 Git 追蹤。
+- [ ] README 的啟動命令與實際固定 port 8765 一致。
+- [ ] sample pipeline 可以在沒有外網時完成。
+- [ ] LIVE、DEMO、離線與資料日期在畫面上有明確區分。
+- [ ] 股票分析與異常偵測仍是不同頁面。
+- [ ] 快照上傳只在記憶體處理，沒有寫入使用者檔案。
+- [ ] pytest、compileall、Bandit、pip check 與 pip-audit 都重新驗證。
+- [ ] Docker health check 與 GitHub Actions 都成功。
+
+## 文件與程式碼導覽
+
+| 路徑 | 職責 |
+| --- | --- |
+| app.py | Streamlit 入口、頁面路由、全域 UI 與主題 |
+| src/market_api.py | yfinance、TWSE OpenAPI、代號正規化與 fallback |
+| src/research_brief.py | 個股研究摘要與技術證據 |
+| src/market_screener.py | 市場雷達門檻、因子與穩定排序 |
+| src/market_radar_page.py | 雷達頁面控制項、表格與導覽 |
+| src/research_snapshot.py | 快照 schema、canonical content 與 fingerprint |
+| src/snapshot_compare.py | 快照安全驗證與比較 |
+| run_all.py | sample/API pipeline 入口 |
+| run_project.bat | Windows 固定 port 啟動器 |
+| tests/ | 單元、整合、Streamlit runtime 與公開 release 測試 |
+
+## 常見問題補充
+
+### 啟動時為什麼會先跑測試？
+
+run_project.bat 把 sample pipeline、smoke test 與 pytest 放在啟動流程中，是為了避免使用者在測試未通過時看到不可信的頁面狀態。若只需要快速啟動已驗證環境，也可以直接使用：
+
+~~~powershell
+.venv\Scripts\python.exe -m streamlit run app.py --server.port 8765
+~~~
+
+### 為什麼畫面可能沒有今天的資料？
+
+行情服務會受到交易時間、休市、供應商延遲、代號有效性與網路連線影響。請以頁面顯示的資料截至日期與來源狀態為準，不要只用電腦當前日期判斷資料是否錯誤。
+
+### 這個專案最適合展示什麼能力？
+
+它適合展示金融資料產品中的資料 provenance、來源降級、可解釋技術證據、deterministic ranking、快照完整性驗證、Streamlit runtime testing、CI 安全檢查與 Docker health check。這些設計比單純堆疊圖表更能反映可維護產品的工程品質。
