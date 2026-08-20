@@ -74,6 +74,8 @@ jobs:
   browser-ui:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      MARKET_DASHBOARD_OFFLINE: "1"
 
     steps:
       - name: Check out repository

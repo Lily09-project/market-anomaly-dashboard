@@ -66,6 +66,7 @@ def test_github_actions_runs_locked_release_and_browser_gates() -> None:
     assert "python -m playwright install --with-deps chromium" in workflow
     assert "browser-ui:" in workflow
     assert "runs-on: ubuntu-24.04" in workflow
+    assert "MARKET_DASHBOARD_OFFLINE: \"1\"" in workflow
     assert "python scripts/ui_qa.py --url http://127.0.0.1:8765" in workflow
     assert workflow.count("actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8") == 3
 

@@ -353,7 +353,7 @@ curl http://127.0.0.1:8765/_stcore/health
 
 目前本機完整驗證結果會以最新 CI／本機執行結果為準；發布前應重新執行 pytest、compileall、Bandit、pip check、pip-audit、release gate 與 smoke test。瀏覽器 QA 需要額外安裝固定版本的 `requirements-e2e.txt`（Playwright 1.58.0）；未安裝時腳本會清楚回報 `SKIP`，不會誤報為通過。QA 會檢查股票分析、市場雷達、異常偵測展示與研究快照比較四頁，並各自驗證 desktop／mobile 版面。
 
-GitHub Actions 位於 [`.github/workflows/security.yml`](.github/workflows/security.yml)，在 push、pull request 與每週排程使用 lock 檔執行 release gate、依賴稽核、Bandit、零 warning pytest、Docker build／health check，以及固定 `ubuntu-24.04` runner 的 Chromium responsive browser QA；同一 branch 的重複檢查會由 concurrency policy 自動取消舊執行。Dependabot 設定位於 [`.github/dependabot.yml`](.github/dependabot.yml)。
+GitHub Actions 位於 [`.github/workflows/security.yml`](.github/workflows/security.yml)，在 push、pull request 與每週排程使用 lock 檔執行 release gate、依賴稽核、Bandit、零 warning pytest、Docker build／health check，以及固定 `ubuntu-24.04` runner 的 Chromium responsive browser QA；browser gate 會設定 `MARKET_DASHBOARD_OFFLINE=1`，讓頁面 contract、responsive 與 console 檢查不受第三方行情 API 延遲影響，正式啟動仍可使用 yfinance／TWSE。同一 branch 的重複檢查會由 concurrency policy 自動取消舊執行。Dependabot 設定位於 [`.github/dependabot.yml`](.github/dependabot.yml)。
 
 ## 安全與隱私
 
