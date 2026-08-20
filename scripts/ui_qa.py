@@ -15,6 +15,7 @@ PAGE_CONTRACTS = {
     "anomalies": ("異常偵測展示", "異常偵測展示代號"),
     "compare": ("研究快照比較", "基準快照", "目前快照"),
 }
+PAGE_LOAD_STATE = "domcontentloaded"
 
 
 def missing_page_contracts(route: str, body_text: str) -> list[str]:
@@ -39,6 +40,7 @@ def check_health(base_url: str) -> None:
 
 def run_browser_checks(base_url: str, screenshot_dir: Path) -> str:
     try:
+        from playwright.sync_api import Error as PlaywrightError
         from playwright.sync_api import sync_playwright
     except ImportError:
         return "SKIP: install requirements-e2e.txt to run browser-level checks"
@@ -61,7 +63,7 @@ def run_browser_checks(base_url: str, screenshot_dir: Path) -> str:
                 try:
                     page.goto(
                         f"{base_url.rstrip('/')}/?page={route}",
-                        wait_until="networkidle",
+                        wait_until=PAGE_LOAD_STATE,
                         timeout=60_000,
                     )
                     page.wait_for_timeout(500)
@@ -85,6 +87,8 @@ def run_browser_checks(base_url: str, screenshot_dir: Path) -> str:
                         path=str(screenshot_dir / f"{route}-{name}.png"),
                         full_page=True,
                     )
+                except PlaywrightError as exc:
+                    failures.append(f"{name}/{route}: browser error: {exc}")
                 finally:
                     page.close()
         browser.close()

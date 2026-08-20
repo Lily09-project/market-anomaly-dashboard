@@ -72,3 +72,10 @@ def test_github_actions_runs_locked_release_and_browser_gates() -> None:
     e2e_requirements = project_path("requirements-e2e.txt").read_text(encoding="utf-8")
     assert "playwright==1.58.0" in e2e_requirements
     assert "docs/screenshots/ui-qa/" in project_path(".gitignore").read_text(encoding="utf-8")
+
+
+def test_streamlit_telemetry_is_disabled_for_reproducible_ui_qa() -> None:
+    config = project_path(".streamlit/config.toml").read_text(encoding="utf-8")
+
+    assert "[browser]" in config
+    assert "gatherUsageStats = false" in config

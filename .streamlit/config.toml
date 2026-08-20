@@ -42,3 +42,6 @@ headless = true
 port = 8765
 address = "localhost"
 maxUploadSize = 2
+
+[browser]
+gatherUsageStats = false
