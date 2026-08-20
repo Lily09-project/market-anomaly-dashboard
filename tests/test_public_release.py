@@ -51,3 +51,19 @@ def test_github_actions_builds_and_health_checks_container() -> None:
     assert "docker run --detach --publish 8765:8765" in workflow
     assert "http://127.0.0.1:8765/_stcore/health" in workflow
     assert "docker logs" in workflow
+
+
+def test_github_actions_runs_locked_release_and_browser_gates() -> None:
+    workflow = project_path(".github/workflows/security.yml").read_text(encoding="utf-8")
+
+    assert "pip install --requirement requirements-dev.lock" in workflow
+    assert "python scripts/verify_release.py" in workflow
+    assert "python -W error -m pytest" in workflow
+    assert "--requirement requirements-e2e.txt" in workflow
+    assert "python -m playwright install --with-deps chromium" in workflow
+    assert "browser-ui:" in workflow
+    assert "python scripts/ui_qa.py --url http://127.0.0.1:8765" in workflow
+
+    e2e_requirements = project_path("requirements-e2e.txt").read_text(encoding="utf-8")
+    assert "playwright==1.58.0" in e2e_requirements
+    assert "docs/screenshots/ui-qa/" in project_path(".gitignore").read_text(encoding="utf-8")

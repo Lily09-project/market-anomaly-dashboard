@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import html
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import re
 from concurrent.futures import ThreadPoolExecutor
 
@@ -38,10 +38,17 @@ from src.product_state import (
     PAGE_ROUTES,
     build_data_service_state,
     page_label_from_route,
+    query_keys_for_page,
     route_from_page_label,
 )
 from src.research_brief import build_research_brief
 from src.research_workflow import build_research_workflow
+from src.research_memo import (
+    MEMO_FIELD_LABELS,
+    MEMO_STATUS_LABELS,
+    empty_research_memo,
+    normalize_research_memo,
+)
 from src.research_snapshot import build_research_snapshot, render_snapshot_html, snapshot_to_json_bytes
 from src.snapshot_compare import (
     SnapshotValidationError,
@@ -237,6 +244,8 @@ def anomaly_symbol_label(symbol: str, lookup: dict[str, dict[str, str]]) -> str:
 def resolve_custom_stock_symbol(raw_symbol: str) -> str | None:
     clean_symbol = raw_symbol.strip()
     if not clean_symbol or not CUSTOM_SYMBOL_PATTERN.fullmatch(clean_symbol):
+        return None
+    if clean_symbol.isdigit() and not 4 <= len(clean_symbol) <= 6:
         return None
     return to_yfinance_symbol(clean_symbol)
 
@@ -1207,6 +1216,44 @@ def inject_global_css(theme: dict) -> None:
             min-width: 0;
         }}
 
+        div[data-testid="stForm"] textarea {{
+            min-height: 96px !important;
+            line-height: 1.55 !important;
+            color: {theme["text"]} !important;
+            caret-color: {theme["accent"]} !important;
+            font-size: 1rem !important;
+        }}
+
+        .memo-diff-grid {{
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem;
+            margin: 0.75rem 0 1.25rem;
+        }}
+
+        .memo-diff-item {{
+            display: grid;
+            gap: 0.45rem;
+            min-width: 0;
+            padding: 0.9rem 1rem;
+            border: 1px solid {theme["border"]};
+            border-left: 3px solid {theme["accent"]};
+            border-radius: var(--ui-radius);
+            background: {theme["card"]};
+        }}
+
+        .memo-diff-item strong {{
+            color: {theme["text"]};
+        }}
+
+        .memo-diff-item div {{
+            display: grid;
+            gap: 0.35rem;
+            color: {theme["muted_text"]};
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }}
+
         button {{
             border-radius: 6px !important;
             min-height: 44px !important;
@@ -1360,6 +1407,9 @@ def inject_global_css(theme: dict) -> None:
         }}
 
         @media (max-width: 760px) {{
+            .memo-diff-grid {{
+                grid-template-columns: 1fr;
+            }}
             [data-testid="stToolbar"] {{
                 display: flex !important;
                 visibility: visible !important;
@@ -1981,6 +2031,9 @@ def inject_global_css(theme: dict) -> None:
         }}
 
         @media (max-width: 760px) {{
+            .memo-diff-grid {{
+                grid-template-columns: 1fr;
+            }}
             .readiness-panel,
             .readiness-grid {{
                 grid-template-columns: minmax(0, 1fr);
@@ -2093,6 +2146,9 @@ def inject_global_css(theme: dict) -> None:
         }}
 
         @media (max-width: 760px) {{
+            .memo-diff-grid {{
+                grid-template-columns: 1fr;
+            }}
             .coherence-grid {{
                 grid-template-columns: minmax(0, 1fr);
             }}
@@ -2215,6 +2271,9 @@ def inject_global_css(theme: dict) -> None:
         }}
 
         @media (max-width: 760px) {{
+            .memo-diff-grid {{
+                grid-template-columns: 1fr;
+            }}
             .research-path {{ padding: var(--space-3); }}
             .research-path-grid {{ grid-template-columns: minmax(0, 1fr); }}
         }}
@@ -2289,6 +2348,9 @@ def inject_global_css(theme: dict) -> None:
         }}
 
         @media (max-width: 760px) {{
+            .memo-diff-grid {{
+                grid-template-columns: 1fr;
+            }}
             [data-testid="stSidebar"] {{
                 position: fixed !important;
                 inset: 0 auto 0 0;
@@ -2944,6 +3006,112 @@ def render_snapshot_actions(snapshot: dict) -> None:
             key=f"{filename_base}-html",
             use_container_width=True,
         )
+def research_memo_storage_key(symbol: str) -> str:
+    clean_symbol = re.sub(r"[^A-Za-z0-9._^-]+", "_", str(symbol).strip()) or "stock"
+    return f"research_memo::{clean_symbol}"
+
+
+def render_research_memo_form(symbol: str) -> dict[str, str]:
+    """Render a session-scoped research memo that travels with exported snapshots."""
+    storage_key = research_memo_storage_key(symbol)
+    if storage_key not in st.session_state:
+        st.session_state[storage_key] = empty_research_memo()
+    memo = normalize_research_memo(st.session_state.get(storage_key))
+    st.session_state[storage_key] = memo
+    version_key = f"{storage_key}::version"
+    version = int(st.session_state.get(version_key, 0) or 0)
+    widget_prefix = f"{storage_key.replace(':', '_')}::{version}"
+    notice_key = f"{storage_key}::notice"
+    notice = st.session_state.pop(notice_key, "")
+    if notice:
+        st.success(notice)
+
+    review_value = None
+    if memo.get("next_review_date"):
+        try:
+            review_value = date.fromisoformat(memo["next_review_date"])
+        except ValueError:
+            review_value = None
+
+    with st.expander("研究備忘錄", expanded=bool(any(memo.get(field) for field in ("hypothesis", "supporting_evidence", "counter_evidence", "risks_unknowns", "next_question")))):
+        st.caption("把觀察、反向證據與下一個問題留在同一份快照中。保存後才會進入下載內容；這不是投資建議。")
+        with st.form(f"research_memo_form_{widget_prefix}", clear_on_submit=False):
+            status = st.selectbox(
+                "紀錄狀態",
+                list(MEMO_STATUS_LABELS),
+                index=list(MEMO_STATUS_LABELS).index(memo.get("status", "draft")),
+                format_func=lambda value: MEMO_STATUS_LABELS[value],
+                key=f"{widget_prefix}_status",
+            )
+            hypothesis = st.text_area(
+                "研究假設／核心問題",
+                value=memo.get("hypothesis", ""),
+                placeholder="例如：近期價格維持在中期均線上方，但需要下一次成交量確認。",
+                max_chars=1000,
+                key=f"{widget_prefix}_hypothesis",
+            )
+            supporting = st.text_area(
+                "支持證據",
+                value=memo.get("supporting_evidence", ""),
+                placeholder="記錄指標、日期與數值，不只寫結論。",
+                max_chars=2000,
+                key=f"{widget_prefix}_supporting",
+            )
+            counter = st.text_area(
+                "反向證據／尚未解釋",
+                value=memo.get("counter_evidence", ""),
+                placeholder="哪些現象與假設不一致？目前還不能解釋什麼？",
+                max_chars=2000,
+                key=f"{widget_prefix}_counter",
+            )
+            risks = st.text_area(
+                "風險與未知",
+                value=memo.get("risks_unknowns", ""),
+                placeholder="資料延遲、樣本不足、事件風險或尚未取得的資料。",
+                max_chars=2000,
+                key=f"{widget_prefix}_risks",
+            )
+            next_question = st.text_area(
+                "下一個要驗證的問題",
+                value=memo.get("next_question", ""),
+                placeholder="下一次更新時，最想確認哪一個可觀測問題？",
+                max_chars=800,
+                key=f"{widget_prefix}_next_question",
+            )
+            review_date = st.date_input(
+                "下次檢查日期",
+                value=review_value,
+                key=f"{widget_prefix}_review_date",
+            )
+            save_column, clear_column = st.columns(2, gap="small")
+            with save_column:
+                save_memo = st.form_submit_button("保存研究備忘錄", type="primary", use_container_width=True)
+            with clear_column:
+                clear_memo = st.form_submit_button("清除內容", use_container_width=True)
+
+        if save_memo:
+            saved = normalize_research_memo(
+                {
+                    "status": status,
+                    "hypothesis": hypothesis,
+                    "supporting_evidence": supporting,
+                    "counter_evidence": counter,
+                    "risks_unknowns": risks,
+                    "next_question": next_question,
+                    "next_review_date": review_date.isoformat() if isinstance(review_date, date) else "",
+                }
+            )
+            st.session_state[storage_key] = saved
+            st.session_state[notice_key] = "研究備忘錄已保存，新的內容會進入下一份研究快照。"
+            st.rerun()
+        if clear_memo:
+            st.session_state[storage_key] = empty_research_memo()
+            st.session_state[version_key] = version + 1
+            st.session_state[notice_key] = "研究備忘錄已清除。"
+            st.rerun()
+
+    return normalize_research_memo(st.session_state.get(storage_key))
+
 def render_stock_detail(
     selected_symbol: str,
     theme: dict,
@@ -2971,6 +3139,8 @@ def render_stock_detail(
     safe_source = escape_html(market_source_label(source))
     safe_currency = escape_html(latest.get("currency", ""))
     css_class = change_class(change_pct)
+    memo_key = research_memo_storage_key(selected_symbol)
+    memo = normalize_research_memo(st.session_state.get(memo_key))
     snapshot = build_research_snapshot(
         {
             "symbol": selected_symbol,
@@ -2980,7 +3150,7 @@ def render_stock_detail(
         },
         history,
         source,
-        brief,
+        {**brief, "memo": memo},
         datetime.now(timezone.utc),
     )
 
@@ -3005,6 +3175,8 @@ def render_stock_detail(
         """,
         unsafe_allow_html=True,
     )
+
+    render_research_memo_form(selected_symbol)
 
     workflow = build_research_workflow(
         brief.get("readiness", {}),
@@ -3104,6 +3276,29 @@ def render_data_service_notice(state: dict) -> None:
             st.caption(f"最新可用市場資料日：{as_of_date} · 行情快取最長 15 分鐘")
         else:
             st.caption("目前沒有可確認的市場資料日期。")
+        provider_items = []
+        for provider in state.get("provider_health", []):
+            status_label = {
+                "healthy": "正常",
+                "cached": "快取",
+                "degraded": "降級",
+                "fallback": "示範資料",
+                "unavailable": "不可用",
+            }.get(str(provider.get("status", "")), "未知")
+            provider_items.append(
+                f'{provider.get("provider", "來源")}：{status_label}'
+                f'（{provider.get("detail", "")}）'
+            )
+        if provider_items:
+            st.caption("資料來源健康 · " + " · ".join(provider_items))
+        quality = state.get("data_quality", {})
+        if quality.get("card_count"):
+            counts = quality.get("source_counts", {})
+            source_summary = "、".join(f"{name} {count} 張" for name, count in counts.items())
+            st.caption(
+                f"資料品質摘要 · 已檢查 {quality['card_count']} 張行情卡"
+                f"（{source_summary}）· 可辨識最新 LIVE 資料日：{quality.get('latest_live_date') or '無'}"
+            )
     with action_column:
         if st.button(
             "重新取得資料",
@@ -3390,6 +3585,25 @@ def render_snapshot_comparison_page(theme: dict) -> None:
         if warnings:
             st.warning(f"{label}\uff1a" + "\uff1b".join(str(item) for item in warnings))
 
+    memo_comparison = comparison.get("memo", {})
+    st.subheader("研究備忘錄差異")
+    changed_memo_fields = int(memo_comparison.get("changed_field_count", 0) or 0)
+    if changed_memo_fields:
+        memo_items = []
+        for row in memo_comparison.get("fields", []):
+            if not row.get("changed"):
+                continue
+            memo_items.append(
+                f'<article class="memo-diff-item"><strong>{escape_html(MEMO_FIELD_LABELS.get(row.get("field", ""), row.get("field", "")))}</strong>'
+                f'<div><span>基準：{escape_html(row.get("baseline", "")) or "未記錄"}</span>'
+                f'<span>目前：{escape_html(row.get("current", "")) or "未記錄"}</span></div></article>'
+            )
+        st.markdown(
+            f'<div class="memo-diff-grid">{"".join(memo_items)}</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.info("兩份快照的研究備忘錄沒有欄位變更。")
     st.subheader("\u8b49\u64da\u72c0\u614b\u5dee\u7570")
     evidence_rows = []
     for row in comparison["evidence"]:
@@ -3589,6 +3803,10 @@ def main() -> None:
         label_visibility="collapsed",
     )
     st.query_params["page"] = route_from_page_label(page_name)
+    allowed_query_keys = query_keys_for_page(page_name)
+    for query_key in list(st.query_params.keys()):
+        if query_key not in allowed_query_keys:
+            del st.query_params[query_key]
 
     if page_name != "快照比較":
         with st.sidebar:

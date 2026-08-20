@@ -169,6 +169,8 @@ def test_app_frontend_contracts() -> None:
 def test_custom_symbol_validation_and_theme_resolution() -> None:
     app = importlib.import_module("app")
     assert app.resolve_custom_stock_symbol("2881") == "2881.TW"
+    assert app.resolve_custom_stock_symbol("12") is None
+    assert app.resolve_custom_stock_symbol("1234567") is None
     assert app.resolve_custom_stock_symbol("tsla") == "TSLA"
     assert app.resolve_custom_stock_symbol("^GSPC") == "^GSPC"
     assert app.resolve_custom_stock_symbol("<script>") is None

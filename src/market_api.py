@@ -6,6 +6,7 @@ import contextlib
 import hashlib
 import io
 import logging
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,7 @@ except Exception:
     yf = None
 
 from src.utils import atomic_write_dataframe, clean_numeric, project_path, read_http_response_bytes, safe_exception_message
+from src.request_policy import RequestBudget, request_with_retry
 
 
 LOGGER = logging.getLogger(__name__)
@@ -303,7 +305,21 @@ def _normalize_yfinance_download(history: pd.DataFrame | None, symbol: str) -> p
     required = ["date", "open", "high", "low", "close", "volume"]
     if any(col not in data.columns for col in required):
         return pd.DataFrame()
-    data = data[required].dropna()
+    data = data[required].copy()
+    data["date"] = pd.to_datetime(data["date"], errors="coerce")
+    for column in required[1:]:
+        data[column] = pd.to_numeric(
+            data[column].astype(str).str.replace(",", "", regex=False),
+            errors="coerce",
+        )
+    data = (
+        data.dropna(subset=required)
+        .sort_values("date")
+        .drop_duplicates(subset=["date"], keep="last")
+        .reset_index(drop=True)
+    )
+    if data.empty:
+        return pd.DataFrame()
     data["symbol"] = symbol
     return data
 
@@ -324,20 +340,26 @@ def fetch_yfinance_histories(
             for symbol in yf_symbols
         }
 
-    try:
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            downloaded = yf.download(
-                yf_symbols,
-                period=period,
-                interval=interval,
-                progress=False,
-                auto_adjust=False,
-                threads=len(yf_symbols) > 1,
-                group_by="ticker",
-                timeout=YFINANCE_TIMEOUT_SECONDS,
-            )
-    except Exception:
-        downloaded = pd.DataFrame()
+    downloaded = pd.DataFrame()
+    for attempt in range(1, 3):
+        try:
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                downloaded = yf.download(
+                    yf_symbols,
+                    period=period,
+                    interval=interval,
+                    progress=False,
+                    auto_adjust=False,
+                    threads=len(yf_symbols) > 1,
+                    group_by="ticker",
+                    timeout=YFINANCE_TIMEOUT_SECONDS,
+                )
+            if isinstance(downloaded, pd.DataFrame) and not downloaded.empty:
+                break
+        except Exception as exc:
+            LOGGER.debug("yfinance attempt %s failed: %s", attempt, safe_exception_message(exc))
+        if attempt < 2:
+            time.sleep(0.25 * (2 ** (attempt - 1)))
 
     histories = {}
     fallback_data = None
@@ -412,11 +434,22 @@ def build_watchlist_cards(symbols: list[str] | None = None) -> list[dict[str, An
     return cards
 
 
-def _fetch_twse_dataset(url: str, raw_path: Path, timeout: int) -> tuple[pd.DataFrame, str]:
+def _fetch_twse_dataset(
+    url: str,
+    raw_path: Path,
+    timeout: int,
+    budget: RequestBudget | None = None,
+) -> tuple[pd.DataFrame, str]:
     if requests is not None:
         response = None
         try:
-            response = requests.get(url, timeout=timeout, stream=True)
+            response, _attempts = request_with_retry(
+                requests.get,
+                url,
+                timeout=timeout,
+                budget=budget or RequestBudget(max_requests=2),
+                provider="twse_api",
+            )
             response.raise_for_status()
             try:
                 payload = json.loads(read_http_response_bytes(response).decode("utf-8-sig"))
@@ -428,6 +461,8 @@ def _fetch_twse_dataset(url: str, raw_path: Path, timeout: int) -> tuple[pd.Data
                     if isinstance(payload.get(key), list):
                         payload = payload[key]
                         break
+            if not isinstance(payload, list) or any(not isinstance(row, dict) for row in payload):
+                raise ValueError("TWSE response must be a list of record objects")
             data = pd.DataFrame(payload)
             if not data.empty:
                 raw_path.parent.mkdir(parents=True, exist_ok=True)

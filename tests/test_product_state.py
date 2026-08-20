@@ -4,6 +4,7 @@ from src.product_state import (
     PAGE_ROUTES,
     build_data_service_state,
     page_label_from_route,
+    query_keys_for_page,
     route_from_page_label,
 )
 
@@ -56,3 +57,10 @@ def test_data_service_state_handles_no_market_cards() -> None:
     assert state["mode"] == "unavailable"
     assert state["as_of_date"] is None
     assert state["is_live"] is False
+
+
+def test_query_keys_are_scoped_to_each_page() -> None:
+    assert query_keys_for_page("股票分析") == {"page", "symbol"}
+    assert query_keys_for_page("市場雷達") == {"page", "industry", "profile", "min_score", "pool_size"}
+    assert query_keys_for_page("異常偵測展示") == {"page"}
+    assert query_keys_for_page("快照比較") == {"page"}

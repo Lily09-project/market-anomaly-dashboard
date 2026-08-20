@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Iterable, Mapping
 from typing import Any
+
+from src.provider_health import build_provider_health
 
 
 PAGE_ROUTES = {
@@ -41,12 +44,25 @@ def build_data_service_state(
 ) -> dict[str, Any]:
     """Describe market-data availability without presenting demo values as quotes."""
     card_list = list(cards)
+    provider_health = build_provider_health(company_source, card_list)
     sources = {str(card.get("source") or "").strip() for card in card_list}
     has_live_market = "yfinance" in sources
     has_demo_market = "sample" in sources
     has_live_company = company_source == "twse_openapi"
     live_cards = [card for card in card_list if card.get("source") == "yfinance"]
     as_of_date = _latest_date(live_cards or card_list)
+    source_counts = dict(
+        sorted(Counter(str(card.get("source") or "unavailable").strip() for card in card_list).items())
+    )
+    demo_card_count = sum(1 for card in card_list if card.get("source") == "sample")
+    data_quality = {
+        "card_count": len(card_list),
+        "live_card_count": len(live_cards),
+        "demo_card_count": demo_card_count,
+        "unclassified_card_count": len(card_list) - len(live_cards) - demo_card_count,
+        "source_counts": source_counts,
+        "latest_live_date": _latest_date(live_cards) or "",
+    }
 
     if has_live_market and not has_demo_market:
         company_note = "TWSE 即時來源" if has_live_company else "TWSE 快取或內建清單"
@@ -56,6 +72,8 @@ def build_data_service_state(
             "message": f"行情使用 yfinance；公司資料使用 {company_note}。",
             "as_of_date": as_of_date,
             "is_live": True,
+            "provider_health": provider_health,
+            "data_quality": data_quality,
         }
     if has_live_market and has_demo_market:
         return {
@@ -64,6 +82,8 @@ def build_data_service_state(
             "message": "部分行情無法取得並以示範資料替代；請逐卡確認資料標籤。",
             "as_of_date": as_of_date,
             "is_live": False,
+            "provider_health": provider_health,
+            "data_quality": data_quality,
         }
     if has_demo_market:
         return {
@@ -72,6 +92,8 @@ def build_data_service_state(
             "message": "目前顯示示範資料，所有價格與漲跌均非真實行情。",
             "as_of_date": as_of_date,
             "is_live": False,
+            "provider_health": provider_health,
+            "data_quality": data_quality,
         }
     return {
         "mode": "unavailable",
@@ -79,4 +101,18 @@ def build_data_service_state(
         "message": "目前無法取得行情資料；請重新連線或稍後再試。",
         "as_of_date": as_of_date,
         "is_live": False,
+        "provider_health": provider_health,
+        "data_quality": data_quality,
     }
+
+
+PAGE_QUERY_KEYS = {
+    "股票分析": frozenset({"page", "symbol"}),
+    "市場雷達": frozenset({"page", "industry", "profile", "min_score", "pool_size"}),
+    "異常偵測展示": frozenset({"page"}),
+    "快照比較": frozenset({"page"}),
+}
+
+
+def query_keys_for_page(label: object) -> frozenset[str]:
+    return PAGE_QUERY_KEYS.get(str(label or "").strip(), PAGE_QUERY_KEYS["股票分析"])

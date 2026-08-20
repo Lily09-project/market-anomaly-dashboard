@@ -11,6 +11,7 @@ from typing import Any
 import pandas as pd
 
 from src.research_methodology import build_methodology_manifest, methodology_fingerprint
+from src.research_memo import normalize_research_memo
 
 
 SNAPSHOT_SCHEMA_VERSION = "1.0"
@@ -121,6 +122,7 @@ def build_research_snapshot(
     methodology = _json_value(methodology)
     methodology_mapping = dict(methodology) if isinstance(methodology, Mapping) else build_methodology_manifest()
     methodology_hash = methodology_fingerprint(methodology_mapping)
+    memo = normalize_research_memo(brief.get("memo"))
     content = {
         "schema_version": SNAPSHOT_SCHEMA_VERSION,
         "as_of_date": as_of_date,
@@ -133,6 +135,7 @@ def build_research_snapshot(
             "methodology_fingerprint": methodology_hash,
             "changes": _json_value(brief.get("changes", {})),
             "peer_context": _json_value(brief.get("peer_context", {})),
+            "memo": memo,
         },
         "limitations": list(LIMITATIONS),
     }
@@ -188,6 +191,7 @@ def render_snapshot_html(snapshot: Mapping[str, Any]) -> bytes:
     changes = safe_research.get("changes", {})
     peers = safe_research.get("peer_context", {})
     coherence = safe_research.get("coherence", {})
+    memo = safe_research.get("memo", {})
     methodology = safe_research.get("methodology", {})
     methodology_section = ""
     if isinstance(methodology, Mapping):
@@ -215,6 +219,25 @@ def render_snapshot_html(snapshot: Mapping[str, Any]) -> bytes:
             f'{_html_text(coherence.get("summary", ""))}<br>'
             f'<span class="meta">{count_text}</span></p></section>'
         )
+    memo_section = ""
+    if isinstance(memo, Mapping):
+        memo_status = memo.get("status", "draft")
+        memo_rows = (
+            ("Hypothesis", memo.get("hypothesis", "")),
+            ("Supporting evidence", memo.get("supporting_evidence", "")),
+            ("Counter-evidence", memo.get("counter_evidence", "")),
+            ("Risks and unknowns", memo.get("risks_unknowns", "")),
+            ("Next question", memo.get("next_question", "")),
+            ("Next review date", memo.get("next_review_date", "")),
+        )
+        memo_items = "".join(
+            f"<dt>{_html_text(label)}</dt><dd>{_html_text(value) or '<span class=\"meta\">Not recorded</span>'}</dd>"
+            for label, value in memo_rows
+        )
+        memo_section = (
+            f'<section><h2>Research memo</h2><p class="meta">Status: {_html_text(memo_status)}</p>'
+            f'<dl class="memo-list">{memo_items}</dl></section>'
+        )
     change_rows = changes.get("rows", []) if isinstance(changes, Mapping) else []
     peer_rows = peers.get("rows", []) if isinstance(peers, Mapping) else []
     limitations = snapshot.get("limitations", [])
@@ -232,7 +255,7 @@ def render_snapshot_html(snapshot: Mapping[str, Any]) -> bytes:
 main {{ max-width:900px; margin:0 auto; padding:40px; }} h1,h2,h3,p {{ margin-top:0; }} h1 {{ font-size:30px; }} h2 {{ margin-top:32px; font-size:18px; }}
 .eyebrow,.state {{ color:var(--accent); font-weight:700; text-transform:uppercase; letter-spacing:.04em; }} .meta {{ color:var(--muted); }}
 .provenance,.warning {{ border:1px solid var(--line); background:var(--surface); padding:16px; }} .warning {{ border-left:4px solid var(--accent); }}
-.evidence-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }} .evidence {{ border:1px solid var(--line); padding:16px; }} .evidence h3 {{ margin-bottom:4px; }} .metrics {{ color:var(--muted); font-family:monospace; }}
+.evidence-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }} .evidence {{ border:1px solid var(--line); padding:16px; }} .evidence h3 {{ margin-bottom:4px; }} .metrics {{ color:var(--muted); font-family:monospace; }} .memo-list {{ display:grid; grid-template-columns:minmax(150px,0.35fr) minmax(0,1fr); gap:10px 18px; border:1px solid var(--line); padding:16px; background:var(--surface); }} .memo-list dt {{ font-weight:700; color:var(--accent); }} .memo-list dd {{ margin:0; white-space:pre-wrap; }}
 table {{ width:100%; border-collapse:collapse; }} th,td {{ border:1px solid var(--line); padding:8px; text-align:left; vertical-align:top; }} th {{ background:var(--surface); }} .empty {{ color:var(--muted); }}
 @media print {{ body {{ font-size:11pt; }} main {{ max-width:none; padding:0; }} .evidence {{ break-inside:avoid; }} }}
 @media (max-width:640px) {{ main {{ padding:24px; }} .evidence-grid {{ grid-template-columns:1fr; }} }}
@@ -246,6 +269,7 @@ table {{ width:100%; border-collapse:collapse; }} th,td {{ border:1px solid var(
 {f'<section class="warning"><h2>Warnings</h2><ul>{warning_items}</ul></section>' if warning_items else ''}
 <section><h2>Evidence</h2><div class="evidence-grid">{evidence_cards or '<p class="empty">No evidence is available.</p>'}</div></section>
 {coherence_section}
+{memo_section}
 {methodology_section}
 <section><h2>Recent changes</h2>{_html_table(change_rows)}</section>
 <section><h2>Peer context</h2>{_html_table(peer_rows)}</section>

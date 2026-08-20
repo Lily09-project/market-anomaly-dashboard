@@ -43,7 +43,25 @@ The stock page presents a compact Research Path before the detailed evidence and
 
 The first incomplete or review-needed checkpoint is surfaced as the next step. This keeps the interface useful in DEMO and degraded-data states without pretending that a missing input is a neutral result.
 
-## 8. Compare Verified Snapshots
+## 8. Record the Reasoning, Not Only the Chart
+
+The stock page includes a session-scoped Research Memo for the selected symbol. It has a small, explicit schema:
+
+- status: draft, monitoring, or reviewed;
+- hypothesis / core question;
+- supporting evidence and counter-evidence;
+- risks and unknowns;
+- next question and optional next review date.
+
+The form validates text length and dates before saving. The memo is not an investment recommendation and is not written to a server-side user database. When a snapshot is exported, the normalized memo becomes part of the research content, so its deterministic `snapshot_id` changes when the research record changes. Snapshot Comparison reports memo changes field by field instead of hiding them in a generic text diff.
+
+## 9. Monitor Provider Health
+
+Provider health is derived from the same source labels used by the market cards. It reports whether yfinance is healthy, mixed, fallback, or unavailable, together with the effective source, record count, latest available date and a user-facing reason. TWSE company-list health is reported separately. A sample fallback can keep the UI usable, but it can never be presented as live market data.
+
+External fetchers use a bounded request policy: timeout, a small maximum attempt count, short backoff and a per-operation request budget. This makes transient failures recoverable without turning a page refresh into an unbounded upstream request loop.
+
+## 10. Compare Verified Snapshots
 
 Snapshot Comparison accepts two schema 1.0 Research Snapshot JSON exports for the same stock. Before comparison, integrity verification recalculates each deterministic snapshot_id and rejects altered content, unsupported schemas, malformed JSON, files larger than 2 MiB, and mismatched symbols.
 

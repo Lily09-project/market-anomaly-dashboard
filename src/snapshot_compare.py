@@ -7,6 +7,7 @@ from datetime import date
 from typing import Any
 
 from src.research_methodology import methodology_fingerprint
+from src.research_memo import compare_research_memos, validate_research_memo
 from src.research_snapshot import SNAPSHOT_SCHEMA_VERSION, calculate_snapshot_id
 
 
@@ -62,6 +63,11 @@ def _validate_snapshot(snapshot: Mapping[str, Any]) -> dict[str, Any]:
         raise SnapshotValidationError("\u6b77\u53f2\u8cc7\u6599\u6307\u7d0b\u683c\u5f0f\u7121\u6548\u3002")
     if not isinstance(research.get("evidence", []), list):
         raise SnapshotValidationError("\u7814\u7a76\u8b49\u64da\u5fc5\u9808\u662f\u9663\u5217\u683c\u5f0f\u3002")
+    if "memo" in research:
+        try:
+            validate_research_memo(research.get("memo"), allow_missing=False)
+        except ValueError as exc:
+            raise SnapshotValidationError(str(exc)) from exc
     methodology = research.get("methodology")
     methodology_hash = research.get("methodology_fingerprint")
     if methodology is not None or methodology_hash is not None:
@@ -259,6 +265,12 @@ def compare_snapshots(
 
     baseline_provenance = _mapping(baseline_data.get("provenance"), "\u4f86\u6e90")
     current_provenance = _mapping(current_data.get("provenance"), "\u4f86\u6e90")
+    baseline_research = _mapping(baseline_data.get("research"), "研究")
+    current_research = _mapping(current_data.get("research"), "研究")
+    memo_comparison = compare_research_memos(
+        baseline_research.get("memo"),
+        current_research.get("memo"),
+    )
     provenance_fields = (
         ("source", "\u8cc7\u6599\u4f86\u6e90"),
         ("quality_state", "\u8cc7\u6599\u54c1\u8cea"),
@@ -309,6 +321,8 @@ def compare_snapshots(
         "changed_evidence_count": sum(
             1 for row in evidence_rows if row["changed"]
         ),
+        "memo": memo_comparison,
+        "changed_memo_field_count": memo_comparison["changed_field_count"],
     }
 
 
