@@ -6,6 +6,7 @@ import contextlib
 import hashlib
 import io
 import logging
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,6 +35,12 @@ TWSE_ESG_LEGAL_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap46_L_20"
 # Backward-compatible alias for existing callers and tests.
 TWSE_GOVERNANCE_URL = TWSE_ESG_LEGAL_URL
 YFINANCE_TIMEOUT_SECONDS = 15
+
+
+def offline_mode_enabled() -> bool:
+    """Return whether deterministic local fallback mode is enabled."""
+    return os.getenv("MARKET_DASHBOARD_OFFLINE", "").strip().lower() in {"1", "true", "yes"}
+
 
 TWSE_INDUSTRY_MAP = {
     "01": "水泥工業",
@@ -333,7 +340,7 @@ def fetch_yfinance_histories(
     fallback_rows = _fallback_rows_for_period(period)
     if not yf_symbols:
         return {}
-    if yf is None:
+    if offline_mode_enabled() or yf is None:
         fallback_data = _load_fallback_data()
         return {
             symbol: (_fallback_history(symbol, fallback_rows, fallback_data), "sample")
@@ -440,6 +447,10 @@ def _fetch_twse_dataset(
     timeout: int,
     budget: RequestBudget | None = None,
 ) -> tuple[pd.DataFrame, str]:
+    if offline_mode_enabled():
+        if raw_path.exists():
+            return pd.read_csv(raw_path), "local_cache"
+        return pd.DataFrame(), "unavailable"
     if requests is not None:
         response = None
         try:

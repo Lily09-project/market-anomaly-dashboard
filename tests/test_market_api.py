@@ -179,6 +179,32 @@ def test_sample_fallback_is_deterministic_and_symbol_specific(monkeypatch) -> No
     assert nvda_first == second["NVDA"][0]["close"].tolist()
     assert aapl_first != nvda_first
 
+
+def test_offline_mode_bypasses_external_provider_requests(monkeypatch, tmp_path) -> None:
+    from src import market_api
+
+    class FailingYFinance:
+        @staticmethod
+        def download(*args, **kwargs):
+            raise AssertionError("offline mode must not call yfinance")
+
+    class FailingRequests:
+        @staticmethod
+        def get(*args, **kwargs):
+            raise AssertionError("offline mode must not call TWSE")
+
+    monkeypatch.setenv("MARKET_DASHBOARD_OFFLINE", "1")
+    monkeypatch.setattr(market_api, "yf", FailingYFinance)
+    monkeypatch.setattr(market_api, "requests", FailingRequests)
+
+    histories = market_api.fetch_yfinance_histories(["2330.TW"], period="1mo")
+    data, source = market_api._fetch_twse_dataset("https://example.test", tmp_path / "twse.csv", 1)
+
+    assert histories["2330.TW"][1] == "sample"
+    assert not histories["2330.TW"][0].empty
+    assert source == "unavailable"
+    assert data.empty
+
 def test_twse_dataset_unwraps_list_payload(monkeypatch, tmp_path) -> None:
     from src import market_api
 
