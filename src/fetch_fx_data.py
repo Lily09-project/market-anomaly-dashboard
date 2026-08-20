@@ -12,6 +12,7 @@ except Exception:
     requests = None
 
 from src.utils import atomic_write_dataframe, clean_numeric, ensure_parent, load_config, normalize_http_timeout, parse_date, read_http_response_bytes, safe_exception_message
+from src.request_policy import RequestBudget, request_with_retry
 
 
 FX_COLUMN_ALIASES = {
@@ -72,7 +73,13 @@ def fetch_fx_data(config: dict | None = None) -> Path | None:
         return None
     try:
         timeout = normalize_http_timeout(cfg["api"].get("timeout_seconds"), default=15.0)
-        response = requests.get(url, timeout=timeout, stream=True)
+        response, _attempts = request_with_retry(
+            requests.get,
+            url,
+            timeout=timeout,
+            budget=RequestBudget(max_requests=2),
+            provider="fx_api",
+        )
         try:
             response.raise_for_status()
             payload = read_http_response_bytes(response)
@@ -80,6 +87,8 @@ def fetch_fx_data(config: dict | None = None) -> Path | None:
                 _parse_response_payload(payload, response.headers.get("content-type", "")),
                 cfg["data"]["currency_pair"],
             )
+            if normalized.empty:
+                raise ValueError("FX API returned no usable records")
         finally:
             close = getattr(response, "close", None)
             if callable(close):

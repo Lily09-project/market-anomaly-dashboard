@@ -53,6 +53,17 @@ Research Trust Workbench 將這些問題設計成產品的一部分：資料狀�
 - 產業同類比較，資料不足時直接顯示無法比較，不補造排名。
 - 匯出離線 Research Snapshot JSON 與可列印 HTML。
 
+#### 研究備忘錄與資料來源健康
+
+個股頁的「研究備忘錄」讓使用者把觀察寫成可回顧的研究紀錄，而不是把想法留在截圖或瀏覽器外部：
+
+- 以股票代號為隔離鍵，保存狀態、研究假設、支持證據、反向證據、風險／未知與下一個待驗證問題。
+- 欄位有字數上限、日期格式驗證與清除／保存 feedback；內容只存在目前 Streamlit session，不建立帳號或伺服器端個人資料庫。
+- 保存後會進入下一份 Research Snapshot，快照 ID 會隨研究紀錄變更，確保「同一份行情、不同研究脈絡」不會被誤認為同一份結果。
+- 快照比較頁會逐欄呈現研究備忘錄的變更，保留 baseline／current 順序，方便面試展示研究如何隨新證據修正。
+
+頁面同時顯示 yfinance 與 TWSE OpenAPI 的 provider health：來源、LIVE／DEMO／cache 狀態、有效筆數、最新資料日與降級原因。這個狀態與卡片上的資料來源標籤共用同一份產品狀態，不以畫面成功渲染冒充 API 成功。
+
 ### 可解釋市場雷達
 
 市場雷達是獨立的研究排序頁，不與異常偵測混在同一個畫面。它從熱門代表清單建立候選池，協助使用者整理研究優先順序；它不是全市場掃描器，也不是投資建議引擎。
@@ -196,11 +207,16 @@ fetch -> preprocess -> features -> Isolation Forest -> evaluation -> charts
 - `src/market_radar_page.py`：市場雷達控制項、候選池、表格與個股導覽。
 - `src/research_snapshot.py`：快照 schema、canonical content、fingerprint 與匯出資料。
 - `src/snapshot_compare.py`：快照驗證、內容比對、來源變化與比較結果。
+- `src/research_memo.py`：研究備忘錄 schema、欄位限制、正規化與差異比較。
+- `src/provider_health.py`：集中整理行情／公司清單來源的健康狀態與降級說明。
+- `src/request_policy.py`：有上限的外部請求預算、timeout、重試與 backoff。
 - `src/fetch_market_data.py`、`src/fetch_fx_data.py`：pipeline 外部資料抓取與欄位正規化。
 - `src/preprocess.py`、`src/features.py`：異常偵測資料清理與特徵工程。
 - `src/train_anomaly_model.py`、`src/evaluate.py`：模型訓練、pseudo-label 評估與圖表產生。
 - `run_all.py`：可重現的 sample／API pipeline 入口。
 - `tests/`：資料處理、模型、快照、UI contract、Streamlit runtime、fallback 與安全測試。
+- `scripts/verify_release.py`：公開檔案邊界、固定 port、鎖定依賴與 Docker hardening 的 release gate。
+- `scripts/ui_qa.py`：啟動健康檢查、桌面／手機 Responsive 溢位與 console error 檢查；安裝 E2E 依賴後可輸出本機 UI 截圖。
 
 ## 頁面路由與可分享 URL
 
@@ -293,19 +309,25 @@ curl http://127.0.0.1:8765/_stcore/health
 
 ```powershell
 # 完整測試
-.venv\Scripts\python.exe -m pytest -q
+.venv\Scripts\python.exe -W error -m pytest -q -p no:cacheprovider
 
 # 編譯檢查
-.venv\Scripts\python.exe -m compileall -q app.py src tests
+.venv\Scripts\python.exe -m compileall -q app.py src scripts tests
 
 # Python 靜態安全掃描
-.venv\Scripts\python.exe -m bandit -q -r app.py src
+.venv\Scripts\python.exe -m bandit -q -r app.py src scripts
 
 # 已安裝套件的依賴一致性
 .venv\Scripts\python.exe -m pip check
 
 # 已知漏洞掃描
 .venv\Scripts\python.exe -m pip_audit --strict
+
+# 公開 release 邊界與 Docker 設定檢查
+.venv\Scripts\python.exe scripts\verify_release.py
+
+# 若已安裝 requirements-e2e.txt 且 Streamlit 已在 8765 執行，做瀏覽器級 QA
+.venv\Scripts\python.exe scripts\ui_qa.py
 
 # 啟動與資料產物煙霧測試
 .venv\Scripts\python.exe src\smoke_test.py
@@ -322,10 +344,16 @@ curl http://127.0.0.1:8765/_stcore/health
 - 研究方法 manifest 與 fingerprint 的穩定性、變更辨識與快照保存。
 - anomaly pipeline 的 preprocessing、features、model、evaluation 與 smoke test。
 - BAT 啟動器的 Python 搜尋、固定 port、專案路徑輸出與錯誤處理。
+- 研究備忘錄的欄位限制、session 保存、快照整合、HTML escape 與快照差異。
+- provider health 的 LIVE／DEMO／mixed／unavailable 判定、來源分布與資料日期摘要。
+- 外部請求的 request budget、最多重試次數、短 backoff 與失敗邊界。
+- provider contract：yfinance 欄位數值化與日期去重、TWSE record payload 驗證、空回應不覆蓋既有快取。
+- pinned runtime／development lock、公開檔案清單、Docker 非 root 與 health check。
+- 瀏覽器級桌面／手機版四頁渲染、水平溢位、主要內容契約與 console error。
 
-目前本機完整驗證結果會以最新 CI／本機執行結果為準；發布前應重新執行 pytest、compileall、Bandit、pip check、pip-audit 與 smoke test。
+目前本機完整驗證結果會以最新 CI／本機執行結果為準；發布前應重新執行 pytest、compileall、Bandit、pip check、pip-audit、release gate 與 smoke test。瀏覽器 QA 需要額外安裝固定版本的 `requirements-e2e.txt`（Playwright 1.58.0）；未安裝時腳本會清楚回報 `SKIP`，不會誤報為通過。QA 會檢查股票分析、市場雷達、異常偵測展示與研究快照比較四頁，並各自驗證 desktop／mobile 版面。
 
-GitHub Actions 位於 [`.github/workflows/security.yml`](.github/workflows/security.yml)，在 push、pull request 與每週排程執行依賴稽核、Bandit、pytest、Docker build 與 container health check；Dependabot 設定位於 [`.github/dependabot.yml`](.github/dependabot.yml)。
+GitHub Actions 位於 [`.github/workflows/security.yml`](.github/workflows/security.yml)，在 push、pull request 與每週排程使用 lock 檔執行 release gate、依賴稽核、Bandit、零 warning pytest、Docker build／health check，以及 Chromium responsive browser QA；Dependabot 設定位於 [`.github/dependabot.yml`](.github/dependabot.yml)。
 
 ## 安全與隱私
 
