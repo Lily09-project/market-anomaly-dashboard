@@ -93,6 +93,9 @@ jobs:
       - name: Install Chromium
         run: python -m playwright install --with-deps chromium
 
+      - name: Prepare deterministic demo data
+        run: python run_all.py --mode sample
+
       - name: Start Streamlit
         shell: bash
         run: |
