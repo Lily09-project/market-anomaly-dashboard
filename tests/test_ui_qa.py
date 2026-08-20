@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from scripts.ui_qa import PAGE_CONTRACTS, missing_page_contracts
+from scripts.ui_qa import PAGE_CONTRACTS, PAGE_LOAD_STATE, missing_page_contracts
 
 
 def test_ui_page_contracts_cover_all_public_routes() -> None:
     assert set(PAGE_CONTRACTS) == {"stocks", "radar", "anomalies", "compare"}
+    assert PAGE_LOAD_STATE == "domcontentloaded"
 
 
 def test_ui_page_contract_reports_missing_content() -> None:
