@@ -13,6 +13,7 @@ from src.snapshot_compare import (
     SnapshotValidationError,
     compare_snapshots,
     comparison_to_json_bytes,
+    format_provenance_rows,
     parse_snapshot_bytes,
 )
 
@@ -124,6 +125,36 @@ def test_compare_snapshots_joins_evidence_by_id_and_reports_changes() -> None:
 def test_compare_snapshots_rejects_cross_symbol_inputs() -> None:
     with pytest.raises(SnapshotValidationError, match="同一股票"):
         compare_snapshots(make_snapshot("2330.TW"), make_snapshot("AAPL"))
+
+
+def test_format_provenance_rows_normalizes_mixed_values_for_display() -> None:
+    fingerprint = "a" * 64
+    rows = format_provenance_rows(
+        [
+            {"field": "觀測筆數", "baseline": 30, "current": 31, "changed": True},
+            {"field": "欄位覆蓋率", "baseline": 100.0, "current": None, "changed": True},
+            {
+                "field": "歷史資料指紋",
+                "baseline": fingerprint,
+                "current": fingerprint,
+                "changed": False,
+            },
+        ]
+    )
+
+    assert rows[0] == {
+        "欄位": "觀測筆數",
+        "基準快照": "30",
+        "目前快照": "31",
+        "狀態": "已變更",
+    }
+    assert rows[1]["目前快照"] == ""
+    assert rows[2]["基準快照"] == "aaaaaaaaaaaa…aaaaaaaa"
+    assert all(
+        isinstance(value, str)
+        for row in rows
+        for value in row.values()
+    )
 
 
 def test_comparison_json_is_utf8_and_contains_snapshot_ids() -> None:

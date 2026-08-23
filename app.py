@@ -3,7 +3,6 @@ from __future__ import annotations
 import html
 from datetime import date, datetime, timezone
 import re
-from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import pandas as pd
@@ -20,12 +19,13 @@ except Exception:
 
 from src.app_helpers import build_kpis, filter_by_symbol_and_date, get_available_symbols, load_dashboard_data
 from src.market_api import (
+    MARKET_INDEXES,
+    WATCHLIST,
     build_stock_analysis,
     build_market_cards,
     build_watchlist_cards,
     compute_technical_indicators,
     fetch_twse_company_profiles,
-    fetch_twse_esg_legal_data,
     fetch_yfinance_histories,
     fetch_yfinance_history,
     format_number,
@@ -54,6 +54,7 @@ from src.snapshot_compare import (
     SnapshotValidationError,
     compare_snapshots,
     comparison_to_json_bytes,
+    format_provenance_rows,
     parse_snapshot_bytes,
 )
 
@@ -108,20 +109,17 @@ RESEARCH_STATE_LABELS = {
 }
 
 
-def _load_twse_sources() -> tuple[pd.DataFrame, str, pd.DataFrame, str]:
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        company_future = executor.submit(fetch_twse_company_profiles)
-        esg_future = executor.submit(fetch_twse_esg_legal_data)
-        company_profiles, company_source = company_future.result()
-        esg_data, esg_source = esg_future.result()
-    return company_profiles, company_source, esg_data, esg_source
-
-
 if st is not None and st.runtime.exists():
 
+
     @st.cache_data(ttl=3600, show_spinner=False)
-    def cached_load_twse_sources() -> tuple[pd.DataFrame, str, pd.DataFrame, str]:
-        return _load_twse_sources()
+    def cached_company_profiles() -> tuple[pd.DataFrame, str]:
+        return fetch_twse_company_profiles()
+
+
+    @st.cache_data(ttl=900, show_spinner=False)
+    def cached_market_histories(symbols: tuple[str, ...]) -> dict[str, tuple[pd.DataFrame, str]]:
+        return fetch_yfinance_histories(list(symbols), period="1y")
 
 
     @st.cache_data(ttl=900, show_spinner=False)
@@ -143,7 +141,13 @@ if st is not None and st.runtime.exists():
         return fetch_yfinance_histories(list(symbols), period="1y")
 
 else:
-    cached_load_twse_sources = _load_twse_sources
+    def cached_company_profiles() -> tuple[pd.DataFrame, str]:
+        return fetch_twse_company_profiles()
+
+
+    def cached_market_histories(symbols: tuple[str, ...]) -> dict[str, tuple[pd.DataFrame, str]]:
+        return fetch_yfinance_histories(list(symbols), period="1y")
+
     cached_market_cards = build_market_cards
 
     def cached_watchlist_cards(symbols: tuple[str, ...] | None = None) -> list[dict]:
@@ -3119,10 +3123,14 @@ def render_stock_detail(
     peer_cards: list[dict],
     peer_industry: str,
     selected_indicators: list[str] | None = None,
+    history_data: tuple[pd.DataFrame, str] | None = None,
 ) -> None:
     if selected_indicators is None:
         selected_indicators = DEFAULT_TECHNICAL_INDICATORS
-    history, source = cached_stock_history(selected_symbol, period="1y")
+    if history_data is None:
+        history, source = cached_stock_history(selected_symbol, period="1y")
+    else:
+        history, source = history_data
     analysis = build_stock_analysis(history)
     if not analysis:
         st.warning("目前沒有足夠的個股資料可供分析，請稍後重試或改選其他股票。")
@@ -3327,8 +3335,13 @@ def render_product_footer() -> None:
 
 def render_market_radar_page(theme: dict) -> None:
     del theme
+
+    def load_company_sources() -> tuple[pd.DataFrame, str, pd.DataFrame, str]:
+        company_profiles, company_source = cached_company_profiles()
+        return company_profiles, company_source, pd.DataFrame(), "尚未載入"
+
     render_market_radar(
-        cached_load_twse_sources,
+        load_company_sources,
         cached_radar_histories,
         render_page_header,
         render_data_service_notice,
@@ -3337,9 +3350,9 @@ def render_market_radar_page(theme: dict) -> None:
 
 def render_stock_analysis_page(theme: dict) -> None:
     with st.spinner("正在載入 TWSE 上市公司清單..."):
-        company_profiles, company_source, esg_data, esg_source = cached_load_twse_sources()
+        company_profiles, company_source = cached_company_profiles()
     stock_universe = get_stock_universe(company_profiles)
-    company_reference = company_profiles if not company_profiles.empty else esg_data
+    company_reference = company_profiles
     industry_options = get_industry_options(stock_universe)
 
     if not st.session_state.get("stock_query_initialized"):
@@ -3414,12 +3427,25 @@ def render_stock_analysis_page(theme: dict) -> None:
             st.caption(f"可選股票清單：{len(stock_universe)} 檔；資料源 {company_source}，亦可輸入合法 yfinance 代號。")
 
     with st.spinner("正在載入 yfinance 行情與產業比較資料..."):
-        market_cards = cached_market_cards()
         popular_symbols = get_popular_symbols(stock_universe, selected_industry)
-        popular_cards = cached_watchlist_cards(tuple(popular_symbols) if popular_symbols is not None else None)
         peer_symbols, peer_industry = get_peer_comparison_symbols(stock_universe, selected_yf_symbol, selected_industry)
-        peer_cards = cached_watchlist_cards(tuple(peer_symbols))
+        popular_request = popular_symbols or [item["symbol"] for item in WATCHLIST]
+        requested_symbols = tuple(
+            dict.fromkeys(
+                [item["symbol"] for item in MARKET_INDEXES]
+                + list(popular_request)
+                + list(peer_symbols)
+                + [selected_yf_symbol]
+            )
+        )
+        histories = cached_market_histories(requested_symbols)
+        market_cards = build_market_cards(histories=histories)
+        popular_cards = build_watchlist_cards(
+            list(popular_symbols) if popular_symbols is not None else None,
+            histories=histories,
+        )
 
+        peer_cards = build_watchlist_cards(list(peer_symbols), histories=histories)
     data_service_state = build_data_service_state(company_source, market_cards + popular_cards)
     source_status, source_is_live = build_stock_source_status(company_source, market_cards + popular_cards)
     render_page_header(
@@ -3436,7 +3462,7 @@ def render_stock_analysis_page(theme: dict) -> None:
     st.markdown(
         "市場狀態、熱門標的、技術指標與同業比較。"
     )
-    st.caption(f"TWSE 上市公司清單：{company_source}；ESG 法律訴訟資料：{esg_source}")
+    st.caption(f"TWSE 上市公司清單：{company_source}；行情資料逐卡顯示 LIVE、DEMO 或快取狀態。")
     render_market_cards(theme, market_cards)
     render_popular_stocks(popular_cards, selected_industry)
     with st.spinner(f"正在載入 {selected_stock_label} 個股詳情..."):
@@ -3447,6 +3473,7 @@ def render_stock_analysis_page(theme: dict) -> None:
             peer_cards,
             peer_industry,
             selected_indicators,
+            history_data=histories.get(to_yfinance_symbol(selected_yf_symbol)),
         )
     render_peer_comparison(peer_cards, selected_yf_symbol, peer_industry, theme)
 
@@ -3550,31 +3577,7 @@ def render_snapshot_comparison_page(theme: dict) -> None:
         )
 
     st.subheader("\u8cc7\u6599\u4f86\u6e90\u8207\u5b8c\u6574\u6027")
-    provenance_rows = []
-    for row in comparison["provenance"]:
-        baseline_value = row.get("baseline")
-        current_value = row.get("current")
-        if row["field"] == "\u6b77\u53f2\u8cc7\u6599\u6307\u7d0b":
-            baseline_text = str(baseline_value or "")
-            current_text = str(current_value or "")
-            baseline_value = (
-                f"{baseline_text[:12]}\u2026{baseline_text[-8:]}"
-                if len(baseline_text) > 24
-                else baseline_text
-            )
-            current_value = (
-                f"{current_text[:12]}\u2026{current_text[-8:]}"
-                if len(current_text) > 24
-                else current_text
-            )
-        provenance_rows.append(
-            {
-                "\u6b04\u4f4d": row["field"],
-                "\u57fa\u6e96\u5feb\u7167": baseline_value,
-                "\u76ee\u524d\u5feb\u7167": current_value,
-                "\u72c0\u614b": "\u5df2\u8b8a\u66f4" if row["changed"] else "\u76f8\u540c",
-            }
-        )
+    provenance_rows = format_provenance_rows(comparison["provenance"])
     st.dataframe(pd.DataFrame(provenance_rows), width="stretch", hide_index=True)
 
     warning_groups = (

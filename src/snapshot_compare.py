@@ -201,6 +201,37 @@ def _evidence_metrics(item: Mapping[str, Any] | None) -> list[str]:
     return [str(metric) for metric in metrics]
 
 
+def format_provenance_rows(rows: list[Mapping[str, Any]]) -> list[dict[str, str]]:
+    """Build an Arrow-safe display table from mixed provenance values."""
+    display_rows: list[dict[str, str]] = []
+    for row in rows:
+        field = str(row.get("field") or "")
+        baseline_value = row.get("baseline")
+        current_value = row.get("current")
+        if field == "歷史資料指紋":
+            baseline_text = str(baseline_value or "")
+            current_text = str(current_value or "")
+            baseline_value = (
+                f"{baseline_text[:12]}…{baseline_text[-8:]}"
+                if len(baseline_text) > 24
+                else baseline_text
+            )
+            current_value = (
+                f"{current_text[:12]}…{current_text[-8:]}"
+                if len(current_text) > 24
+                else current_text
+            )
+        display_rows.append(
+            {
+                "欄位": field,
+                "基準快照": "" if baseline_value is None else str(baseline_value),
+                "目前快照": "" if current_value is None else str(current_value),
+                "狀態": "已變更" if bool(row.get("changed")) else "相同",
+            }
+        )
+    return display_rows
+
+
 def compare_snapshots(
     baseline: Mapping[str, Any],
     current: Mapping[str, Any],

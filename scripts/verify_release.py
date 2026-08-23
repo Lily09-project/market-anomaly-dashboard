@@ -49,7 +49,12 @@ def _lock_packages(path: Path) -> set[str]:
 
 def _tracked_files() -> list[str]:
     result = subprocess.run(
-        ["git", "ls-files"],  # nosec B603, B607
+        [
+            "git",
+            "-c",
+            f"safe.directory={PROJECT_ROOT.as_posix()}",
+            "ls-files",
+        ],  # nosec B603, B607
         cwd=PROJECT_ROOT,
         check=True,
         capture_output=True,

@@ -16,6 +16,13 @@ PAGE_CONTRACTS = {
     "compare": ("研究快照比較", "基準快照", "目前快照"),
 }
 PAGE_LOAD_STATE = "domcontentloaded"
+PAGE_READY_ATTEMPTS = 120
+STREAMLIT_EXCEPTION_SELECTOR = '[data-testid="stException"]'
+VIEWPORTS = (
+    ("desktop", 1440, 1000),
+    ("small-mobile", 375, 812),
+    ("landscape", 844, 390),
+)
 
 
 def missing_page_contracts(route: str, body_text: str) -> list[str]:
@@ -49,7 +56,7 @@ def run_browser_checks(base_url: str, screenshot_dir: Path) -> str:
     failures: list[str] = []
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
-        for name, width, height in (("desktop", 1440, 1000), ("mobile", 390, 844)):
+        for name, width, height in VIEWPORTS:
             for route in PAGE_CONTRACTS:
                 page = browser.new_page(viewport={"width": width, "height": height})
                 console_errors: list[str] = []
@@ -61,6 +68,7 @@ def run_browser_checks(base_url: str, screenshot_dir: Path) -> str:
                 )
                 page.on("pageerror", lambda error, errors=console_errors: errors.append(str(error)))
                 try:
+                    page.emulate_media(reduced_motion="reduce")
                     page.goto(
                         f"{base_url.rstrip('/')}/?page={route}",
                         wait_until=PAGE_LOAD_STATE,
@@ -68,7 +76,7 @@ def run_browser_checks(base_url: str, screenshot_dir: Path) -> str:
                     )
                     page.wait_for_timeout(500)
                     body_text = ""
-                    for _attempt in range(30):
+                    for _attempt in range(PAGE_READY_ATTEMPTS):
                         body_text = page.locator("body").inner_text()
                         if not missing_page_contracts(route, body_text):
                             break
@@ -76,6 +84,35 @@ def run_browser_checks(base_url: str, screenshot_dir: Path) -> str:
                     missing = missing_page_contracts(route, body_text)
                     if missing:
                         failures.append(f"{name}/{route}: missing content {missing}")
+                    runtime_errors = page.locator(STREAMLIT_EXCEPTION_SELECTOR)
+                    if runtime_errors.count():
+                        failures.append(
+                            f"{name}/{route}: Streamlit runtime exception: "
+                            f"{runtime_errors.all_inner_texts()[:2]}"
+                        )
+                    skip_link = page.locator('a.skip-link[href="#main-content"]')
+                    if skip_link.count() != 1 or page.locator("#main-content").count() != 1:
+                        failures.append(f"{name}/{route}: missing accessible main-content navigation")
+                    heading_occluder = page.evaluate(
+                        """() => {
+                            const main = document.querySelector('#main-content');
+                            const heading = main?.querySelector('h1') || main;
+                            if (!heading) return 'missing heading';
+                            const rect = heading.getBoundingClientRect();
+                            if (rect.width <= 0 || rect.height <= 0) return 'hidden heading';
+                            const x = Math.min(rect.right - 2, rect.left + Math.max(2, rect.width / 2));
+                            const y = Math.min(rect.bottom - 2, rect.top + Math.max(2, rect.height / 2));
+                            const topElement = document.elementFromPoint(x, y);
+                            if (!topElement || heading.contains(topElement) || topElement.contains(heading)) {
+                                return '';
+                            }
+                            return topElement.getAttribute('data-testid') || topElement.className || topElement.tagName;
+                        }"""
+                    )
+                    if heading_occluder:
+                        failures.append(
+                            f"{name}/{route}: main heading is obscured by {heading_occluder}"
+                        )
                     overflow = page.evaluate(
                         "document.documentElement.scrollWidth - window.innerWidth"
                     )
@@ -94,7 +131,7 @@ def run_browser_checks(base_url: str, screenshot_dir: Path) -> str:
         browser.close()
     if failures:
         raise RuntimeError("; ".join(failures[:12]))
-    return "PASS: four-page rendering, responsive overflow, and console checks"
+    return "PASS: 4 routes × 3 viewports, accessibility, overflow, and console checks"
 
 
 def main() -> int:

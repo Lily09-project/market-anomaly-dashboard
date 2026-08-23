@@ -131,9 +131,10 @@ flowchart LR
 | --- | --- | --- | --- |
 | 台股與美股歷史行情 | [yfinance](https://github.com/ranaroussi/yfinance) | OHLCV、K 線、均線、RSI、成交量 | 使用明確標示為 `DEMO` 的本機 sample data |
 | 台股公司清單與分類 | [TWSE OpenAPI](https://openapi.twse.com.tw/) | 公司名稱、代號、產業與公司脈絡 | 使用可用快取或內建清單，並揭露來源狀態 |
-| TWSE 公司治理／ESG 法律資料 | TWSE OpenAPI `t187ap46_L_20` | 個股脈絡與展示資料 | 缺資料時保留可用個股分析，不偽造欄位 |
 | 異常偵測市場資料 | 本機 pipeline | 特徵工程、模型訓練與評估 | `sample` 模式產生可重現資料 |
 | 匯率資料 | 設定檔中的 API 或本機 sample | USD/TWD 趨勢展示 | 未設定 API 時使用 sample fallback |
+
+`src.market_api` 仍保留 TWSE 公司治理／ESG endpoint adapter 與 contract tests，作為未來擴充公司治理研究的邊界；目前股票分析主頁不預載該資料集，避免增加無關請求與延遲。
 
 畫面中的資料狀態有以下語意：
 

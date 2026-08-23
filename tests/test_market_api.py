@@ -11,6 +11,7 @@ from src.market_api import (
     TWSE_GOVERNANCE_URL,
     _fetch_twse_dataset,
     build_twse_stock_universe,
+    build_market_cards,
     build_stock_analysis,
     build_watchlist_cards,
     compute_technical_indicators,
@@ -70,6 +71,65 @@ def test_build_watchlist_cards_keeps_stock_metadata(monkeypatch) -> None:
     assert cards[0]["category"] == "台股上市"
     assert cards[0]["latest_date"] == "2026-02-11"
     assert requested_periods == ["1y"]
+
+
+def test_market_and_watchlist_cards_reuse_preloaded_histories(monkeypatch) -> None:
+    from src import market_api
+
+    dates = pd.bdate_range("2026-01-01", periods=30)
+    prices = pd.Series(range(100, 130), dtype="float64")
+    history = pd.DataFrame(
+        {
+            "date": dates,
+            "open": prices,
+            "high": prices + 1,
+            "low": prices - 1,
+            "close": prices,
+            "volume": 1_000_000,
+        }
+    )
+    histories = {
+        symbol: (history.assign(symbol=symbol), "preloaded")
+        for symbol in {item["symbol"] for item in market_api.MARKET_INDEXES} | {"2330.TW"}
+    }
+
+    def fail_if_requested(*args, **kwargs):
+        raise AssertionError("preloaded histories should avoid another request")
+
+    monkeypatch.setattr(market_api, "fetch_yfinance_histories", fail_if_requested)
+    market_cards = build_market_cards(histories=histories)
+    watchlist_cards = build_watchlist_cards(["2330.TW"], histories=histories)
+
+    assert market_cards
+    assert all(card["source"] == "preloaded" for card in market_cards)
+    assert watchlist_cards[0]["display"] == "台積電"
+    assert watchlist_cards[0]["source"] == "preloaded"
+
+
+def test_preloaded_histories_tolerate_missing_symbols() -> None:
+    from src import market_api
+
+    dates = pd.bdate_range("2026-01-01", periods=3)
+    history = pd.DataFrame(
+        {
+            "date": dates,
+            "open": [100.0, 101.0, 102.0],
+            "high": [101.0, 102.0, 103.0],
+            "low": [99.0, 100.0, 101.0],
+            "close": [100.0, 101.0, 102.0],
+            "volume": [1_000_000, 1_000_000, 1_000_000],
+            "symbol": [market_api.MARKET_INDEXES[0]["symbol"]] * 3,
+        }
+    )
+    histories = {
+        market_api.MARKET_INDEXES[0]["symbol"]: (history, "preloaded"),
+    }
+
+    market_cards = build_market_cards(histories=histories)
+    watchlist_cards = build_watchlist_cards(["2330.TW"], histories=histories)
+
+    assert [card["symbol"] for card in market_cards] == [market_api.MARKET_INDEXES[0]["symbol"]]
+    assert watchlist_cards == []
 
 
 def test_batch_yfinance_download_is_split_by_symbol(monkeypatch) -> None:

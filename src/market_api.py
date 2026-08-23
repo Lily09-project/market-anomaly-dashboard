@@ -407,11 +407,17 @@ def summarize_history(history: pd.DataFrame) -> dict[str, Any]:
     }
 
 
-def build_market_cards() -> list[dict[str, Any]]:
+def build_market_cards(
+    histories: dict[str, tuple[pd.DataFrame, str]] | None = None,
+) -> list[dict[str, Any]]:
     cards = []
-    histories = fetch_yfinance_histories([item["symbol"] for item in MARKET_INDEXES], period="2mo")
+    if histories is None:
+        histories = fetch_yfinance_histories([item["symbol"] for item in MARKET_INDEXES], period="2mo")
     for item in MARKET_INDEXES:
-        history, source = histories[to_yfinance_symbol(item["symbol"])]
+        history, source = histories.get(
+            to_yfinance_symbol(item["symbol"]),
+            (pd.DataFrame(), "unavailable"),
+        )
         summary = summarize_history(history)
         if not summary:
             continue
@@ -419,7 +425,10 @@ def build_market_cards() -> list[dict[str, Any]]:
     return cards
 
 
-def build_watchlist_cards(symbols: list[str] | None = None) -> list[dict[str, Any]]:
+def build_watchlist_cards(
+    symbols: list[str] | None = None,
+    histories: dict[str, tuple[pd.DataFrame, str]] | None = None,
+) -> list[dict[str, Any]]:
     cards = []
     if symbols is None:
         watchlist = WATCHLIST
@@ -430,9 +439,13 @@ def build_watchlist_cards(symbols: list[str] | None = None) -> list[dict[str, An
             yf_symbol = to_yfinance_symbol(symbol)
             item = universe_lookup.get(yf_symbol, {"symbol": yf_symbol, "display": "自訂標的", "category": "自訂"})
             watchlist.append(item)
-    histories = fetch_yfinance_histories([item["symbol"] for item in watchlist], period="1y")
+    if histories is None:
+        histories = fetch_yfinance_histories([item["symbol"] for item in watchlist], period="1y")
     for item in watchlist:
-        history, source = histories[to_yfinance_symbol(item["symbol"])]
+        history, source = histories.get(
+            to_yfinance_symbol(item["symbol"]),
+            (pd.DataFrame(), "unavailable"),
+        )
         summary = summarize_history(history)
         if not summary:
             continue
