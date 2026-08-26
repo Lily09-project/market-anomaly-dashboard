@@ -39,7 +39,7 @@ jobs:
           python scripts/verify_release.py
 
       - name: Audit dependencies
-        run: python -m pip_audit --progress-spinner off
+        run: python -m pip_audit --strict --progress-spinner off
 
       - name: Scan Python source
         run: python -m bandit -r app.py src scripts --exclude tests
