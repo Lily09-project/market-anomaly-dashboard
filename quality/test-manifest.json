@@ -1,0 +1,46 @@
+{
+  "$schema": "./test-manifest.schema.json",
+  "schema_version": "1.0",
+  "project": "market-anomaly-dashboard",
+  "profiles": ["quick", "full", "ui", "release"],
+  "gates": [
+    {
+      "id": "launcher_help", "category": "contract", "type": "command",
+      "profiles": ["quick", "full", "release"], "timeout_seconds": 30,
+      "network": "forbidden", "writes_project": false, "required": true,
+      "command": ["cmd", "/d", "/c", "run_project.bat", "--help"]
+    },
+    {
+      "id": "contract_tests", "category": "contract", "type": "command",
+      "profiles": ["quick"], "timeout_seconds": 120,
+      "network": "forbidden", "writes_project": false, "required": true,
+      "command": ["{python}", "-W", "error", "-m", "pytest", "-q", "-p", "no:cacheprovider", "--basetemp", "{temp}/pytest", "tests/test_acceptance_manifest.py", "tests/test_run_all.py"]
+    },
+    {
+      "id": "authoritative_validate", "category": "release", "type": "command",
+      "profiles": ["full", "release"], "timeout_seconds": 1200,
+      "network": "required", "writes_project": true, "required": true,
+      "command": ["cmd", "/d", "/c", "run_project.bat", "--validate"],
+      "evidence": ["reports/metrics/evaluation_summary.json"],
+      "evidence_freshness": "generated"
+    },
+    {
+      "id": "browser_ui", "category": "ui", "type": "browser",
+      "profiles": ["ui", "release"], "timeout_seconds": 300,
+      "network": "loopback-only", "writes_project": true, "required": true,
+      "command": ["{python}", "scripts/ui_qa.py", "--url", "http://127.0.0.1:8765"],
+      "failure_evidence": "docs/screenshots/ui-qa/failure-evidence.json",
+      "service": {
+        "command": ["{python}", "-m", "streamlit", "run", "app.py", "--server.address", "127.0.0.1", "--server.port", "8765", "--server.headless", "true"],
+        "health_url": "http://127.0.0.1:8765/_stcore/health",
+        "startup_timeout_seconds": 60
+      }
+    },
+    {
+      "id": "diff_check", "category": "hygiene", "type": "command",
+      "profiles": ["full", "release"], "timeout_seconds": 30,
+      "network": "forbidden", "writes_project": false, "required": true,
+      "command": ["git", "-c", "safe.directory={root}", "diff", "--check"]
+    }
+  ]
+}

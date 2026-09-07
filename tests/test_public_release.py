@@ -59,6 +59,7 @@ def test_github_actions_runs_locked_release_and_browser_gates() -> None:
     assert "concurrency:" in workflow
     assert "group: security-${{ github.workflow }}-${{ github.ref }}" in workflow
     assert "cancel-in-progress: true" in workflow
+    assert 'python -m pip install "pip>=26.2"' in workflow
     assert "pip install --requirement requirements-dev.lock" in workflow
     assert "python scripts/verify_release.py" in workflow
     assert "python -m pip_audit --strict --progress-spinner off" in workflow
@@ -70,10 +71,13 @@ def test_github_actions_runs_locked_release_and_browser_gates() -> None:
     assert "MARKET_DASHBOARD_OFFLINE: \"1\"" in workflow
     assert "python run_all.py --mode sample" in workflow
     assert "python scripts/ui_qa.py --url http://127.0.0.1:8765" in workflow
-    assert workflow.count("actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8") == 3
+    assert workflow.count("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1") == 4
+    assert "gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e" in workflow
 
     e2e_requirements = project_path("requirements-e2e.txt").read_text(encoding="utf-8")
     assert "playwright==1.58.0" in e2e_requirements
+    dockerfile = project_path("Dockerfile").read_text(encoding="utf-8")
+    assert 'python -m pip install --no-cache-dir "pip>=26.2"' in dockerfile
     gitignore = project_path(".gitignore").read_text(encoding="utf-8")
     assert "docs/screenshots/ui-qa/" in gitignore
     assert ".review-*-tmp/" in gitignore
@@ -82,6 +86,23 @@ def test_github_actions_runs_locked_release_and_browser_gates() -> None:
     assert "*.pem" in gitignore
     assert "*.key" in gitignore
     assert "credentials*.json" in gitignore
+
+
+def test_runtime_and_development_locks_include_transitive_dependencies() -> None:
+    runtime_lock = project_path("requirements-runtime.lock").read_text(encoding="utf-8")
+    dev_lock = project_path("requirements-dev.lock").read_text(encoding="utf-8")
+
+    for token in (
+        "altair==",
+        "certifi==",
+        "pyarrow==",
+        "scipy==",
+        "urllib3==",
+    ):
+        assert token in runtime_lock
+        assert token in dev_lock
+    for token in ("bandit==", "pip_audit==", "pip==26.2.1", "pytest=="):
+        assert token in dev_lock
 
 
 def test_streamlit_telemetry_is_disabled_for_reproducible_ui_qa() -> None:

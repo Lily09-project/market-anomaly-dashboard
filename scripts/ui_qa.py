@@ -17,6 +17,7 @@ PAGE_CONTRACTS = {
 }
 PAGE_LOAD_STATE = "domcontentloaded"
 PAGE_READY_ATTEMPTS = 120
+PAGE_STABILITY_WAIT_MS = 2500
 STREAMLIT_EXCEPTION_SELECTOR = '[data-testid="stException"]'
 VIEWPORTS = (
     ("desktop", 1440, 1000),
@@ -25,12 +26,49 @@ VIEWPORTS = (
 )
 
 
+def failure_screenshot_names(screenshot_dir: Path, error: str) -> list[str]:
+    names = {path.name for path in screenshot_dir.glob("failure-*.png")}
+    for failure in error.split("; "):
+        scope = failure.split(":", 1)[0]
+        if "/" not in scope:
+            continue
+        viewport, route = scope.split("/", 1)
+        candidate = screenshot_dir / f"{route}-{viewport}.png"
+        if candidate.is_file():
+            names.add(candidate.name)
+    return sorted(names)
+
+
+def write_failure_evidence(base_url: str, screenshot_dir: Path, error: str) -> Path:
+    screenshot_dir.mkdir(parents=True, exist_ok=True)
+    evidence_path = screenshot_dir / "failure-evidence.json"
+    payload = {
+        "schema_version": "1.0",
+        "status": "failed",
+        "base_url": base_url,
+        "error": error,
+        "screenshots": failure_screenshot_names(screenshot_dir, error),
+    }
+    temporary = evidence_path.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(evidence_path)
+    return evidence_path
+
+
 def missing_page_contracts(route: str, body_text: str) -> list[str]:
     """Return stable page-level content requirements for browser smoke QA."""
     requirements = PAGE_CONTRACTS.get(route)
     if requirements is None:
         return ["unknown route"]
     return [required for required in requirements if required not in body_text]
+
+
+def describe_console_error(message: object) -> str:
+    """Include the originating URL so a generic Chromium resource error is actionable."""
+    text = str(getattr(message, "text", message))
+    location = getattr(message, "location", {}) or {}
+    url = location.get("url", "") if isinstance(location, dict) else ""
+    return f"{text} @ {url}" if url else text
 
 
 def check_health(base_url: str) -> None:
@@ -49,8 +87,8 @@ def run_browser_checks(base_url: str, screenshot_dir: Path) -> str:
     try:
         from playwright.sync_api import Error as PlaywrightError
         from playwright.sync_api import sync_playwright
-    except ImportError:
-        return "SKIP: install requirements-e2e.txt to run browser-level checks"
+    except ImportError as exc:
+        raise RuntimeError("install requirements-e2e.txt before browser QA") from exc
 
     screenshot_dir.mkdir(parents=True, exist_ok=True)
     failures: list[str] = []
@@ -62,7 +100,9 @@ def run_browser_checks(base_url: str, screenshot_dir: Path) -> str:
                 console_errors: list[str] = []
                 page.on(
                     "console",
-                    lambda message, errors=console_errors: errors.append(message.text)
+                    lambda message, errors=console_errors: errors.append(
+                        describe_console_error(message)
+                    )
                     if message.type == "error"
                     else None,
                 )
@@ -84,6 +124,10 @@ def run_browser_checks(base_url: str, screenshot_dir: Path) -> str:
                     missing = missing_page_contracts(route, body_text)
                     if missing:
                         failures.append(f"{name}/{route}: missing content {missing}")
+                    # Streamlit can satisfy the page contract before cached market
+                    # data finishes rendering. Wait for a stable screenshot so
+                    # evidence does not capture skeleton placeholders.
+                    page.wait_for_timeout(PAGE_STABILITY_WAIT_MS)
                     runtime_errors = page.locator(STREAMLIT_EXCEPTION_SELECTOR)
                     if runtime_errors.count():
                         failures.append(
@@ -126,6 +170,13 @@ def run_browser_checks(base_url: str, screenshot_dir: Path) -> str:
                     )
                 except PlaywrightError as exc:
                     failures.append(f"{name}/{route}: browser error: {exc}")
+                    try:
+                        page.screenshot(
+                            path=str(screenshot_dir / f"failure-{route}-{name}.png"),
+                            full_page=True,
+                        )
+                    except PlaywrightError:
+                        pass
                 finally:
                     page.close()
         browser.close()
@@ -139,12 +190,19 @@ def main() -> int:
     parser.add_argument("--url", default="http://127.0.0.1:8765")
     parser.add_argument("--screenshots", default="docs/screenshots/ui-qa")
     args = parser.parse_args()
+    screenshot_dir = Path(args.screenshots)
+    (screenshot_dir / "failure-evidence.json").unlink(missing_ok=True)
+    for stale in screenshot_dir.glob("failure-*.png"):
+        stale.unlink(missing_ok=True)
     try:
         check_health(args.url)
-        result = run_browser_checks(args.url, Path(args.screenshots))
+        result = run_browser_checks(args.url, screenshot_dir)
     except (OSError, urllib.error.URLError, RuntimeError) as exc:
+        evidence = write_failure_evidence(args.url, screenshot_dir, str(exc))
         print(f"FAIL: {exc}")
+        print(f"EVIDENCE: {evidence}")
         return 1
+    (screenshot_dir / "failure-evidence.json").unlink(missing_ok=True)
     print(json.dumps({"health": "PASS", "browser": result}, ensure_ascii=False))
     return 0
 

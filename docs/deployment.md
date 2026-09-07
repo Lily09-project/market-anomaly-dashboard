@@ -26,6 +26,17 @@ http://localhost:8765/_stcore/health
 
 The checked-in `.streamlit/config.toml` remains optimized for local port `8765`. The Docker command overrides the bind address to `0.0.0.0` for container networking.
 
+## Local Windows validation
+
+```powershell
+.\run_project.bat
+.\run_project.bat --validate
+```
+
+`--validate` does not start Streamlit. It runs the sample pipeline, smoke test, zero-warning pytest, compileall, dependency consistency, public release verification, Bandit, and the strict dependency audit. Unsupported arguments fail closed instead of starting a local service.
+
+For a machine-readable release decision, run `.venv\Scripts\python.exe quality\run_acceptance.py release`. It applies the authoritative manifest, timeout, required-gate, browser-evidence, and report-schema contract. When pipeline, AppTest, or responsive UI behavior changes, also run `.venv\Scripts\python.exe quality\run_benchmarks.py`; baseline replacement must be an explicit reviewed decision, not an automatic response to a regression.
+
 ## Operational security boundary
 
 The application is intentionally stateless and has no account, session database, or permission model. Treat it as a public read-only research tool, not as a multi-tenant financial service. Before exposing it to the internet:

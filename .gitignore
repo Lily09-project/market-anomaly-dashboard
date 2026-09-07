@@ -3,6 +3,12 @@ __pycache__/
 .pytest_cache/
 .pytest_tmp/
 .review-*-tmp/
+.idea/
+.vscode/
+*.log
+*.err
+*.bak
+*.orig
 *.pyc
 # Internal agent planning records are intentionally local-only.
 docs/superpowers/
@@ -21,5 +27,7 @@ models/
 reports/figures/
 reports/metrics/
 reports/logs/
+reports/acceptance/
+reports/performance/
 docs/screenshots/ui-qa/
 docs/screenshots/ui-qa-review/

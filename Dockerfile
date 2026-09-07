@@ -9,7 +9,8 @@ WORKDIR /app
 RUN useradd --create-home --uid 10001 appuser
 
 COPY requirements-runtime.lock ./
-RUN python -m pip install --no-cache-dir -r requirements-runtime.lock
+RUN python -m pip install --no-cache-dir "pip>=26.2" \
+    && python -m pip install --no-cache-dir -r requirements-runtime.lock
 
 COPY --chown=appuser:appuser . .
 RUN python run_all.py --mode sample && chown -R appuser:appuser /app
