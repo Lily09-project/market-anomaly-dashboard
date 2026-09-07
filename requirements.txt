@@ -1,4 +1,4 @@
-pandas>=2.2,<4
+pandas>=3.0.5,<4
 numpy>=1.26,<3
 requests>=2.31,<3
 scikit-learn>=1.4,<2
