@@ -2454,9 +2454,62 @@ def inject_global_css(theme: dict) -> None:
                 grid-template-columns: 1fr;
             }}
 
-            .research-evidence {{
-                min-height: 0;
+        .research-evidence {{
+            min-height: 0;
+        }}
+        /* UI Pro Max: dense analytics layout with resilient text and keyboard-first focus. */
+        html {{
+            scroll-behavior: smooth;
+            scroll-padding-top: 1rem;
+        }}
+        .block-container {{
+            padding-top: 2.5rem;
+        }}
+        .market-card,
+        .watch-card,
+        .instrument-workspace,
+        .research-shell {{
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }}
+        [data-testid="stDataFrame"],
+        [data-testid="stPlotlyChart"] {{
+            max-width: 100%;
+            min-width: 0;
+        }}
+        [data-testid="stDataFrame"] {{
+            overflow-x: auto;
+            scrollbar-color: {theme["border"]} {theme["surface"]};
+        }}
+        :where(button, [role="button"], a, input, select, textarea):focus-visible {{
+            outline: 3px solid {theme["accent"]} !important;
+            outline-offset: 3px !important;
+        }}
+        button:disabled,
+        input:disabled,
+        select:disabled,
+        textarea:disabled,
+        [aria-disabled="true"] {{
+            cursor: not-allowed !important;
+            opacity: .5 !important;
+        }}
+        @media (max-width: 760px) {{
+            html {{ scroll-padding-top: 4.5rem; }}
+            .block-container {{ padding-top: 4.25rem; }}
+            .dashboard-topline,
+            .data-rail,
+            .research-quality {{
+                min-width: 0;
+                overflow-wrap: anywhere;
             }}
+            .dashboard-topline h1 {{
+                max-width: 18ch;
+                text-wrap: balance;
+            }}
+            [data-testid="stDataFrame"] {{
+                font-size: .95rem !important;
+            }}
+        }}
         }}
         </style>
         """,
