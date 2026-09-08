@@ -329,7 +329,6 @@ def render_peer_comparison(cards: list[dict], selected_symbol: str, industry: st
     if not cards:
         st.info("目前沒有足夠的同類股票資料可比較。")
         return
-    st.caption(f"比較範圍：{industry}。表格用來快速比較同類股票的當日變化、量能與 52 週位置。")
     selected_yf_symbol = to_yfinance_symbol(selected_symbol)
     rows = []
     for card in cards:
@@ -2652,14 +2651,10 @@ def render_market_cards(theme: dict, cards: list[dict] | None = None) -> None:
 
 
 def render_popular_stocks(cards: list[dict], industry: str = "全部") -> None:
-    st.header("熱門股")
+    st.header("熱門股", help="市場代表標的，依最新可用資料更新。")
     if not cards:
         st.info("目前沒有可顯示的熱門股資料，請稍後重試。")
         return
-    if industry == "全部":
-        st.caption("市場代表標的，依最新可用資料更新。")
-    else:
-        st.caption(f"目前顯示「{industry}」類別中的熱門追蹤標的。")
     columns = st.columns(2, gap="large")
     for index, card in enumerate(cards):
         css_class = change_class(card["change_pct"])
@@ -3250,7 +3245,6 @@ def render_stock_detail(
     render_performance_cards(analysis)
 
     st.markdown('<h3 class="stock-section-title">技術圖表</h3>', unsafe_allow_html=True)
-    st.caption("K 線固定顯示；均線、布林通道與副圖可在左側「技術指標」切換。")
     st.plotly_chart(
         make_price_chart(indicators, theme, f"{stock_label} 價格與指標", selected_indicators),
         width="stretch",
@@ -3328,13 +3322,13 @@ def render_data_service_notice(state: dict) -> None:
     elif mode == "unavailable":
         st.error(message)
     else:
-        st.caption(message)
+        message = ""
 
     status_column, action_column = st.columns([5, 1], gap="medium", vertical_alignment="center")
     with status_column:
         as_of_date = state.get("as_of_date")
         if as_of_date:
-            st.caption(f"最新可用市場資料日：{as_of_date} · 行情快取最長 15 分鐘")
+            st.caption(f"資料日 {as_of_date} · 快取 15 分鐘")
         else:
             st.caption("目前沒有可確認的市場資料日期。")
         provider_items = []
@@ -3350,16 +3344,23 @@ def render_data_service_notice(state: dict) -> None:
                 f'{provider.get("provider", "來源")}：{status_label}'
                 f'（{provider.get("detail", "")}）'
             )
+        detail_lines = []
+        if message:
+            detail_lines.append(message)
         if provider_items:
-            st.caption("資料來源健康 · " + " · ".join(provider_items))
+            detail_lines.append("資料來源健康 · " + " · ".join(provider_items))
         quality = state.get("data_quality", {})
         if quality.get("card_count"):
             counts = quality.get("source_counts", {})
             source_summary = "、".join(f"{name} {count} 張" for name, count in counts.items())
-            st.caption(
-                f"資料品質摘要 · 已檢查 {quality['card_count']} 張行情卡"
-                f"（{source_summary}）· 可辨識最新 LIVE 資料日：{quality.get('latest_live_date') or '無'}"
+            detail_lines.append(
+                f"已檢查 {quality['card_count']} 張行情卡（{source_summary}）；"
+                f"最新 LIVE 資料日：{quality.get('latest_live_date') or '無'}"
             )
+        if detail_lines:
+            with st.expander("資料來源詳情", expanded=False):
+                for line in detail_lines:
+                    st.caption(line)
     with action_column:
         if st.button(
             "重新取得資料",
@@ -3379,8 +3380,7 @@ def render_product_footer() -> None:
         """
         <footer class="product-footer">
             <strong>Research Trust Workbench</strong>
-            <span>資料來源：yfinance、TWSE OpenAPI</span>
-            <span>不建立帳號、不儲存上傳快照、不提供投資建議</span>
+            <span>yfinance · TWSE OpenAPI · 非投資建議</span>
         </footer>
         """,
         unsafe_allow_html=True,
@@ -3477,7 +3477,7 @@ def render_stock_analysis_page(theme: dict) -> None:
         if active_custom_symbol:
             st.caption(f"目前使用自訂代號：{selected_stock_label}")
         else:
-            st.caption(f"可選股票清單：{len(stock_universe)} 檔；資料源 {company_source}，亦可輸入合法 yfinance 代號。")
+            st.caption(f"{len(stock_universe)} 檔可選 · {company_source}")
 
     with st.spinner("正在載入 yfinance 行情與產業比較資料..."):
         popular_symbols = get_popular_symbols(stock_universe, selected_industry)
@@ -3512,10 +3512,6 @@ def render_stock_analysis_page(theme: dict) -> None:
         '<div class="notice"><b>免責聲明：</b>本專案僅供資料分析與技術展示，不構成任何投資建議。</div>',
         unsafe_allow_html=True,
     )
-    st.markdown(
-        "市場狀態、熱門標的、技術指標與同業比較。"
-    )
-    st.caption(f"TWSE 上市公司清單：{company_source}；行情資料逐卡顯示 LIVE、DEMO 或快取狀態。")
     render_market_cards(theme, market_cards)
     render_popular_stocks(popular_cards, selected_industry)
     with st.spinner(f"正在載入 {selected_stock_label} 個股詳情..."):
@@ -3560,10 +3556,7 @@ def render_snapshot_comparison_page(theme: dict) -> None:
             key="current_snapshot_upload",
             help="\u8f03\u65b0\u7684 Research Snapshot JSON\u3002",
         )
-    st.caption(
-        "\u6bcf\u500b\u6a94\u6848\u4e0a\u9650 2 MiB\uff1b"
-        "\u50c5\u63a5\u53d7 schema 1.0\u3001UTF-8 \u7de8\u78bc\u4e14\u901a\u904e snapshot_id \u9a57\u8b49\u7684 JSON\u3002"
-    )
+    st.caption("每份快照上限 2 MiB；僅接受已驗證的 Research Snapshot JSON。")
 
     parsed_snapshots: dict[str, dict] = {}
     upload_errors = False
@@ -3713,10 +3706,6 @@ def render_anomaly_page(cfg: dict, theme: dict) -> None:
         "資料工程 · 特徵工程 · 異常標記流程",
         "本機分析資料",
     )
-    st.markdown(
-        '<div class="notice"><b>展示定位：</b>本頁獨立呈現原本的異常波動偵測流程，不混入股票分析頁。</div>',
-        unsafe_allow_html=True,
-    )
     with st.spinner("正在載入異常偵測資料..."):
         data, error = load_dashboard_data(cfg)
     if error:
@@ -3751,8 +3740,7 @@ def render_anomaly_page(cfg: dict, theme: dict) -> None:
         return
     kpis = build_kpis(filtered)
 
-    st.header("展示核心指標")
-    st.caption("以下 KPI 用來快速觀察選定股票在區間內的最新狀態、波動程度與異常事件數。")
+    st.header("核心指標")
     cols = st.columns(4)
     cols[0].metric("最新收盤價", kpis["latest_close"])
     cols[1].metric("近期波動率", kpis["recent_volatility"])
@@ -3762,7 +3750,6 @@ def render_anomaly_page(cfg: dict, theme: dict) -> None:
     left, right = st.columns([1.3, 1])
     with left:
         st.subheader("股價趨勢與異常事件")
-        st.caption("異常標記代表模型判定的異常波動日期，只表示資料行為異常，不代表投資訊號。")
         st.plotly_chart(
             line_with_anomalies(filtered, "close", "股價趨勢與異常事件", "收盤價", theme),
             width="stretch",
@@ -3770,7 +3757,6 @@ def render_anomaly_page(cfg: dict, theme: dict) -> None:
         )
     with right:
         st.subheader("20 日波動率")
-        st.caption("波動率用於觀察價格變動幅度是否擴大或收斂。")
         st.plotly_chart(
             line_with_anomalies(filtered, "volatility_20", "20 日波動率趨勢", "20 日波動率", theme),
             width="stretch",
@@ -3794,7 +3780,6 @@ def render_anomaly_page(cfg: dict, theme: dict) -> None:
     fx_fig.update_xaxes(title_text="日期", title_font=dict(color=theme["text"]))
     fx_fig.update_yaxes(title_text="匯率", title_font=dict(color=theme["text"]))
     st.header("匯率趨勢")
-    st.caption("匯率資料與股價資料依日期對齊，用於觀察外匯變動與市場波動的關聯。")
     if fx_filtered.empty:
         st.info("所選日期區間沒有匯率資料。")
     else:
@@ -3809,7 +3794,6 @@ def render_anomaly_page(cfg: dict, theme: dict) -> None:
         st.dataframe(chart_table.head(500), width="stretch", hide_index=True)
 
     st.header("異常波動日期列表")
-    st.caption("列表顯示模型標記的異常事件，欄位已轉為中文名稱以利閱讀。")
     anomalies = filtered[filtered["model_anomaly"] == 1].sort_values("date", ascending=False)
     visible_columns = ["date", "symbol", "close", "daily_return", "volume_zscore_20", "risk_score_baseline", "anomaly_score"]
     table = anomalies[visible_columns].copy()
