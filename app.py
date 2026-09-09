@@ -2502,8 +2502,14 @@ def inject_global_css(theme: dict) -> None:
                 overflow-wrap: anywhere;
             }}
             .dashboard-topline h1 {{
-                max-width: 18ch;
+                max-width: 100%;
+                overflow-wrap: anywhere;
                 text-wrap: balance;
+            }}
+            .dashboard-topline .page-date {{
+                max-width: 100%;
+                overflow-wrap: anywhere;
+                line-height: 1.45;
             }}
             [data-testid="stDataFrame"] {{
                 font-size: .95rem !important;
@@ -3503,7 +3509,7 @@ def render_stock_analysis_page(theme: dict) -> None:
     source_status, source_is_live = build_stock_source_status(company_source, market_cards + popular_cards)
     render_page_header(
         "股票研究工作台",
-        "台股 / 美股追蹤 · 技術證據 · 同業脈絡",
+        "台股／美股 · 技術證據",
         source_status,
         source_is_live,
     )
@@ -3530,7 +3536,7 @@ def render_stock_analysis_page(theme: dict) -> None:
 def render_snapshot_comparison_page(theme: dict) -> None:
     render_page_header(
         "\u7814\u7a76\u5feb\u7167\u6bd4\u8f03",
-        "\u96e2\u7dda\u5dee\u7570\u6aa2\u8996 \u00b7 \u8cc7\u6599\u4f86\u6e90 \u00b7 \u8b49\u64da\u72c0\u614b",
+        "\u96e2\u7dda\u5feb\u7167 · SHA-256",
         "SHA-256 \u5b8c\u6574\u6027\u9a57\u8b49",
         status_live=True,
     )
@@ -3703,7 +3709,7 @@ def render_snapshot_comparison_page(theme: dict) -> None:
 def render_anomaly_page(cfg: dict, theme: dict) -> None:
     render_page_header(
         "異常偵測展示",
-        "資料工程 · 特徵工程 · 異常標記流程",
+        "異常事件 · 研究資料",
         "本機分析資料",
     )
     with st.spinner("正在載入異常偵測資料..."):
