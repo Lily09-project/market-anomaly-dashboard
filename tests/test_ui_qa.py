@@ -4,12 +4,18 @@ import json
 from pathlib import Path
 
 from scripts.ui_qa import (
+    focus_issues,
+    CORE_VIEWPORTS,
+    EXTENDED_VIEWPORTS,
     PAGE_CONTRACTS,
     PAGE_LOAD_STATE,
     STREAMLIT_EXCEPTION_SELECTOR,
+    TEXT_SCALE_CSS,
     VIEWPORTS,
     describe_console_error,
+    layout_issues,
     missing_page_contracts,
+    viewport_matrix,
     write_failure_evidence,
 )
 
@@ -47,7 +53,17 @@ def test_ui_qa_covers_small_phone_and_landscape_layouts() -> None:
 
     assert viewports["desktop"] == (1440, 1000)
     assert viewports["small-mobile"][0] == 375
+    assert viewports["tablet"] == (768, 1024)
     assert viewports["landscape"][0] > viewports["landscape"][1]
+    assert viewports["wide-tablet"] == (1024, 768)
+    assert viewport_matrix() == CORE_VIEWPORTS
+    assert viewport_matrix(extended=True) == CORE_VIEWPORTS + EXTENDED_VIEWPORTS
+    assert "200%" in TEXT_SCALE_CSS
+
+
+def test_layout_issues_is_fail_closed_for_browser_contract() -> None:
+    assert callable(layout_issues)
+    assert callable(focus_issues)
 
 
 def test_browser_failure_evidence_is_structured_and_atomic(tmp_path: Path) -> None:
