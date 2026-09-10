@@ -65,6 +65,25 @@ def test_ui_qa_covers_small_phone_and_landscape_layouts() -> None:
 def test_layout_issues_is_fail_closed_for_browser_contract() -> None:
     assert callable(layout_issues)
     assert callable(focus_issues)
+
+
+def test_mobile_primary_navigation_uses_the_available_width() -> None:
+    source = Path("app.py").read_text(encoding="utf-8")
+    mobile_rules = source.split("@media (max-width: 760px)", 1)[1]
+
+    assert ".st-key-active_page {{" in mobile_rules
+    assert "width: 100% !important;" in mobile_rules
+    assert "min-width: 0;" in mobile_rules
+
+
+def test_primary_navigation_reflows_with_root_text_size() -> None:
+    source = Path("app.py").read_text(encoding="utf-8")
+    nav_grid_start = source.index('        .st-key-active_page [role="radiogroup"]')
+    nav_grid_end = source.index('        .st-key-active_page label {{', nav_grid_start)
+    nav_grid = source[nav_grid_start:nav_grid_end]
+
+    assert "minmax(min(100%, 11rem), 1fr)" in nav_grid
+    assert "grid-template-columns: repeat(4, minmax(0, 1fr));" not in nav_grid
     assert "primary navigation label wraps beyond two lines" in inspect.getsource(layout_issues)
 
 

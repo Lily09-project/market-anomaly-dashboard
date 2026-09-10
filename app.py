@@ -1682,7 +1682,10 @@ def inject_global_css(theme: dict) -> None:
 
         .st-key-active_page [role="radiogroup"] {{
             display: grid !important;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(
+                auto-fit,
+                minmax(min(100%, 11rem), 1fr)
+            );
             gap: var(--space-2) !important;
             padding: var(--space-2);
             background: {theme["surface"]};
@@ -2370,6 +2373,9 @@ def inject_global_css(theme: dict) -> None:
             }}
 
             .st-key-active_page {{
+                display: block;
+                width: 100% !important;
+                min-width: 0;
                 max-width: none;
                 margin-bottom: var(--space-4);
             }}

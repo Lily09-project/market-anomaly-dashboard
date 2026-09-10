@@ -143,7 +143,10 @@ def test_app_frontend_contracts() -> None:
     assert ".st-key-active_page label > div:first-child" in source
     nav_grid_start = source.index('        .st-key-active_page [role="radiogroup"]')
     nav_grid_end = source.index('        .st-key-active_page label {{', nav_grid_start)
-    assert "grid-template-columns: repeat(4, minmax(0, 1fr))" in source[nav_grid_start:nav_grid_end]
+    nav_grid = source[nav_grid_start:nav_grid_end]
+    assert "grid-template-columns: repeat(" in nav_grid
+    assert "auto-fit" in nav_grid
+    assert "minmax(min(100%, 11rem), 1fr)" in nav_grid
     assert "render_data_service_notice" in source
     assert "render_product_footer" in source
 
