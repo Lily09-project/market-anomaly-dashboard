@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 from pathlib import Path
 
@@ -64,6 +65,7 @@ def test_ui_qa_covers_small_phone_and_landscape_layouts() -> None:
 def test_layout_issues_is_fail_closed_for_browser_contract() -> None:
     assert callable(layout_issues)
     assert callable(focus_issues)
+    assert "primary navigation label wraps beyond two lines" in inspect.getsource(layout_issues)
 
 
 def test_browser_failure_evidence_is_structured_and_atomic(tmp_path: Path) -> None:

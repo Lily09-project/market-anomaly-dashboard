@@ -87,6 +87,16 @@ def layout_issues(page) -> list[str]:
                     break;
                 }
             }
+            for (const label of document.querySelectorAll('.st-key-active_page label')) {
+                if (!visible(label)) continue;
+                const text = label.querySelector('p') || label;
+                const style = getComputedStyle(text);
+                const lineHeight = Number.parseFloat(style.lineHeight);
+                if (Number.isFinite(lineHeight) && text.getBoundingClientRect().height > lineHeight * 2.5) {
+                    issues.push('primary navigation label wraps beyond two lines');
+                    break;
+                }
+            }
             return issues;
         }"""
     )

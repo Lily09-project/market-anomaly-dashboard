@@ -2375,7 +2375,10 @@ def inject_global_css(theme: dict) -> None:
             }}
 
             .st-key-active_page [role="radiogroup"] {{
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+                grid-template-columns: repeat(
+                    auto-fit,
+                    minmax(min(100%, 8rem), 1fr)
+                );
                 gap: var(--space-1) !important;
                 padding: var(--space-1);
             }}
