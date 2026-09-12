@@ -1,6 +1,6 @@
 # Research Trust Workbench
 
-[![Security Audit](https://github.com/Lily09-project/market-anomaly-dashboard/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/Lily09-project/market-anomaly-dashboard/actions/workflows/security.yml)
+[![Quality & Security](https://github.com/Lily09-project/market-anomaly-dashboard/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/Lily09-project/market-anomaly-dashboard/actions/workflows/security.yml)
 
 面向台股與美股的可解釋研究工作台。它把行情來源、資料品質、技術證據、同業脈絡與可驗證研究快照放進同一個工作流；它不是股價預測器、交易訊號產生器或投資建議服務。
 
