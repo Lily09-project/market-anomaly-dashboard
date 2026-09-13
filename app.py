@@ -1676,6 +1676,7 @@ def inject_global_css(theme: dict) -> None:
         }}
 
         .st-key-active_page {{
+            width: min(100%, 760px);
             max-width: 760px;
             margin: 0 0 var(--space-6);
         }}

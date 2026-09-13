@@ -2,7 +2,9 @@
 
 [![Quality & Security](https://github.com/Lily09-project/market-anomaly-dashboard/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/Lily09-project/market-anomaly-dashboard/actions/workflows/security.yml)
 
-面向台股與美股的可解釋研究工作台。它把行情來源、資料品質、技術證據、同業脈絡與可驗證研究快照放進同一個工作流；它不是股價預測器、交易訊號產生器或投資建議服務。
+面向台股與美股的可解釋研究工作台。它把行情來源、資料品質、技術證據、同業脈絡與可驗證研究快照放進同一個工作流；桌面與行動版共用同一套清楚的導覽與對齊規則，並依瀏覽器偏好套用「炭黑橘」深色或「霧白橘」淺色主題。
+
+> 本專案不是股價預測器、交易訊號產生器或投資建議服務。
 
 ## 介面預覽
 
@@ -20,7 +22,7 @@
 - 外部 API 失敗時顯示 DEMO／cache／offline 狀態，不把示範資料偽裝成即時行情。
 - 研究備忘錄只存在目前 Streamlit session，不建立帳號或伺服器端個人資料庫。
 
-## 資料與架構
+## 資料流程與架構
 
 ~~~text
 yfinance / TWSE OpenAPI / sample fallback
@@ -66,11 +68,11 @@ cd market-anomaly-dashboard
 .\.venv\Scripts\python.exe quality\run_acceptance.py release
 ~~~
 
-## 研究工作流與資料來源與降級
+## 研究工作流、資料來源與降級
 
 - LIVE 表示由 provider 取得資料，仍需檢查最新交易日與完整度。
 - DEMO 是可重現示範資料，不可視為真實價格或報酬。
-- 研究就緒度與市場雷達是資料條件及描述性證據，不是股票評分或買賣訊號。
+- 研究就緒度、Evidence Coherence 與市場雷達是描述性證據，不是股票評分或買賣訊號。
 - 本專案不提供買賣建議。
 - 異常偵測使用 pseudo-label；正式研究仍需人工標註與外部驗證。
 - 上游 API、交易休市、代號不存在與資料延遲都可能造成缺資料。
