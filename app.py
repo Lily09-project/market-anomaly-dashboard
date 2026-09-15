@@ -2525,6 +2525,400 @@ def inject_global_css(theme: dict) -> None:
                 font-size: .95rem !important;
             }}
         }}
+
+        /* UI Pro Max v2: responsive research workspace tokens. */
+        :root {{
+            --ui-font: "Fira Sans", "Noto Sans TC", "Microsoft JhengHei UI", system-ui, sans-serif;
+            --ui-data-font: "Fira Code", "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+            --ui-radius-lg: 12px;
+            --ui-content-gutter: clamp(1rem, 3vw, 3.75rem);
+        }}
+        *, *::before, *::after {{ box-sizing: border-box; }}
+        .stApp, .stApp button, .stApp input, .stApp textarea, .stApp select {{
+            font-family: var(--ui-font);
+        }}
+        .stApp {{
+            font-size: clamp(1rem, 0.97rem + 0.16vw, 1.08rem);
+            line-height: 1.6;
+            text-rendering: optimizeLegibility;
+        }}
+        .block-container {{
+            width: 100%;
+            max-width: 1480px;
+            padding-inline: var(--ui-content-gutter);
+            padding-block: clamp(2.5rem, 4vw, 4.25rem) clamp(2.75rem, 5vw, 4.5rem);
+        }}
+        h1 {{
+            font-size: clamp(1.85rem, 1.35rem + 2.1vw, 2.85rem) !important;
+            line-height: 1.12 !important;
+        }}
+        h2 {{
+            font-size: clamp(1.35rem, 1.12rem + 0.85vw, 1.8rem) !important;
+            line-height: 1.25 !important;
+        }}
+        h3 {{
+            font-size: clamp(1.08rem, 0.98rem + 0.38vw, 1.28rem) !important;
+            line-height: 1.35 !important;
+        }}
+        p, li, label, [data-testid="stMarkdownContainer"] {{
+            max-width: 78ch;
+            overflow-wrap: anywhere;
+        }}
+        [data-testid="stColumn"], [data-testid="stHorizontalBlock"],
+        .page-header-copy, .detail-header-copy, .market-card-copy,
+        .watch-card-copy, .readiness-content, .research-shell {{
+            min-width: 0;
+        }}
+        .page-masthead, .research-shell {{
+            gap: clamp(1rem, 2.2vw, 2rem);
+        }}
+        .page-masthead h1, .research-shell h1 {{ max-width: 24ch; }}
+        .market-grid {{
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 248px), 1fr));
+            gap: clamp(0.75rem, 1.35vw, 1.25rem);
+        }}
+        .market-card, .watch-card, .section-card, .info-card,
+        .research-evidence, .readiness-panel, .coherence-panel, .research-path {{
+            border-radius: var(--ui-radius-lg);
+        }}
+        .market-card, .watch-card {{
+            min-height: 148px;
+            padding: clamp(1rem, 1.3vw, 1.35rem);
+        }}
+        .market-card .price-text, .watch-card .price-text,
+        .instrument-workspace .price-text, .metric-value,
+        [data-testid="stMetricValue"], .score-number, .readiness-score strong,
+        .coherence-count strong {{
+            font-family: var(--ui-data-font);
+            font-variant-numeric: tabular-nums;
+        }}
+        .price-text {{ font-size: clamp(1.55rem, 1.2rem + 1vw, 2.35rem); }}
+        .score-number {{ font-size: clamp(2.5rem, 2rem + 2vw, 3.6rem); }}
+        .instrument-workspace {{
+            max-width: 100%;
+            overflow-wrap: anywhere;
+        }}
+        [data-testid="stDataFrame"], [data-testid="stPlotlyChart"] {{
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            overflow-x: auto;
+            border-radius: var(--ui-radius-lg);
+        }}
+        [data-testid="stDataFrame"] {{ overscroll-behavior-inline: contain; }}
+        .stButton button, .stDownloadButton button,
+        [data-testid="stRadio"] label, [data-testid="stTabs"] button {{
+            min-height: 44px;
+        }}
+        :where(button, [role="button"], a, input, select, textarea):focus-visible {{
+            outline: 3px solid {theme["accent"]} !important;
+            outline-offset: 3px !important;
+        }}
+        @media (max-width: 1024px) and (min-width: 761px) {{
+            .page-masthead, .research-shell {{ grid-template-columns: 1fr; align-items: start; }}
+            .data-rail {{ padding-left: 0; border-left: 0; }}
+            .data-rail .status-pill {{ width: fit-content; }}
+            .readiness-panel {{ grid-template-columns: minmax(8rem, 0.75fr) minmax(0, 2.25fr); }}
+        }}
+        @media (max-width: 760px) {{
+            .block-container {{
+                padding-inline: max(0.85rem, env(safe-area-inset-left)) max(0.85rem, env(safe-area-inset-right));
+                padding-top: 4.25rem;
+            }}
+            /* Streamlit leaves a 20px collapsed-sidebar rail in the flow.  Move
+               the closed rail fully off-canvas so headings and controls keep a
+               predictable 16px gutter on 320–414px screens. */
+            [data-testid="stSidebar"][aria-expanded="false"] {{
+                transform: translateX(-100%) !important;
+            }}
+            [data-testid="stSidebar"][aria-expanded="true"] {{
+                transform: translateX(0) !important;
+            }}
+            [data-testid="stAppViewContainer"],
+            [data-testid="stAppViewContainer"] > .main,
+            [data-testid="stAppViewBlockContainer"] {{
+                margin-left: 0 !important;
+                padding-left: 0 !important;
+            }}
+            [data-testid="stHorizontalBlock"] {{
+                flex-direction: column !important;
+                gap: 0.9rem !important;
+            }}
+            [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
+                width: 100% !important;
+                flex: 1 1 auto !important;
+            }}
+            .page-masthead, .research-shell {{ display: grid; grid-template-columns: 1fr; align-items: start; }}
+            .page-masthead h1, .research-shell h1 {{ max-width: none; }}
+            .page-lead {{ font-size: 1rem !important; }}
+            .data-rail {{ display: block; padding-left: 0; border-left: 0; }}
+            .data-rail .status-pill {{ width: 100%; }}
+            .market-grid {{ grid-template-columns: 1fr; }}
+            .market-card, .watch-card {{ min-height: 0; }}
+            .detail-title, .instrument-workspace .detail-title {{ font-size: clamp(1.55rem, 8vw, 2.2rem); }}
+            .instrument-workspace {{ padding: 1.05rem; }}
+            .research-quality {{ grid-template-columns: 1fr; align-items: start; }}
+            .readiness-panel {{ grid-template-columns: 1fr; }}
+            .readiness-score {{ border-right: 0; border-bottom: 1px solid {theme["border"]}; }}
+            .readiness-grid {{ grid-template-columns: 1fr; }}
+            .coherence-grid {{ grid-template-columns: 1fr; }}
+            [data-testid="stDataFrame"] {{ font-size: 0.95rem !important; }}
+        }}
+        @media (prefers-reduced-motion: reduce) {{
+            html {{ scroll-behavior: auto; }}
+            *, *::before, *::after {{
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }}
+        }}
+        /* UI/UX rebuild: Research Trust workspace shell.  The page is built
+           around one clear task at a time: choose a workspace, confirm data
+           status, then read evidence. */
+        :root {{
+            --ui-radius-xl: 20px;
+            --ui-radius-lg: 16px;
+            --ui-radius-md: 12px;
+            --ui-border-strong: color-mix(in srgb, var(--ui-accent) 42%, var(--ui-border));
+            --ui-surface-muted: color-mix(in srgb, var(--ui-surface) 72%, var(--ui-background));
+            --ui-shadow-panel: 0 14px 40px color-mix(in srgb, var(--ui-background) 72%, transparent);
+        }}
+        .stApp {{
+            background: var(--ui-background) !important;
+            color: var(--ui-text) !important;
+            font-family: var(--ui-font) !important;
+            font-size: clamp(1rem, .96rem + .16vw, 1.08rem);
+            line-height: 1.62;
+        }}
+        .block-container {{
+            max-width: 1320px !important;
+            padding-inline: clamp(1rem, 3.4vw, 3.75rem) !important;
+            padding-block: clamp(1rem, 2.5vw, 2.5rem) clamp(3rem, 5vw, 4.5rem) !important;
+        }}
+        .product-brand {{
+            display: flex;
+            align-items: center;
+            gap: .7rem;
+            margin: 0 0 clamp(1rem, 2vw, 1.5rem);
+            color: var(--ui-muted);
+            font-size: .78rem;
+            font-weight: 800;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+        }}
+        .product-brand-mark,
+        .page-eyebrow-mark {{
+            display: grid;
+            place-items: center;
+            width: 2rem;
+            height: 2rem;
+            flex: 0 0 2rem;
+            border: 1px solid var(--ui-border-strong);
+            border-radius: 10px;
+            background: var(--ui-accent-muted);
+            color: var(--ui-accent);
+            font-family: var(--ui-data-font);
+            font-size: .72rem;
+            font-weight: 900;
+            letter-spacing: -.04em;
+        }}
+        .st-key-active_page {{
+            width: 100% !important;
+            margin: 0 0 clamp(1.25rem, 3vw, 2.5rem) !important;
+        }}
+        .st-key-active_page [role="radiogroup"] {{
+            display: grid !important;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: .5rem !important;
+            width: 100% !important;
+            padding: .5rem !important;
+            border: 1px solid var(--ui-border) !important;
+            border-radius: var(--ui-radius-lg) !important;
+            background: var(--ui-surface-muted) !important;
+            box-shadow: 0 6px 18px color-mix(in srgb, var(--ui-background) 35%, transparent);
+        }}
+        .st-key-active_page label {{
+            display: flex !important;
+            min-width: 0 !important;
+            min-height: 48px !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: .65rem .8rem !important;
+            border: 1px solid transparent !important;
+            border-radius: var(--ui-radius-md) !important;
+            color: var(--ui-muted) !important;
+            font-size: .98rem !important;
+            font-weight: 800 !important;
+            line-height: 1.25 !important;
+            text-align: center !important;
+            white-space: normal !important;
+            overflow: visible !important;
+            transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+        }}
+        .st-key-active_page label > div:first-child {{ display: none !important; }}
+        .st-key-active_page label p,
+        .st-key-active_page label span {{
+            max-width: 100% !important;
+            color: inherit !important;
+            overflow: visible !important;
+            white-space: inherit !important;
+        }}
+        .st-key-active_page label:hover {{
+            border-color: var(--ui-border-strong) !important;
+            background: color-mix(in srgb, var(--ui-accent) 8%, var(--ui-surface)) !important;
+            color: var(--ui-text) !important;
+        }}
+        .st-key-active_page label:has(input:checked) {{
+            border-color: var(--ui-accent) !important;
+            background: var(--ui-card) !important;
+            color: var(--ui-text) !important;
+            box-shadow: inset 0 -3px 0 var(--ui-accent);
+        }}
+        .dashboard-topline.research-shell {{
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) minmax(220px, auto) !important;
+            gap: clamp(1rem, 3vw, 2.5rem) !important;
+            align-items: end !important;
+            margin: 0 0 1.25rem !important;
+            padding: clamp(1.25rem, 2.6vw, 2rem) !important;
+            border: 1px solid var(--ui-border) !important;
+            border-radius: var(--ui-radius-xl) !important;
+            background: var(--ui-surface) !important;
+            box-shadow: var(--ui-shadow-panel) !important;
+        }}
+        .page-header-copy {{ min-width: 0; }}
+        .page-eyebrow {{
+            display: inline-flex;
+            align-items: center;
+            gap: .55rem;
+            margin: 0 0 .9rem;
+            color: var(--ui-accent);
+            font-size: .72rem;
+            font-weight: 900;
+            letter-spacing: .12em;
+        }}
+        .page-eyebrow-mark {{
+            width: 1.65rem;
+            height: 1.65rem;
+            flex-basis: 1.65rem;
+            border-radius: 8px;
+            font-size: .62rem;
+        }}
+        .dashboard-topline h1 {{
+            max-width: 24ch;
+            margin: 0 !important;
+            font-size: clamp(2rem, 1.4rem + 2vw, 3rem) !important;
+            line-height: 1.1 !important;
+            letter-spacing: -.025em !important;
+        }}
+        .dashboard-topline .page-date {{
+            max-width: 68ch;
+            margin-top: .75rem;
+            color: var(--ui-muted) !important;
+            font-size: .94rem !important;
+            line-height: 1.55 !important;
+        }}
+        .data-rail {{
+            min-width: 0;
+            padding-left: 1.25rem;
+            border-left: 1px solid var(--ui-border);
+        }}
+        .status-pill {{
+            min-height: 44px !important;
+            padding: .65rem .8rem !important;
+            border: 1px solid var(--ui-border) !important;
+            border-left: 3px solid var(--ui-accent) !important;
+            border-radius: var(--ui-radius-md) !important;
+            background: var(--ui-card) !important;
+            color: var(--ui-text) !important;
+            font-size: .88rem !important;
+            line-height: 1.4 !important;
+        }}
+        .status-pill.live {{
+            border-left-color: var(--ui-success, #2ea878) !important;
+            color: var(--ui-text) !important;
+        }}
+        .status-pill::before {{ box-shadow: none !important; }}
+        .section-card,
+        .instrument-workspace,
+        .research-brief,
+        .research-path,
+        .readiness-panel,
+        .coherence-panel,
+        .notice,
+        .warning-box {{
+            border-radius: var(--ui-radius-lg) !important;
+        }}
+        .market-card, .watch-card, .info-card, .research-evidence {{
+            border-radius: var(--ui-radius-lg) !important;
+            border: 1px solid var(--ui-border) !important;
+            box-shadow: 0 8px 24px color-mix(in srgb, var(--ui-background) 45%, transparent) !important;
+        }}
+        .market-card::before, .watch-card::before {{
+            height: 3px !important;
+            opacity: 1 !important;
+        }}
+        .metric-value, .price-text, [data-testid="stMetricValue"], .score-number {{
+            font-family: var(--ui-data-font) !important;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -.02em;
+        }}
+        [data-testid="stMetric"] {{
+            border-radius: var(--ui-radius-lg) !important;
+            min-height: 132px !important;
+            padding: 1.1rem !important;
+            box-shadow: 0 8px 24px color-mix(in srgb, var(--ui-background) 45%, transparent) !important;
+        }}
+        [data-testid="stDataFrame"], [data-testid="stPlotlyChart"] {{
+            border-radius: var(--ui-radius-lg) !important;
+            border: 1px solid var(--ui-border) !important;
+            overflow-x: auto !important;
+        }}
+        .stButton button, .stDownloadButton button {{
+            min-height: 44px !important;
+            border-radius: 10px !important;
+            font-weight: 800 !important;
+        }}
+        .product-footer {{
+            margin-top: clamp(2.5rem, 6vw, 4.5rem) !important;
+            padding-top: 1rem !important;
+            border-top: 1px solid var(--ui-border) !important;
+            color: var(--ui-muted) !important;
+        }}
+        :where(button, [role="button"], a, input, select, textarea):focus-visible {{
+            outline: 3px solid var(--ui-accent) !important;
+            outline-offset: 3px !important;
+        }}
+        @media (max-width: 1024px) and (min-width: 761px) {{
+            .dashboard-topline.research-shell {{ grid-template-columns: 1fr !important; align-items: start !important; }}
+            .data-rail {{ padding-left: 0; padding-top: 1rem; border-top: 1px solid var(--ui-border); border-left: 0; }}
+            .data-rail .status-pill {{ width: fit-content; max-width: 100%; }}
+        }}
+        @media (max-width: 760px) {{
+            [data-testid="stSidebar"][aria-expanded="false"] {{ transform: translateX(-100%) !important; }}
+            [data-testid="stSidebar"][aria-expanded="true"] {{ transform: translateX(0) !important; }}
+            [data-testid="stAppViewContainer"],
+            [data-testid="stAppViewContainer"] > .main,
+            [data-testid="stAppViewBlockContainer"] {{ margin-left: 0 !important; padding-left: 0 !important; }}
+            .block-container {{
+                padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right)) !important;
+                padding-top: 4.5rem !important;
+            }}
+            .product-brand {{ margin-bottom: 1rem; }}
+            .st-key-active_page [role="radiogroup"] {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+            .st-key-active_page label {{ min-height: 52px !important; font-size: .92rem !important; }}
+            .dashboard-topline.research-shell {{ grid-template-columns: 1fr !important; align-items: start !important; padding: 1.15rem !important; }}
+            .dashboard-topline h1 {{ max-width: none; font-size: clamp(1.85rem, 9vw, 2.5rem) !important; }}
+            .data-rail {{ padding: 0; border: 0; }}
+            .data-rail .status-pill {{ width: 100%; }}
+            [data-testid="stHorizontalBlock"] {{ flex-direction: column !important; gap: .85rem !important; }}
+            [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{ width: 100% !important; flex: 1 1 auto !important; }}
+            .market-card, .watch-card {{ min-height: 0; }}
+            .detail-title, .instrument-workspace .detail-title {{ font-size: clamp(1.55rem, 8vw, 2.2rem) !important; }}
+            .product-footer {{ font-size: .86rem; }}
+        }}
+        @media (prefers-reduced-motion: reduce) {{
+            *, *::before, *::after {{ animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }}
+        }}
         }}
         </style>
         """,
@@ -3316,6 +3710,7 @@ def render_page_header(title: str, subtitle: str, status_text: str, status_live:
         <a class="skip-link" href="#main-content">跳到主要內容</a>
         <div class="dashboard-topline research-shell">
             <div class="page-header-copy" id="main-content" tabindex="-1">
+                <div class="page-eyebrow"><span class="page-eyebrow-mark" aria-hidden="true">RT</span><span>RESEARCH TRUST</span></div>
                 <h1>{safe_title}</h1>
                 <div class="page-date help-text">{pd.Timestamp.today().strftime('%Y年%m月%d日')} · {safe_subtitle}</div>
             </div>
@@ -3395,8 +3790,8 @@ def render_product_footer() -> None:
     st.markdown(
         """
         <footer class="product-footer">
-            <strong>Research Trust Workbench</strong>
-            <span>yfinance · TWSE OpenAPI · 非投資建議</span>
+            <strong>Research Trust</strong>
+            <span>行情證據工作台 · 非投資建議</span>
         </footer>
         """,
         unsafe_allow_html=True,
@@ -3846,6 +4241,16 @@ def main() -> None:
         fallback_name = "paper_orange" if context_theme_type == "light" else "charcoal_orange"
         theme = get_theme(fallback_name)
     inject_global_css(theme)
+
+    st.markdown(
+        """
+        <div class="product-brand" aria-label="Research Trust Workbench">
+            <span class="product-brand-mark" aria-hidden="true">RT</span>
+            <span class="product-brand-name">Research Trust</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     if "active_page" not in st.session_state:
         st.session_state["active_page"] = page_label_from_route(

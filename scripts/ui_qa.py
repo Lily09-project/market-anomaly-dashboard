@@ -142,6 +142,48 @@ def focus_issues(page) -> list[str]:
     )
 
 
+def interaction_smoke(page, base_url: str) -> list[str]:
+    """Exercise navigation and the compact sidebar, not only static routes."""
+    from playwright.sync_api import Error as PlaywrightError
+
+    failures: list[str] = []
+    page.goto(f"{base_url.rstrip('/')}/?page=stocks", wait_until=PAGE_LOAD_STATE, timeout=60_000)
+    page.get_by_role("heading", name="股票研究工作台", exact=True).wait_for(timeout=60_000)
+    navigation = page.locator(".st-key-active_page")
+    for route, heading in (
+        ("市場雷達", "市場雷達"),
+        ("異常偵測展示", "異常偵測展示"),
+        ("快照比較", "研究快照比較"),
+        ("股票分析", "股票研究工作台"),
+    ):
+        option = navigation.locator("label").filter(has_text=route).first
+        if not option.count():
+            failures.append(f"primary navigation option missing: {route}")
+            continue
+        option.click()
+        try:
+            page.get_by_role("heading", name=heading, exact=True).wait_for(timeout=30_000)
+        except PlaywrightError:
+            failures.append(f"navigation did not reach: {route}")
+    expand = page.locator('[data-testid="stExpandSidebarButton"]')
+    if expand.count():
+        expand.first.click()
+        page.wait_for_timeout(350)
+        sidebar = page.locator('[data-testid="stSidebar"]')
+        if sidebar.get_attribute("aria-expanded") != "true":
+            failures.append("sidebar did not open from the compact control")
+        close = page.locator('[data-testid="stSidebarCollapseButton"] button')
+        if close.count():
+            close.first.click()
+            page.wait_for_timeout(350)
+        if sidebar.get_attribute("aria-expanded") != "false":
+            failures.append("sidebar did not close cleanly")
+    overflow = page.evaluate("document.documentElement.scrollWidth - window.innerWidth")
+    if overflow > 4:
+        failures.append(f"interaction flow introduced horizontal overflow: {overflow}px")
+    return failures
+
+
 def failure_screenshot_names(screenshot_dir: Path, error: str) -> list[str]:
     names = {path.name for path in screenshot_dir.glob("failure-*.png")}
     for failure in error.split("; "):
@@ -309,6 +351,14 @@ def run_browser_checks(
                         pass
                 finally:
                     page.close()
+        interaction_page = browser.new_page(viewport={"width": 1440, "height": 1000})
+        try:
+            interaction_page.emulate_media(reduced_motion="reduce")
+            failures.extend(interaction_smoke(interaction_page, base_url))
+        except PlaywrightError as exc:
+            failures.append(f"interaction flow browser error: {exc}")
+        finally:
+            interaction_page.close()
         browser.close()
     if failures:
         raise RuntimeError("; ".join(failures[:12]))

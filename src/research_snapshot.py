@@ -230,10 +230,15 @@ def render_snapshot_html(snapshot: Mapping[str, Any]) -> bytes:
             ("Next question", memo.get("next_question", "")),
             ("Next review date", memo.get("next_review_date", "")),
         )
-        memo_items = "".join(
-            f"<dt>{_html_text(label)}</dt><dd>{_html_text(value) or '<span class=\"meta\">Not recorded</span>'}</dd>"
-            for label, value in memo_rows
-        )
+        memo_item_rows: list[str] = []
+        for label, value in memo_rows:
+            rendered_value = _html_text(value)
+            if not rendered_value:
+                rendered_value = '<span class="meta">Not recorded</span>'
+            memo_item_rows.append(
+                f"<dt>{_html_text(label)}</dt><dd>{rendered_value}</dd>"
+            )
+        memo_items = "".join(memo_item_rows)
         memo_section = (
             f'<section><h2>Research memo</h2><p class="meta">Status: {_html_text(memo_status)}</p>'
             f'<dl class="memo-list">{memo_items}</dl></section>'

@@ -8,6 +8,7 @@ from scripts.ui_qa import (
     focus_issues,
     CORE_VIEWPORTS,
     EXTENDED_VIEWPORTS,
+    interaction_smoke,
     PAGE_CONTRACTS,
     PAGE_LOAD_STATE,
     STREAMLIT_EXCEPTION_SELECTOR,
@@ -65,6 +66,7 @@ def test_ui_qa_covers_small_phone_and_landscape_layouts() -> None:
 def test_layout_issues_is_fail_closed_for_browser_contract() -> None:
     assert callable(layout_issues)
     assert callable(focus_issues)
+    assert callable(interaction_smoke)
 
 
 def test_mobile_primary_navigation_uses_the_available_width() -> None:
