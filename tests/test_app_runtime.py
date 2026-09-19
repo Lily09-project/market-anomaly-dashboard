@@ -19,14 +19,18 @@ def button_by_label(app: AppTest, label: str):
     return next(button for button in app.button if button.label == label)
 
 
+@pytest.fixture(scope="module")
+def sample_pipeline_outputs() -> None:
+    run_pipeline("sample")
+
+
 @pytest.fixture(autouse=True)
 def cleanup_streamlit_test_directory():
     yield
     app_test_module.TMP_DIR.cleanup()
 
 
-def test_dashboard_pages_and_sidebar_interactions(monkeypatch) -> None:
-    run_pipeline("sample")
+def test_dashboard_pages_and_sidebar_interactions(monkeypatch, sample_pipeline_outputs: None) -> None:
     monkeypatch.setattr(market_api, "requests", None)
     monkeypatch.setattr(market_api, "yf", None)
 
@@ -43,6 +47,12 @@ def test_dashboard_pages_and_sidebar_interactions(monkeypatch) -> None:
     assert any("research-shell" in item.value for item in app.markdown)
     assert any("instrument-workspace" in item.value for item in app.markdown)
     assert any("evidence-grid" in item.value for item in app.markdown)
+    assert any("研究就緒度" in item.value for item in app.markdown)
+    assert any("這不是股票評分，不代表投資價值" in item.value for item in app.markdown)
+    assert any("證據一致性" in item.value for item in app.markdown)
+    assert any("EVIDENCE COHERENCE" in item.value for item in app.markdown)
+    assert any("研究路徑" in item.value for item in app.markdown)
+    assert any("下一步：" in item.value for item in app.markdown)
 
     button_by_label(app, "重新取得資料").click()
     app.run(timeout=120)
@@ -84,8 +94,25 @@ def test_dashboard_pages_and_sidebar_interactions(monkeypatch) -> None:
     assert app.date_input[0].value <= app.date_input[1].value
 
 
-def test_dashboard_exposes_research_snapshot_downloads(monkeypatch) -> None:
-    run_pipeline("sample")
+def test_research_memo_persists_into_snapshot_export(monkeypatch, sample_pipeline_outputs: None) -> None:
+    monkeypatch.setattr(market_api, "requests", None)
+    monkeypatch.setattr(market_api, "yf", None)
+
+    app = AppTest.from_file(PROJECT_ROOT / "app.py")
+    app.run(timeout=120)
+
+    hypothesis = next(item for item in app.text_area if item.label == "研究假設／核心問題")
+    hypothesis.set_value("觀察價格是否持續站在 MA20 上方")
+    button_by_label(app, "保存研究備忘錄").click()
+    app.run(timeout=120)
+
+    assert not app.exception
+    memo = app.session_state["research_memo::2330.TW"]
+    assert memo["hypothesis"] == "觀察價格是否持續站在 MA20 上方"
+    json_download = next(item for item in app.get("download_button") if item.label == "下載 JSON")
+    assert json_download.proto.url.endswith(".json")
+
+def test_dashboard_exposes_research_snapshot_downloads(monkeypatch, sample_pipeline_outputs: None) -> None:
     monkeypatch.setattr(market_api, "requests", None)
     monkeypatch.setattr(market_api, "yf", None)
 
@@ -141,3 +168,24 @@ def test_snapshot_comparison_page_renders_uploaders(monkeypatch) -> None:
     assert len(app.dataframe) == 2
     labels = {item.label for item in app.get("download_button")}
     assert "\u4e0b\u8f09\u6bd4\u8f03 JSON" in labels
+
+
+def test_page_switch_prunes_stale_query_parameters(monkeypatch) -> None:
+    monkeypatch.setattr(market_api, "requests", None)
+    monkeypatch.setattr(market_api, "yf", None)
+
+    app = AppTest.from_file(PROJECT_ROOT / "app.py")
+    app.query_params["page"] = "anomalies"
+    app.query_params["symbol"] = "2330.TW"
+    app.query_params["industry"] = "ETF"
+    app.query_params["profile"] = "balanced"
+    app.query_params["min_score"] = "50"
+    app.query_params["pool_size"] = "10"
+    app.run(timeout=120)
+
+    assert app.query_params["page"] == ["anomalies"]
+    assert "symbol" not in app.query_params
+    assert "industry" not in app.query_params
+    assert "profile" not in app.query_params
+    assert "min_score" not in app.query_params
+    assert "pool_size" not in app.query_params

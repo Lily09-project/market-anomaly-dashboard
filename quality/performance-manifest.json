@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "project": "market-anomaly-dashboard",
+  "repetitions": 3,
+  "thresholds": {"warning_regression_percent": 20, "blocker_regression_percent": 50},
+  "benchmarks": [
+    {
+      "id": "sample_pipeline", "description": "Complete deterministic market and FX sample pipeline",
+      "timeout_seconds": 600, "command": ["{python}", "run_all.py", "--mode", "sample"]
+    },
+    {
+      "id": "app_test", "description": "Streamlit AppTest routes and market radar runtime",
+      "timeout_seconds": 240, "command": ["{python}", "-W", "error", "-m", "pytest", "-q", "-p", "no:cacheprovider", "--basetemp", "{temp}/pytest", "tests/test_app_runtime.py", "tests/test_market_radar_runtime.py"]
+    },
+    {
+      "id": "browser_qa", "description": "Browser QA across four routes and three viewports",
+      "timeout_seconds": 600, "command": ["{python}", "quality/run_acceptance.py", "ui"]
+    }
+  ]
+}

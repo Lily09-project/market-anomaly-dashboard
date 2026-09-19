@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import html
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import re
-from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import pandas as pd
@@ -20,30 +19,42 @@ except Exception:
 
 from src.app_helpers import build_kpis, filter_by_symbol_and_date, get_available_symbols, load_dashboard_data
 from src.market_api import (
+    MARKET_INDEXES,
+    WATCHLIST,
     build_stock_analysis,
     build_market_cards,
     build_watchlist_cards,
     compute_technical_indicators,
     fetch_twse_company_profiles,
-    fetch_twse_esg_legal_data,
+    fetch_yfinance_histories,
     fetch_yfinance_history,
     format_number,
     get_stock_universe,
     lookup_twse_company,
     to_yfinance_symbol,
 )
+from src.market_radar_page import render_market_radar
 from src.product_state import (
     PAGE_ROUTES,
     build_data_service_state,
     page_label_from_route,
+    query_keys_for_page,
     route_from_page_label,
 )
 from src.research_brief import build_research_brief
+from src.research_workflow import build_research_workflow
+from src.research_memo import (
+    MEMO_FIELD_LABELS,
+    MEMO_STATUS_LABELS,
+    empty_research_memo,
+    normalize_research_memo,
+)
 from src.research_snapshot import build_research_snapshot, render_snapshot_html, snapshot_to_json_bytes
 from src.snapshot_compare import (
     SnapshotValidationError,
     compare_snapshots,
     comparison_to_json_bytes,
+    format_provenance_rows,
     parse_snapshot_bytes,
 )
 
@@ -98,20 +109,17 @@ RESEARCH_STATE_LABELS = {
 }
 
 
-def _load_twse_sources() -> tuple[pd.DataFrame, str, pd.DataFrame, str]:
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        company_future = executor.submit(fetch_twse_company_profiles)
-        esg_future = executor.submit(fetch_twse_esg_legal_data)
-        company_profiles, company_source = company_future.result()
-        esg_data, esg_source = esg_future.result()
-    return company_profiles, company_source, esg_data, esg_source
-
-
 if st is not None and st.runtime.exists():
 
+
     @st.cache_data(ttl=3600, show_spinner=False)
-    def cached_load_twse_sources() -> tuple[pd.DataFrame, str, pd.DataFrame, str]:
-        return _load_twse_sources()
+    def cached_company_profiles() -> tuple[pd.DataFrame, str]:
+        return fetch_twse_company_profiles()
+
+
+    @st.cache_data(ttl=900, show_spinner=False)
+    def cached_market_histories(symbols: tuple[str, ...]) -> dict[str, tuple[pd.DataFrame, str]]:
+        return fetch_yfinance_histories(list(symbols), period="1y")
 
 
     @st.cache_data(ttl=900, show_spinner=False)
@@ -128,8 +136,18 @@ if st is not None and st.runtime.exists():
     def cached_stock_history(symbol: str, period: str = "1y") -> tuple[pd.DataFrame, str]:
         return fetch_yfinance_history(symbol, period=period)
 
+    @st.cache_data(ttl=900, show_spinner=False)
+    def cached_radar_histories(symbols: tuple[str, ...]) -> dict[str, tuple[pd.DataFrame, str]]:
+        return fetch_yfinance_histories(list(symbols), period="1y")
+
 else:
-    cached_load_twse_sources = _load_twse_sources
+    def cached_company_profiles() -> tuple[pd.DataFrame, str]:
+        return fetch_twse_company_profiles()
+
+
+    def cached_market_histories(symbols: tuple[str, ...]) -> dict[str, tuple[pd.DataFrame, str]]:
+        return fetch_yfinance_histories(list(symbols), period="1y")
+
     cached_market_cards = build_market_cards
 
     def cached_watchlist_cards(symbols: tuple[str, ...] | None = None) -> list[dict]:
@@ -138,6 +156,9 @@ else:
     def cached_stock_history(symbol: str, period: str = "1y") -> tuple[pd.DataFrame, str]:
         return fetch_yfinance_history(symbol, period=period)
 
+
+    def cached_radar_histories(symbols: tuple[str, ...]) -> dict[str, tuple[pd.DataFrame, str]]:
+        return fetch_yfinance_histories(list(symbols), period="1y")
 
 def require_streamlit() -> bool:
     if st is None:
@@ -228,6 +249,8 @@ def resolve_custom_stock_symbol(raw_symbol: str) -> str | None:
     clean_symbol = raw_symbol.strip()
     if not clean_symbol or not CUSTOM_SYMBOL_PATTERN.fullmatch(clean_symbol):
         return None
+    if clean_symbol.isdigit() and not 4 <= len(clean_symbol) <= 6:
+        return None
     return to_yfinance_symbol(clean_symbol)
 
 
@@ -306,7 +329,6 @@ def render_peer_comparison(cards: list[dict], selected_symbol: str, industry: st
     if not cards:
         st.info("目前沒有足夠的同類股票資料可比較。")
         return
-    st.caption(f"比較範圍：{industry}。表格用來快速比較同類股票的當日變化、量能與 52 週位置。")
     selected_yf_symbol = to_yfinance_symbol(selected_symbol)
     rows = []
     for card in cards:
@@ -1197,6 +1219,44 @@ def inject_global_css(theme: dict) -> None:
             min-width: 0;
         }}
 
+        div[data-testid="stForm"] textarea {{
+            min-height: 96px !important;
+            line-height: 1.55 !important;
+            color: {theme["text"]} !important;
+            caret-color: {theme["accent"]} !important;
+            font-size: 1rem !important;
+        }}
+
+        .memo-diff-grid {{
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem;
+            margin: 0.75rem 0 1.25rem;
+        }}
+
+        .memo-diff-item {{
+            display: grid;
+            gap: 0.45rem;
+            min-width: 0;
+            padding: 0.9rem 1rem;
+            border: 1px solid {theme["border"]};
+            border-left: 3px solid {theme["accent"]};
+            border-radius: var(--ui-radius);
+            background: {theme["card"]};
+        }}
+
+        .memo-diff-item strong {{
+            color: {theme["text"]};
+        }}
+
+        .memo-diff-item div {{
+            display: grid;
+            gap: 0.35rem;
+            color: {theme["muted_text"]};
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }}
+
         button {{
             border-radius: 6px !important;
             min-height: 44px !important;
@@ -1350,6 +1410,9 @@ def inject_global_css(theme: dict) -> None:
         }}
 
         @media (max-width: 760px) {{
+            .memo-diff-grid {{
+                grid-template-columns: 1fr;
+            }}
             [data-testid="stToolbar"] {{
                 display: flex !important;
                 visibility: visible !important;
@@ -1613,13 +1676,17 @@ def inject_global_css(theme: dict) -> None:
         }}
 
         .st-key-active_page {{
+            width: min(100%, 760px);
             max-width: 760px;
             margin: 0 0 var(--space-6);
         }}
 
         .st-key-active_page [role="radiogroup"] {{
             display: grid !important;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(
+                auto-fit,
+                minmax(min(100%, 11rem), 1fr)
+            );
             gap: var(--space-2) !important;
             padding: var(--space-2);
             background: {theme["surface"]};
@@ -1829,6 +1896,394 @@ def inject_global_css(theme: dict) -> None:
             padding-bottom: var(--space-4);
         }}
 
+        .readiness-panel {{
+            display: grid;
+            grid-template-columns: minmax(9.5rem, 0.7fr) minmax(0, 3.3fr);
+            margin: 0 0 var(--space-6);
+            overflow: hidden;
+            background: {theme["card"]};
+            border: 1px solid {theme["border"]};
+            border-top: 3px solid {theme["warning"]};
+            border-radius: var(--ui-radius);
+        }}
+
+        .readiness-panel--ready {{ border-top-color: {theme["success"]}; }}
+        .readiness-panel--limited {{ border-top-color: {theme["danger"]}; }}
+
+        .readiness-score {{
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 11rem;
+            padding: var(--space-5);
+            background: {theme["surface"]};
+            border-right: 1px solid {theme["border"]};
+        }}
+
+        .readiness-score > span,
+        .readiness-action-label {{
+            color: {theme["muted_text"]};
+            font-size: 0.78rem;
+            font-weight: 800;
+        }}
+
+        .readiness-score strong {{
+            color: {theme["text"]};
+            font-family: var(--ui-data-font);
+            font-size: 3rem;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+        }}
+
+        .readiness-score small {{
+            color: {theme["muted_text"]};
+            font-family: var(--ui-data-font);
+            font-size: 0.9rem;
+        }}
+
+        .readiness-content {{
+            min-width: 0;
+            padding: var(--space-5);
+        }}
+
+        .readiness-heading {{
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: var(--space-3);
+            flex-wrap: wrap;
+        }}
+
+        .readiness-heading h4 {{
+            margin: 0;
+            color: {theme["text"]};
+            font-size: 1.15rem;
+        }}
+
+        .readiness-heading span {{
+            color: {theme["muted_text"]};
+            font-size: 0.78rem;
+        }}
+
+        .readiness-summary {{
+            margin: var(--space-2) 0 var(--space-4);
+            color: {theme["muted_text"]};
+            line-height: 1.55;
+        }}
+
+        .readiness-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: var(--space-3);
+        }}
+
+        .readiness-dimension {{
+            min-width: 0;
+            padding: var(--space-3);
+            background: {theme["surface"]};
+            border: 1px solid {theme["border"]};
+            border-radius: calc(var(--ui-radius) - 2px);
+        }}
+
+        .readiness-dimension-heading {{
+            display: flex;
+            justify-content: space-between;
+            gap: var(--space-2);
+            color: {theme["text"]};
+            font-size: 0.85rem;
+        }}
+
+        .readiness-dimension-heading span {{
+            color: {theme["muted_text"]};
+            font-family: var(--ui-data-font);
+            white-space: nowrap;
+        }}
+
+        .readiness-track {{
+            height: 4px;
+            margin: var(--space-2) 0;
+            overflow: hidden;
+            background: {theme["border"]};
+        }}
+
+        .readiness-track span {{
+            display: block;
+            height: 100%;
+            background: {theme["accent"]};
+        }}
+
+        .readiness-dimension p {{
+            margin: 0;
+            color: {theme["muted_text"]};
+            font-size: 0.78rem;
+            line-height: 1.45;
+        }}
+
+        .readiness-action-label {{
+            margin-top: var(--space-4);
+        }}
+
+        .readiness-actions {{
+            margin: var(--space-2) 0 0;
+            padding-left: 1.1rem;
+            color: {theme["muted_text"]};
+            font-size: 0.82rem;
+            line-height: 1.5;
+        }}
+
+        @media (max-width: 1024px) {{
+            .readiness-grid {{
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }}
+        }}
+
+        @media (max-width: 760px) {{
+            .memo-diff-grid {{
+                grid-template-columns: 1fr;
+            }}
+            .readiness-panel,
+            .readiness-grid {{
+                grid-template-columns: minmax(0, 1fr);
+            }}
+
+            .readiness-score {{
+                min-height: 0;
+                flex-direction: row;
+                align-items: center;
+                justify-content: space-between;
+                padding: var(--space-4);
+                border-right: 0;
+                border-bottom: 1px solid {theme["border"]};
+            }}
+
+            .readiness-score strong {{
+                font-size: 2.25rem;
+            }}
+
+            .readiness-content {{
+                padding: var(--space-4);
+            }}
+        }}
+        .coherence-panel {{
+            margin: 0 0 var(--space-6);
+            padding: var(--space-4);
+            background: {theme["card"]};
+            border: 1px solid {theme["border"]};
+            border-left: 3px solid {theme["secondary"]};
+            border-radius: var(--ui-radius);
+        }}
+
+        .coherence-panel--aligned {{ border-left-color: {theme["success"]}; }}
+        .coherence-panel--divergent {{ border-left-color: {theme["warning"]}; }}
+        .coherence-panel--risk-heavy {{ border-left-color: {theme["danger"]}; }}
+        .coherence-panel--incomplete {{ border-left-color: {theme["border"]}; }}
+
+        .coherence-heading {{
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: var(--space-3);
+            flex-wrap: wrap;
+        }}
+
+        .coherence-heading h3 {{
+            margin: 0 !important;
+        }}
+
+        .coherence-heading > span {{
+            color: {theme["muted_text"]};
+            font-size: 0.78rem;
+        }}
+
+        .coherence-status {{
+            margin-top: var(--space-3);
+            color: {theme["text"]};
+            font-size: 1.02rem;
+            font-weight: 850;
+        }}
+
+        .coherence-summary,
+        .coherence-next {{
+            color: {theme["muted_text"]};
+            line-height: 1.5;
+        }}
+
+        .coherence-summary {{
+            margin: var(--space-1) 0 var(--space-3);
+        }}
+
+        .coherence-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: var(--space-2);
+        }}
+
+        .coherence-count {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-2);
+            padding: 0.55rem 0.7rem;
+            background: {theme["surface"]};
+            border: 1px solid {theme["border"]};
+            border-radius: calc(var(--ui-radius) - 2px);
+            color: {theme["muted_text"]};
+            font-size: 0.82rem;
+        }}
+
+        .coherence-count strong {{
+            color: {theme["text"]};
+            font-family: var(--ui-data-font);
+            font-size: 1.1rem;
+        }}
+
+        .coherence-next {{
+            margin: var(--space-3) 0 0;
+            font-size: 0.82rem;
+        }}
+
+        .coherence-next strong {{
+            color: {theme["text"]};
+        }}
+
+        @media (max-width: 1024px) {{
+            .coherence-grid {{
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }}
+        }}
+
+        @media (max-width: 760px) {{
+            .memo-diff-grid {{
+                grid-template-columns: 1fr;
+            }}
+            .coherence-grid {{
+                grid-template-columns: minmax(0, 1fr);
+            }}
+        }}
+        .research-path {{
+            margin: 0 0 var(--space-6);
+            padding: var(--space-4);
+            background: {theme["surface"]};
+            border: 1px solid {theme["border"]};
+            border-top: 3px solid {theme["accent"]};
+            border-radius: var(--ui-radius);
+        }}
+
+        .research-path-heading {{
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: var(--space-3);
+            flex-wrap: wrap;
+        }}
+
+        .research-path-heading h3 {{ margin: 0 !important; }}
+
+        .research-path-heading > span {{
+            color: {theme["accent"]};
+            font-size: 0.84rem;
+            font-weight: 850;
+        }}
+
+        .research-path-summary {{
+            max-width: 70rem;
+            margin: var(--space-2) 0 var(--space-4);
+            color: {theme["muted_text"]};
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }}
+
+        .research-path-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: var(--space-3);
+        }}
+
+        .research-path-step {{
+            min-width: 0;
+            padding: var(--space-3);
+            background: {theme["card"]};
+            border: 1px solid {theme["border"]};
+            border-top: 3px solid {theme["secondary"]};
+            border-radius: calc(var(--ui-radius) - 2px);
+        }}
+
+        .research-path-step--complete {{ border-top-color: {theme["success"]}; }}
+        .research-path-step--review {{ border-top-color: {theme["warning"]}; }}
+        .research-path-step--blocked {{ border-top-color: {theme["danger"]}; }}
+
+        .research-path-step-heading {{
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }}
+
+        .research-path-step-index {{
+            display: inline-flex;
+            flex: 0 0 auto;
+            align-items: center;
+            justify-content: center;
+            width: 1.65rem;
+            height: 1.65rem;
+            border: 1px solid {theme["border"]};
+            border-radius: 50%;
+            color: {theme["text"]};
+            font-family: var(--ui-data-font);
+            font-size: 0.8rem;
+            font-weight: 850;
+        }}
+
+        .research-path-step-label {{
+            flex: 1 1 auto;
+            min-width: 0;
+            color: {theme["text"]};
+            font-size: 0.94rem;
+            font-weight: 850;
+        }}
+
+        .research-path-step-status {{
+            flex: 0 0 auto;
+            color: {theme["muted_text"]};
+            font-size: 0.74rem;
+            font-weight: 800;
+            white-space: nowrap;
+        }}
+
+        .research-path-step--complete .research-path-step-status {{ color: {theme["success"]}; }}
+        .research-path-step--review .research-path-step-status {{ color: {theme["warning"]}; }}
+        .research-path-step--blocked .research-path-step-status {{ color: {theme["danger"]}; }}
+
+        .research-path-step-detail {{
+            margin: var(--space-2) 0 0;
+            color: {theme["muted_text"]};
+            font-size: 0.8rem;
+            line-height: 1.48;
+        }}
+
+        .research-path-next {{
+            margin-top: var(--space-4);
+            padding-top: var(--space-3);
+            border-top: 1px solid {theme["border"]};
+            color: {theme["muted_text"]};
+            font-size: 0.88rem;
+            line-height: 1.5;
+        }}
+
+        .research-path-next strong {{ color: {theme["text"]}; }}
+
+        @media (max-width: 1024px) {{
+            .research-path-grid {{
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }}
+        }}
+
+        @media (max-width: 760px) {{
+            .memo-diff-grid {{
+                grid-template-columns: 1fr;
+            }}
+            .research-path {{ padding: var(--space-3); }}
+            .research-path-grid {{ grid-template-columns: minmax(0, 1fr); }}
+        }}
         .evidence-grid {{
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1900,6 +2355,9 @@ def inject_global_css(theme: dict) -> None:
         }}
 
         @media (max-width: 760px) {{
+            .memo-diff-grid {{
+                grid-template-columns: 1fr;
+            }}
             [data-testid="stSidebar"] {{
                 position: fixed !important;
                 inset: 0 auto 0 0;
@@ -1916,18 +2374,25 @@ def inject_global_css(theme: dict) -> None:
             }}
 
             .st-key-active_page {{
+                display: block;
+                width: 100% !important;
+                min-width: 0;
                 max-width: none;
                 margin-bottom: var(--space-4);
             }}
 
             .st-key-active_page [role="radiogroup"] {{
+                grid-template-columns: repeat(
+                    auto-fit,
+                    minmax(min(100%, 8rem), 1fr)
+                );
                 gap: var(--space-1) !important;
                 padding: var(--space-1);
             }}
 
             .st-key-active_page label {{
-                min-height: 68px;
-                padding: 0.45rem 0.25rem !important;
+                min-height: 52px;
+                padding: 0.45rem 0.4rem !important;
                 font-size: 0.78rem !important;
                 line-height: 1.2;
                 white-space: normal;
@@ -1998,9 +2463,462 @@ def inject_global_css(theme: dict) -> None:
                 grid-template-columns: 1fr;
             }}
 
-            .research-evidence {{
-                min-height: 0;
+        .research-evidence {{
+            min-height: 0;
+        }}
+        /* UI Pro Max: dense analytics layout with resilient text and keyboard-first focus. */
+        html {{
+            scroll-behavior: smooth;
+            scroll-padding-top: 1rem;
+        }}
+        .block-container {{
+            padding-top: 2.5rem;
+        }}
+        .market-card,
+        .watch-card,
+        .instrument-workspace,
+        .research-shell {{
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }}
+        [data-testid="stDataFrame"],
+        [data-testid="stPlotlyChart"] {{
+            max-width: 100%;
+            min-width: 0;
+        }}
+        [data-testid="stDataFrame"] {{
+            overflow-x: auto;
+            scrollbar-color: {theme["border"]} {theme["surface"]};
+        }}
+        :where(button, [role="button"], a, input, select, textarea):focus-visible {{
+            outline: 3px solid {theme["accent"]} !important;
+            outline-offset: 3px !important;
+        }}
+        button:disabled,
+        input:disabled,
+        select:disabled,
+        textarea:disabled,
+        [aria-disabled="true"] {{
+            cursor: not-allowed !important;
+            opacity: .5 !important;
+        }}
+        @media (max-width: 760px) {{
+            html {{ scroll-padding-top: 4.5rem; }}
+            .block-container {{ padding-top: 4.25rem; }}
+            .dashboard-topline,
+            .data-rail,
+            .research-quality {{
+                min-width: 0;
+                overflow-wrap: anywhere;
             }}
+            .dashboard-topline h1 {{
+                max-width: 100%;
+                overflow-wrap: anywhere;
+                text-wrap: balance;
+            }}
+            .dashboard-topline .page-date {{
+                max-width: 100%;
+                overflow-wrap: anywhere;
+                line-height: 1.45;
+            }}
+            [data-testid="stDataFrame"] {{
+                font-size: .95rem !important;
+            }}
+        }}
+
+        /* UI Pro Max v2: responsive research workspace tokens. */
+        :root {{
+            --ui-font: "Fira Sans", "Noto Sans TC", "Microsoft JhengHei UI", system-ui, sans-serif;
+            --ui-data-font: "Fira Code", "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+            --ui-radius-lg: 12px;
+            --ui-content-gutter: clamp(1rem, 3vw, 3.75rem);
+        }}
+        *, *::before, *::after {{ box-sizing: border-box; }}
+        .stApp, .stApp button, .stApp input, .stApp textarea, .stApp select {{
+            font-family: var(--ui-font);
+        }}
+        .stApp {{
+            font-size: clamp(1rem, 0.97rem + 0.16vw, 1.08rem);
+            line-height: 1.6;
+            text-rendering: optimizeLegibility;
+        }}
+        .block-container {{
+            width: 100%;
+            max-width: 1480px;
+            padding-inline: var(--ui-content-gutter);
+            padding-block: clamp(2.5rem, 4vw, 4.25rem) clamp(2.75rem, 5vw, 4.5rem);
+        }}
+        h1 {{
+            font-size: clamp(1.85rem, 1.35rem + 2.1vw, 2.85rem) !important;
+            line-height: 1.12 !important;
+        }}
+        h2 {{
+            font-size: clamp(1.35rem, 1.12rem + 0.85vw, 1.8rem) !important;
+            line-height: 1.25 !important;
+        }}
+        h3 {{
+            font-size: clamp(1.08rem, 0.98rem + 0.38vw, 1.28rem) !important;
+            line-height: 1.35 !important;
+        }}
+        p, li, label, [data-testid="stMarkdownContainer"] {{
+            max-width: 78ch;
+            overflow-wrap: anywhere;
+        }}
+        [data-testid="stColumn"], [data-testid="stHorizontalBlock"],
+        .page-header-copy, .detail-header-copy, .market-card-copy,
+        .watch-card-copy, .readiness-content, .research-shell {{
+            min-width: 0;
+        }}
+        .page-masthead, .research-shell {{
+            gap: clamp(1rem, 2.2vw, 2rem);
+        }}
+        .page-masthead h1, .research-shell h1 {{ max-width: 24ch; }}
+        .market-grid {{
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 248px), 1fr));
+            gap: clamp(0.75rem, 1.35vw, 1.25rem);
+        }}
+        .market-card, .watch-card, .section-card, .info-card,
+        .research-evidence, .readiness-panel, .coherence-panel, .research-path {{
+            border-radius: var(--ui-radius-lg);
+        }}
+        .market-card, .watch-card {{
+            min-height: 148px;
+            padding: clamp(1rem, 1.3vw, 1.35rem);
+        }}
+        .market-card .price-text, .watch-card .price-text,
+        .instrument-workspace .price-text, .metric-value,
+        [data-testid="stMetricValue"], .score-number, .readiness-score strong,
+        .coherence-count strong {{
+            font-family: var(--ui-data-font);
+            font-variant-numeric: tabular-nums;
+        }}
+        .price-text {{ font-size: clamp(1.55rem, 1.2rem + 1vw, 2.35rem); }}
+        .score-number {{ font-size: clamp(2.5rem, 2rem + 2vw, 3.6rem); }}
+        .instrument-workspace {{
+            max-width: 100%;
+            overflow-wrap: anywhere;
+        }}
+        [data-testid="stDataFrame"], [data-testid="stPlotlyChart"] {{
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            overflow-x: auto;
+            border-radius: var(--ui-radius-lg);
+        }}
+        [data-testid="stDataFrame"] {{ overscroll-behavior-inline: contain; }}
+        .stButton button, .stDownloadButton button,
+        [data-testid="stRadio"] label, [data-testid="stTabs"] button {{
+            min-height: 44px;
+        }}
+        :where(button, [role="button"], a, input, select, textarea):focus-visible {{
+            outline: 3px solid {theme["accent"]} !important;
+            outline-offset: 3px !important;
+        }}
+        @media (max-width: 1024px) and (min-width: 761px) {{
+            .page-masthead, .research-shell {{ grid-template-columns: 1fr; align-items: start; }}
+            .data-rail {{ padding-left: 0; border-left: 0; }}
+            .data-rail .status-pill {{ width: fit-content; }}
+            .readiness-panel {{ grid-template-columns: minmax(8rem, 0.75fr) minmax(0, 2.25fr); }}
+        }}
+        @media (max-width: 760px) {{
+            .block-container {{
+                padding-inline: max(0.85rem, env(safe-area-inset-left)) max(0.85rem, env(safe-area-inset-right));
+                padding-top: 4.25rem;
+            }}
+            /* Streamlit leaves a 20px collapsed-sidebar rail in the flow.  Move
+               the closed rail fully off-canvas so headings and controls keep a
+               predictable 16px gutter on 320–414px screens. */
+            [data-testid="stSidebar"][aria-expanded="false"] {{
+                transform: translateX(-100%) !important;
+            }}
+            [data-testid="stSidebar"][aria-expanded="true"] {{
+                transform: translateX(0) !important;
+            }}
+            [data-testid="stAppViewContainer"],
+            [data-testid="stAppViewContainer"] > .main,
+            [data-testid="stAppViewBlockContainer"] {{
+                margin-left: 0 !important;
+                padding-left: 0 !important;
+            }}
+            [data-testid="stHorizontalBlock"] {{
+                flex-direction: column !important;
+                gap: 0.9rem !important;
+            }}
+            [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
+                width: 100% !important;
+                flex: 1 1 auto !important;
+            }}
+            .page-masthead, .research-shell {{ display: grid; grid-template-columns: 1fr; align-items: start; }}
+            .page-masthead h1, .research-shell h1 {{ max-width: none; }}
+            .page-lead {{ font-size: 1rem !important; }}
+            .data-rail {{ display: block; padding-left: 0; border-left: 0; }}
+            .data-rail .status-pill {{ width: 100%; }}
+            .market-grid {{ grid-template-columns: 1fr; }}
+            .market-card, .watch-card {{ min-height: 0; }}
+            .detail-title, .instrument-workspace .detail-title {{ font-size: clamp(1.55rem, 8vw, 2.2rem); }}
+            .instrument-workspace {{ padding: 1.05rem; }}
+            .research-quality {{ grid-template-columns: 1fr; align-items: start; }}
+            .readiness-panel {{ grid-template-columns: 1fr; }}
+            .readiness-score {{ border-right: 0; border-bottom: 1px solid {theme["border"]}; }}
+            .readiness-grid {{ grid-template-columns: 1fr; }}
+            .coherence-grid {{ grid-template-columns: 1fr; }}
+            [data-testid="stDataFrame"] {{ font-size: 0.95rem !important; }}
+        }}
+        @media (prefers-reduced-motion: reduce) {{
+            html {{ scroll-behavior: auto; }}
+            *, *::before, *::after {{
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }}
+        }}
+        /* UI/UX rebuild: Research Trust workspace shell.  The page is built
+           around one clear task at a time: choose a workspace, confirm data
+           status, then read evidence. */
+        :root {{
+            --ui-radius-xl: 20px;
+            --ui-radius-lg: 16px;
+            --ui-radius-md: 12px;
+            --ui-border-strong: color-mix(in srgb, var(--ui-accent) 42%, var(--ui-border));
+            --ui-surface-muted: color-mix(in srgb, var(--ui-surface) 72%, var(--ui-background));
+            --ui-shadow-panel: 0 14px 40px color-mix(in srgb, var(--ui-background) 72%, transparent);
+        }}
+        .stApp {{
+            background: var(--ui-background) !important;
+            color: var(--ui-text) !important;
+            font-family: var(--ui-font) !important;
+            font-size: clamp(1rem, .96rem + .16vw, 1.08rem);
+            line-height: 1.62;
+        }}
+        .block-container {{
+            max-width: 1320px !important;
+            padding-inline: clamp(1rem, 3.4vw, 3.75rem) !important;
+            padding-block: clamp(1rem, 2.5vw, 2.5rem) clamp(3rem, 5vw, 4.5rem) !important;
+        }}
+        .product-brand {{
+            display: flex;
+            align-items: center;
+            gap: .7rem;
+            margin: 0 0 clamp(1rem, 2vw, 1.5rem);
+            color: var(--ui-muted);
+            font-size: .78rem;
+            font-weight: 800;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+        }}
+        .product-brand-mark,
+        .page-eyebrow-mark {{
+            display: grid;
+            place-items: center;
+            width: 2rem;
+            height: 2rem;
+            flex: 0 0 2rem;
+            border: 1px solid var(--ui-border-strong);
+            border-radius: 10px;
+            background: var(--ui-accent-muted);
+            color: var(--ui-accent);
+            font-family: var(--ui-data-font);
+            font-size: .72rem;
+            font-weight: 900;
+            letter-spacing: -.04em;
+        }}
+        .st-key-active_page {{
+            width: 100% !important;
+            margin: 0 0 clamp(1.25rem, 3vw, 2.5rem) !important;
+        }}
+        .st-key-active_page [role="radiogroup"] {{
+            display: grid !important;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: .5rem !important;
+            width: 100% !important;
+            padding: .5rem !important;
+            border: 1px solid var(--ui-border) !important;
+            border-radius: var(--ui-radius-lg) !important;
+            background: var(--ui-surface-muted) !important;
+            box-shadow: 0 6px 18px color-mix(in srgb, var(--ui-background) 35%, transparent);
+        }}
+        .st-key-active_page label {{
+            display: flex !important;
+            min-width: 0 !important;
+            min-height: 48px !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: .65rem .8rem !important;
+            border: 1px solid transparent !important;
+            border-radius: var(--ui-radius-md) !important;
+            color: var(--ui-muted) !important;
+            font-size: .98rem !important;
+            font-weight: 800 !important;
+            line-height: 1.25 !important;
+            text-align: center !important;
+            white-space: normal !important;
+            overflow: visible !important;
+            transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+        }}
+        .st-key-active_page label > div:first-child {{ display: none !important; }}
+        .st-key-active_page label p,
+        .st-key-active_page label span {{
+            max-width: 100% !important;
+            color: inherit !important;
+            overflow: visible !important;
+            white-space: inherit !important;
+        }}
+        .st-key-active_page label:hover {{
+            border-color: var(--ui-border-strong) !important;
+            background: color-mix(in srgb, var(--ui-accent) 8%, var(--ui-surface)) !important;
+            color: var(--ui-text) !important;
+        }}
+        .st-key-active_page label:has(input:checked) {{
+            border-color: var(--ui-accent) !important;
+            background: var(--ui-card) !important;
+            color: var(--ui-text) !important;
+            box-shadow: inset 0 -3px 0 var(--ui-accent);
+        }}
+        .dashboard-topline.research-shell {{
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) minmax(220px, auto) !important;
+            gap: clamp(1rem, 3vw, 2.5rem) !important;
+            align-items: end !important;
+            margin: 0 0 1.25rem !important;
+            padding: clamp(1.25rem, 2.6vw, 2rem) !important;
+            border: 1px solid var(--ui-border) !important;
+            border-radius: var(--ui-radius-xl) !important;
+            background: var(--ui-surface) !important;
+            box-shadow: var(--ui-shadow-panel) !important;
+        }}
+        .page-header-copy {{ min-width: 0; }}
+        .page-eyebrow {{
+            display: inline-flex;
+            align-items: center;
+            gap: .55rem;
+            margin: 0 0 .9rem;
+            color: var(--ui-accent);
+            font-size: .72rem;
+            font-weight: 900;
+            letter-spacing: .12em;
+        }}
+        .page-eyebrow-mark {{
+            width: 1.65rem;
+            height: 1.65rem;
+            flex-basis: 1.65rem;
+            border-radius: 8px;
+            font-size: .62rem;
+        }}
+        .dashboard-topline h1 {{
+            max-width: 24ch;
+            margin: 0 !important;
+            font-size: clamp(2rem, 1.4rem + 2vw, 3rem) !important;
+            line-height: 1.1 !important;
+            letter-spacing: -.025em !important;
+        }}
+        .dashboard-topline .page-date {{
+            max-width: 68ch;
+            margin-top: .75rem;
+            color: var(--ui-muted) !important;
+            font-size: .94rem !important;
+            line-height: 1.55 !important;
+        }}
+        .data-rail {{
+            min-width: 0;
+            padding-left: 1.25rem;
+            border-left: 1px solid var(--ui-border);
+        }}
+        .status-pill {{
+            min-height: 44px !important;
+            padding: .65rem .8rem !important;
+            border: 1px solid var(--ui-border) !important;
+            border-left: 3px solid var(--ui-accent) !important;
+            border-radius: var(--ui-radius-md) !important;
+            background: var(--ui-card) !important;
+            color: var(--ui-text) !important;
+            font-size: .88rem !important;
+            line-height: 1.4 !important;
+        }}
+        .status-pill.live {{
+            border-left-color: var(--ui-success, #2ea878) !important;
+            color: var(--ui-text) !important;
+        }}
+        .status-pill::before {{ box-shadow: none !important; }}
+        .section-card,
+        .instrument-workspace,
+        .research-brief,
+        .research-path,
+        .readiness-panel,
+        .coherence-panel,
+        .notice,
+        .warning-box {{
+            border-radius: var(--ui-radius-lg) !important;
+        }}
+        .market-card, .watch-card, .info-card, .research-evidence {{
+            border-radius: var(--ui-radius-lg) !important;
+            border: 1px solid var(--ui-border) !important;
+            box-shadow: 0 8px 24px color-mix(in srgb, var(--ui-background) 45%, transparent) !important;
+        }}
+        .market-card::before, .watch-card::before {{
+            height: 3px !important;
+            opacity: 1 !important;
+        }}
+        .metric-value, .price-text, [data-testid="stMetricValue"], .score-number {{
+            font-family: var(--ui-data-font) !important;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -.02em;
+        }}
+        [data-testid="stMetric"] {{
+            border-radius: var(--ui-radius-lg) !important;
+            min-height: 132px !important;
+            padding: 1.1rem !important;
+            box-shadow: 0 8px 24px color-mix(in srgb, var(--ui-background) 45%, transparent) !important;
+        }}
+        [data-testid="stDataFrame"], [data-testid="stPlotlyChart"] {{
+            border-radius: var(--ui-radius-lg) !important;
+            border: 1px solid var(--ui-border) !important;
+            overflow-x: auto !important;
+        }}
+        .stButton button, .stDownloadButton button {{
+            min-height: 44px !important;
+            border-radius: 10px !important;
+            font-weight: 800 !important;
+        }}
+        .product-footer {{
+            margin-top: clamp(2.5rem, 6vw, 4.5rem) !important;
+            padding-top: 1rem !important;
+            border-top: 1px solid var(--ui-border) !important;
+            color: var(--ui-muted) !important;
+        }}
+        :where(button, [role="button"], a, input, select, textarea):focus-visible {{
+            outline: 3px solid var(--ui-accent) !important;
+            outline-offset: 3px !important;
+        }}
+        @media (max-width: 1024px) and (min-width: 761px) {{
+            .dashboard-topline.research-shell {{ grid-template-columns: 1fr !important; align-items: start !important; }}
+            .data-rail {{ padding-left: 0; padding-top: 1rem; border-top: 1px solid var(--ui-border); border-left: 0; }}
+            .data-rail .status-pill {{ width: fit-content; max-width: 100%; }}
+        }}
+        @media (max-width: 760px) {{
+            [data-testid="stSidebar"][aria-expanded="false"] {{ transform: translateX(-100%) !important; }}
+            [data-testid="stSidebar"][aria-expanded="true"] {{ transform: translateX(0) !important; }}
+            [data-testid="stAppViewContainer"],
+            [data-testid="stAppViewContainer"] > .main,
+            [data-testid="stAppViewBlockContainer"] {{ margin-left: 0 !important; padding-left: 0 !important; }}
+            .block-container {{
+                padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right)) !important;
+                padding-top: 4.5rem !important;
+            }}
+            .product-brand {{ margin-bottom: 1rem; }}
+            .st-key-active_page [role="radiogroup"] {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+            .st-key-active_page label {{ min-height: 52px !important; font-size: .92rem !important; }}
+            .dashboard-topline.research-shell {{ grid-template-columns: 1fr !important; align-items: start !important; padding: 1.15rem !important; }}
+            .dashboard-topline h1 {{ max-width: none; font-size: clamp(1.85rem, 9vw, 2.5rem) !important; }}
+            .data-rail {{ padding: 0; border: 0; }}
+            .data-rail .status-pill {{ width: 100%; }}
+            [data-testid="stHorizontalBlock"] {{ flex-direction: column !important; gap: .85rem !important; }}
+            [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{ width: 100% !important; flex: 1 1 auto !important; }}
+            .market-card, .watch-card {{ min-height: 0; }}
+            .detail-title, .instrument-workspace .detail-title {{ font-size: clamp(1.55rem, 8vw, 2.2rem) !important; }}
+            .product-footer {{ font-size: .86rem; }}
+        }}
+        @media (prefers-reduced-motion: reduce) {{
+            *, *::before, *::after {{ animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }}
+        }}
         }}
         </style>
         """,
@@ -2143,20 +3061,17 @@ def render_market_cards(theme: dict, cards: list[dict] | None = None) -> None:
 
 
 def render_popular_stocks(cards: list[dict], industry: str = "全部") -> None:
-    st.header("熱門股")
+    st.header("熱門股", help="市場代表標的，依最新可用資料更新。")
     if not cards:
         st.info("目前沒有可顯示的熱門股資料，請稍後重試。")
         return
-    if industry == "全部":
-        st.caption("市場代表標的，依最新可用資料更新。")
-    else:
-        st.caption(f"目前顯示「{industry}」類別中的熱門追蹤標的。")
     columns = st.columns(2, gap="large")
     for index, card in enumerate(cards):
         css_class = change_class(card["change_pct"])
         card_label = escape_html(stock_display_pair(card["symbol"], card["display"]))
         card_category = escape_html(card["category"])
         card_source = escape_html(market_source_label(card["source"]))
+        card_currency = escape_html(card.get("currency", ""))
         with columns[index % 2]:
             st.markdown(
                 f"""
@@ -2168,7 +3083,7 @@ def render_popular_stocks(cards: list[dict], industry: str = "全部") -> None:
                         </div>
                         <span class="tag">{card_source}</span>
                     </div>
-                    <div class="price-text">{card["latest_close"]:,.2f} <span class="currency-label">{card["currency"]}</span></div>
+                    <div class="price-text">{card["latest_close"]:,.2f} <span class="currency-label">{card_currency}</span></div>
                     <div class="{css_class}">{card["change_pct"]:+.2f}%（{card["change"]:+.2f}）</div>
                     <div class="metric-row">
                         <div><div class="metric-label">成交量</div><div class="metric-value">{format_number(card["volume"], 1)}</div></div>
@@ -2307,17 +3222,104 @@ def render_performance_cards(analysis: dict) -> None:
     st.markdown('<h3 class="stock-section-title">近期表現</h3>', unsafe_allow_html=True)
     columns = st.columns(4)
     for col, (label, value) in zip(columns, analysis["performance"].items()):
+        safe_label = escape_html(label)
         css_class = change_class(value)
         col.markdown(
             f"""
             <div class="info-card">
-                <div class="metric-label">{label}</div>
+                <div class="metric-label">{safe_label}</div>
                 <div class="metric-value {css_class}" style="font-size:1.35rem;">{format_percent(value)}</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
+
+def render_research_readiness(readiness: dict) -> None:
+    score = max(0, min(100, int(readiness.get("score", 0) or 0)))
+    level = str(readiness.get("level", "limited"))
+    if level not in {"ready", "review", "limited"}:
+        level = "limited"
+    label = escape_html(readiness.get("label", "資料條件受限"))
+    summary = escape_html(readiness.get("summary", "目前沒有足夠資料完成品質判讀。"))
+
+    dimension_items = []
+    for item in readiness.get("dimensions", []):
+        dimension_score = max(0, int(item.get("score", 0) or 0))
+        max_score = max(1, int(item.get("max_score", 1) or 1))
+        progress = min(100, round(dimension_score / max_score * 100))
+        dimension_items.append(
+            f'''<article class="readiness-dimension" role="listitem">
+                <div class="readiness-dimension-heading">
+                    <strong>{escape_html(item.get("label", ""))}</strong>
+                    <span>{dimension_score} / {max_score}</span>
+                </div>
+                <div class="readiness-track" aria-hidden="true"><span style="width:{progress}%"></span></div>
+                <p>{escape_html(item.get("detail", ""))}</p>
+            </article>'''
+        )
+    dimensions_markup = "".join(dimension_items)
+
+    actions = [str(item) for item in readiness.get("actions", []) if str(item).strip()]
+    actions_markup = "".join(f"<li>{escape_html(item)}</li>" for item in actions)
+    st.markdown(
+        f'''
+        <section class="readiness-panel readiness-panel--{level}" aria-label="研究就緒度">
+            <div class="readiness-score">
+                <span>研究就緒度</span>
+                <div><strong>{score}</strong><small>/100</small></div>
+            </div>
+            <div class="readiness-content">
+                <div class="readiness-heading">
+                    <h4>{label}</h4>
+                    <span>這不是股票評分，不代表投資價值</span>
+                </div>
+                <p class="readiness-summary">{summary}</p>
+                <div class="readiness-grid" role="list">{dimensions_markup}</div>
+                <div class="readiness-action-label">下一步檢查</div>
+                <ul class="readiness-actions">{actions_markup}</ul>
+            </div>
+        </section>
+        ''',
+        unsafe_allow_html=True,
+    )
+
+def render_evidence_coherence(coherence: dict) -> None:
+    status = str(coherence.get("status", "incomplete"))
+    allowed_statuses = {"aligned", "divergent", "risk-heavy", "mixed", "incomplete"}
+    if status not in allowed_statuses:
+        status = "incomplete"
+    label = escape_html(coherence.get("label", "證據尚不完整"))
+    summary = escape_html(coherence.get("summary", "目前沒有足夠證據完成一致性判讀。"))
+    next_focus = escape_html(coherence.get("next_focus", "先補足資料，再解讀技術證據。"))
+    counts = coherence.get("counts", {})
+    count_items = []
+    for key, item_label in (("positive", "正向"), ("neutral", "中性"), ("risk", "風險"), ("unavailable", "不可用")):
+        count = max(0, int(counts.get(key, 0) or 0)) if isinstance(counts, dict) else 0
+        count_items.append(
+            f'''<div class="coherence-count">
+                <span>{item_label}</span><strong>{count}</strong>
+            </div>'''
+        )
+    counts_markup = "".join(count_items)
+    st.markdown(
+        f'''
+        <section class="coherence-panel coherence-panel--{status}" aria-label="證據一致性">
+            <div class="coherence-heading">
+                <div>
+                    <div class="section-eyebrow">EVIDENCE COHERENCE</div>
+                    <h3>證據一致性</h3>
+                </div>
+                <span>描述證據關係，不是股票評分</span>
+            </div>
+            <div class="coherence-status">{label}</div>
+            <p class="coherence-summary">{summary}</p>
+            <div class="coherence-grid" role="list">{counts_markup}</div>
+            <p class="coherence-next"><strong>下一步：</strong>{next_focus}</p>
+        </section>
+        ''',
+        unsafe_allow_html=True,
+    )
 
 def render_research_brief(brief: dict) -> None:
     quality = brief["data_quality"]
@@ -2357,6 +3359,10 @@ def render_research_brief(brief: dict) -> None:
         unsafe_allow_html=True,
     )
 
+    render_research_readiness(brief.get("readiness", {}))
+
+    render_evidence_coherence(brief.get("coherence", {}))
+
     st.markdown('<h3 class="stock-section-title">證據矩陣</h3>', unsafe_allow_html=True)
     evidence = list(brief.get("evidence", []))
     if evidence:
@@ -2393,6 +3399,46 @@ def render_research_brief(brief: dict) -> None:
         st.dataframe(pd.DataFrame(peer_context.get("rows", [])), width="stretch", hide_index=True)
 
 
+def render_research_workflow(workflow: dict) -> None:
+    steps = workflow.get("steps", []) if isinstance(workflow, dict) else []
+    if not steps:
+        return
+    next_step = workflow.get("next_step", {}) if isinstance(workflow, dict) else {}
+    next_label = escape_html(next_step.get("label", "研究紀錄"))
+    next_detail = escape_html(next_step.get("detail", "依序完成研究檢查後再保存快照。"))
+    step_markup = []
+    for index, item in enumerate(steps, start=1):
+        status = str(item.get("status", "review"))
+        if status not in {"complete", "review", "blocked"}:
+            status = "review"
+        step_markup.append(
+            f'''<article class="research-path-step research-path-step--{status}" role="listitem">
+                <div class="research-path-step-heading">
+                    <span class="research-path-step-index" aria-hidden="true">{index}</span>
+                    <span class="research-path-step-label">{escape_html(item.get("label", ""))}</span>
+                    <span class="research-path-step-status">{escape_html(item.get("status_label", "需要覆核"))}</span>
+                </div>
+                <p class="research-path-step-detail">{escape_html(item.get("detail", ""))}</p>
+            </article>'''
+        )
+    st.markdown(
+        f'''
+        <section class="research-path" aria-label="研究路徑">
+            <div class="research-path-heading">
+                <div>
+                    <div class="section-eyebrow">RESEARCH PATH</div>
+                    <h3>研究路徑</h3>
+                </div>
+                <span>下一步：{next_label}</span>
+            </div>
+            <p class="research-path-summary">{escape_html(workflow.get("summary", "依序檢查資料、證據、脈絡，再保存紀錄。"))}</p>
+            <div class="research-path-grid" role="list">{"".join(step_markup)}</div>
+            <div class="research-path-next"><strong>建議先做：</strong>{next_detail}</div>
+        </section>
+        ''',
+        unsafe_allow_html=True,
+    )
+
 def render_snapshot_actions(snapshot: dict) -> None:
     as_of_date = str(snapshot.get("as_of_date", "")) or "unknown-date"
     symbol = str(snapshot.get("asset", {}).get("symbol", "stock"))
@@ -2422,6 +3468,112 @@ def render_snapshot_actions(snapshot: dict) -> None:
             key=f"{filename_base}-html",
             use_container_width=True,
         )
+def research_memo_storage_key(symbol: str) -> str:
+    clean_symbol = re.sub(r"[^A-Za-z0-9._^-]+", "_", str(symbol).strip()) or "stock"
+    return f"research_memo::{clean_symbol}"
+
+
+def render_research_memo_form(symbol: str) -> dict[str, str]:
+    """Render a session-scoped research memo that travels with exported snapshots."""
+    storage_key = research_memo_storage_key(symbol)
+    if storage_key not in st.session_state:
+        st.session_state[storage_key] = empty_research_memo()
+    memo = normalize_research_memo(st.session_state.get(storage_key))
+    st.session_state[storage_key] = memo
+    version_key = f"{storage_key}::version"
+    version = int(st.session_state.get(version_key, 0) or 0)
+    widget_prefix = f"{storage_key.replace(':', '_')}::{version}"
+    notice_key = f"{storage_key}::notice"
+    notice = st.session_state.pop(notice_key, "")
+    if notice:
+        st.success(notice)
+
+    review_value = None
+    if memo.get("next_review_date"):
+        try:
+            review_value = date.fromisoformat(memo["next_review_date"])
+        except ValueError:
+            review_value = None
+
+    with st.expander("研究備忘錄", expanded=bool(any(memo.get(field) for field in ("hypothesis", "supporting_evidence", "counter_evidence", "risks_unknowns", "next_question")))):
+        st.caption("把觀察、反向證據與下一個問題留在同一份快照中。保存後才會進入下載內容；這不是投資建議。")
+        with st.form(f"research_memo_form_{widget_prefix}", clear_on_submit=False):
+            status = st.selectbox(
+                "紀錄狀態",
+                list(MEMO_STATUS_LABELS),
+                index=list(MEMO_STATUS_LABELS).index(memo.get("status", "draft")),
+                format_func=lambda value: MEMO_STATUS_LABELS[value],
+                key=f"{widget_prefix}_status",
+            )
+            hypothesis = st.text_area(
+                "研究假設／核心問題",
+                value=memo.get("hypothesis", ""),
+                placeholder="例如：近期價格維持在中期均線上方，但需要下一次成交量確認。",
+                max_chars=1000,
+                key=f"{widget_prefix}_hypothesis",
+            )
+            supporting = st.text_area(
+                "支持證據",
+                value=memo.get("supporting_evidence", ""),
+                placeholder="記錄指標、日期與數值，不只寫結論。",
+                max_chars=2000,
+                key=f"{widget_prefix}_supporting",
+            )
+            counter = st.text_area(
+                "反向證據／尚未解釋",
+                value=memo.get("counter_evidence", ""),
+                placeholder="哪些現象與假設不一致？目前還不能解釋什麼？",
+                max_chars=2000,
+                key=f"{widget_prefix}_counter",
+            )
+            risks = st.text_area(
+                "風險與未知",
+                value=memo.get("risks_unknowns", ""),
+                placeholder="資料延遲、樣本不足、事件風險或尚未取得的資料。",
+                max_chars=2000,
+                key=f"{widget_prefix}_risks",
+            )
+            next_question = st.text_area(
+                "下一個要驗證的問題",
+                value=memo.get("next_question", ""),
+                placeholder="下一次更新時，最想確認哪一個可觀測問題？",
+                max_chars=800,
+                key=f"{widget_prefix}_next_question",
+            )
+            review_date = st.date_input(
+                "下次檢查日期",
+                value=review_value,
+                key=f"{widget_prefix}_review_date",
+            )
+            save_column, clear_column = st.columns(2, gap="small")
+            with save_column:
+                save_memo = st.form_submit_button("保存研究備忘錄", type="primary", use_container_width=True)
+            with clear_column:
+                clear_memo = st.form_submit_button("清除內容", use_container_width=True)
+
+        if save_memo:
+            saved = normalize_research_memo(
+                {
+                    "status": status,
+                    "hypothesis": hypothesis,
+                    "supporting_evidence": supporting,
+                    "counter_evidence": counter,
+                    "risks_unknowns": risks,
+                    "next_question": next_question,
+                    "next_review_date": review_date.isoformat() if isinstance(review_date, date) else "",
+                }
+            )
+            st.session_state[storage_key] = saved
+            st.session_state[notice_key] = "研究備忘錄已保存，新的內容會進入下一份研究快照。"
+            st.rerun()
+        if clear_memo:
+            st.session_state[storage_key] = empty_research_memo()
+            st.session_state[version_key] = version + 1
+            st.session_state[notice_key] = "研究備忘錄已清除。"
+            st.rerun()
+
+    return normalize_research_memo(st.session_state.get(storage_key))
+
 def render_stock_detail(
     selected_symbol: str,
     theme: dict,
@@ -2429,10 +3581,14 @@ def render_stock_detail(
     peer_cards: list[dict],
     peer_industry: str,
     selected_indicators: list[str] | None = None,
+    history_data: tuple[pd.DataFrame, str] | None = None,
 ) -> None:
     if selected_indicators is None:
         selected_indicators = DEFAULT_TECHNICAL_INDICATORS
-    history, source = cached_stock_history(selected_symbol, period="1y")
+    if history_data is None:
+        history, source = cached_stock_history(selected_symbol, period="1y")
+    else:
+        history, source = history_data
     analysis = build_stock_analysis(history)
     if not analysis:
         st.warning("目前沒有足夠的個股資料可供分析，請稍後重試或改選其他股票。")
@@ -2447,7 +3603,10 @@ def render_stock_detail(
     stock_label = stock_display_pair(selected_symbol, display_name)
     safe_stock_label = escape_html(stock_label)
     safe_source = escape_html(market_source_label(source))
+    safe_currency = escape_html(latest.get("currency", ""))
     css_class = change_class(change_pct)
+    memo_key = research_memo_storage_key(selected_symbol)
+    memo = normalize_research_memo(st.session_state.get(memo_key))
     snapshot = build_research_snapshot(
         {
             "symbol": selected_symbol,
@@ -2457,7 +3616,7 @@ def render_stock_detail(
         },
         history,
         source,
-        brief,
+        {**brief, "memo": memo},
         datetime.now(timezone.utc),
     )
 
@@ -2469,7 +3628,7 @@ def render_stock_detail(
                 <div class="detail-header-copy">
                     <div class="card-title detail-title">{safe_stock_label}</div>
                     <div class="card-subtitle">{safe_source} · 股票追蹤與技術分析</div>
-                    <div class="price-text">{latest["close"]:,.2f} <span class="currency-label">{latest["currency"]}</span></div>
+                    <div class="price-text">{latest["close"]:,.2f} <span class="currency-label">{safe_currency}</span></div>
                     <div class="{css_class}">{change_pct:+.2f}%（{change:+.2f}）</div>
                 </div>
                 <div class="detail-tag-group">
@@ -2483,13 +3642,19 @@ def render_stock_detail(
         unsafe_allow_html=True,
     )
 
-    render_snapshot_actions(snapshot)
+    render_research_memo_form(selected_symbol)
 
+    workflow = build_research_workflow(
+        brief.get("readiness", {}),
+        brief.get("coherence", {}),
+        brief.get("peer_context", {}),
+    )
+    render_research_workflow(workflow)
     render_research_brief(brief)
+    render_snapshot_actions(snapshot)
     render_performance_cards(analysis)
 
     st.markdown('<h3 class="stock-section-title">技術圖表</h3>', unsafe_allow_html=True)
-    st.caption("K 線固定顯示；均線、布林通道與副圖可在左側「技術指標」切換。")
     st.plotly_chart(
         make_price_chart(indicators, theme, f"{stock_label} 價格與指標", selected_indicators),
         width="stretch",
@@ -2545,6 +3710,7 @@ def render_page_header(title: str, subtitle: str, status_text: str, status_live:
         <a class="skip-link" href="#main-content">跳到主要內容</a>
         <div class="dashboard-topline research-shell">
             <div class="page-header-copy" id="main-content" tabindex="-1">
+                <div class="page-eyebrow"><span class="page-eyebrow-mark" aria-hidden="true">RT</span><span>RESEARCH TRUST</span></div>
                 <h1>{safe_title}</h1>
                 <div class="page-date help-text">{pd.Timestamp.today().strftime('%Y年%m月%d日')} · {safe_subtitle}</div>
             </div>
@@ -2567,15 +3733,45 @@ def render_data_service_notice(state: dict) -> None:
     elif mode == "unavailable":
         st.error(message)
     else:
-        st.caption(message)
+        message = ""
 
     status_column, action_column = st.columns([5, 1], gap="medium", vertical_alignment="center")
     with status_column:
         as_of_date = state.get("as_of_date")
         if as_of_date:
-            st.caption(f"最新可用市場資料日：{as_of_date} · 行情快取最長 15 分鐘")
+            st.caption(f"資料日 {as_of_date} · 快取 15 分鐘")
         else:
             st.caption("目前沒有可確認的市場資料日期。")
+        provider_items = []
+        for provider in state.get("provider_health", []):
+            status_label = {
+                "healthy": "正常",
+                "cached": "快取",
+                "degraded": "降級",
+                "fallback": "示範資料",
+                "unavailable": "不可用",
+            }.get(str(provider.get("status", "")), "未知")
+            provider_items.append(
+                f'{provider.get("provider", "來源")}：{status_label}'
+                f'（{provider.get("detail", "")}）'
+            )
+        detail_lines = []
+        if message:
+            detail_lines.append(message)
+        if provider_items:
+            detail_lines.append("資料來源健康 · " + " · ".join(provider_items))
+        quality = state.get("data_quality", {})
+        if quality.get("card_count"):
+            counts = quality.get("source_counts", {})
+            source_summary = "、".join(f"{name} {count} 張" for name, count in counts.items())
+            detail_lines.append(
+                f"已檢查 {quality['card_count']} 張行情卡（{source_summary}）；"
+                f"最新 LIVE 資料日：{quality.get('latest_live_date') or '無'}"
+            )
+        if detail_lines:
+            with st.expander("資料來源詳情", expanded=False):
+                for line in detail_lines:
+                    st.caption(line)
     with action_column:
         if st.button(
             "重新取得資料",
@@ -2594,19 +3790,33 @@ def render_product_footer() -> None:
     st.markdown(
         """
         <footer class="product-footer">
-            <strong>Research Trust Workbench</strong>
-            <span>資料來源：yfinance、TWSE OpenAPI</span>
-            <span>不建立帳號、不儲存上傳快照、不提供投資建議</span>
+            <strong>Research Trust</strong>
+            <span>行情證據工作台 · 非投資建議</span>
         </footer>
         """,
         unsafe_allow_html=True,
     )
 
+def render_market_radar_page(theme: dict) -> None:
+    del theme
+
+    def load_company_sources() -> tuple[pd.DataFrame, str, pd.DataFrame, str]:
+        company_profiles, company_source = cached_company_profiles()
+        return company_profiles, company_source, pd.DataFrame(), "尚未載入"
+
+    render_market_radar(
+        load_company_sources,
+        cached_radar_histories,
+        render_page_header,
+        render_data_service_notice,
+    )
+
+
 def render_stock_analysis_page(theme: dict) -> None:
     with st.spinner("正在載入 TWSE 上市公司清單..."):
-        company_profiles, company_source, esg_data, esg_source = cached_load_twse_sources()
+        company_profiles, company_source = cached_company_profiles()
     stock_universe = get_stock_universe(company_profiles)
-    company_reference = company_profiles if not company_profiles.empty else esg_data
+    company_reference = company_profiles
     industry_options = get_industry_options(stock_universe)
 
     if not st.session_state.get("stock_query_initialized"):
@@ -2678,20 +3888,33 @@ def render_stock_analysis_page(theme: dict) -> None:
         if active_custom_symbol:
             st.caption(f"目前使用自訂代號：{selected_stock_label}")
         else:
-            st.caption(f"可選股票清單：{len(stock_universe)} 檔；資料源 {company_source}，亦可輸入合法 yfinance 代號。")
+            st.caption(f"{len(stock_universe)} 檔可選 · {company_source}")
 
     with st.spinner("正在載入 yfinance 行情與產業比較資料..."):
-        market_cards = cached_market_cards()
         popular_symbols = get_popular_symbols(stock_universe, selected_industry)
-        popular_cards = cached_watchlist_cards(tuple(popular_symbols) if popular_symbols is not None else None)
         peer_symbols, peer_industry = get_peer_comparison_symbols(stock_universe, selected_yf_symbol, selected_industry)
-        peer_cards = cached_watchlist_cards(tuple(peer_symbols))
+        popular_request = popular_symbols or [item["symbol"] for item in WATCHLIST]
+        requested_symbols = tuple(
+            dict.fromkeys(
+                [item["symbol"] for item in MARKET_INDEXES]
+                + list(popular_request)
+                + list(peer_symbols)
+                + [selected_yf_symbol]
+            )
+        )
+        histories = cached_market_histories(requested_symbols)
+        market_cards = build_market_cards(histories=histories)
+        popular_cards = build_watchlist_cards(
+            list(popular_symbols) if popular_symbols is not None else None,
+            histories=histories,
+        )
 
+        peer_cards = build_watchlist_cards(list(peer_symbols), histories=histories)
     data_service_state = build_data_service_state(company_source, market_cards + popular_cards)
     source_status, source_is_live = build_stock_source_status(company_source, market_cards + popular_cards)
     render_page_header(
         "股票研究工作台",
-        "台股 / 美股追蹤 · 技術證據 · 同業脈絡",
+        "台股／美股 · 技術證據",
         source_status,
         source_is_live,
     )
@@ -2700,10 +3923,6 @@ def render_stock_analysis_page(theme: dict) -> None:
         '<div class="notice"><b>免責聲明：</b>本專案僅供資料分析與技術展示，不構成任何投資建議。</div>',
         unsafe_allow_html=True,
     )
-    st.markdown(
-        "市場狀態、熱門標的、技術指標與同業比較。"
-    )
-    st.caption(f"TWSE 上市公司清單：{company_source}；ESG 法律訴訟資料：{esg_source}")
     render_market_cards(theme, market_cards)
     render_popular_stocks(popular_cards, selected_industry)
     with st.spinner(f"正在載入 {selected_stock_label} 個股詳情..."):
@@ -2714,6 +3933,7 @@ def render_stock_analysis_page(theme: dict) -> None:
             peer_cards,
             peer_industry,
             selected_indicators,
+            history_data=histories.get(to_yfinance_symbol(selected_yf_symbol)),
         )
     render_peer_comparison(peer_cards, selected_yf_symbol, peer_industry, theme)
 
@@ -2721,7 +3941,7 @@ def render_stock_analysis_page(theme: dict) -> None:
 def render_snapshot_comparison_page(theme: dict) -> None:
     render_page_header(
         "\u7814\u7a76\u5feb\u7167\u6bd4\u8f03",
-        "\u96e2\u7dda\u5dee\u7570\u6aa2\u8996 \u00b7 \u8cc7\u6599\u4f86\u6e90 \u00b7 \u8b49\u64da\u72c0\u614b",
+        "\u96e2\u7dda\u5feb\u7167 · SHA-256",
         "SHA-256 \u5b8c\u6574\u6027\u9a57\u8b49",
         status_live=True,
     )
@@ -2747,10 +3967,7 @@ def render_snapshot_comparison_page(theme: dict) -> None:
             key="current_snapshot_upload",
             help="\u8f03\u65b0\u7684 Research Snapshot JSON\u3002",
         )
-    st.caption(
-        "\u6bcf\u500b\u6a94\u6848\u4e0a\u9650 2 MiB\uff1b"
-        "\u50c5\u63a5\u53d7 schema 1.0\u3001UTF-8 \u7de8\u78bc\u4e14\u901a\u904e snapshot_id \u9a57\u8b49\u7684 JSON\u3002"
-    )
+    st.caption("每份快照上限 2 MiB；僅接受已驗證的 Research Snapshot JSON。")
 
     parsed_snapshots: dict[str, dict] = {}
     upload_errors = False
@@ -2817,31 +4034,7 @@ def render_snapshot_comparison_page(theme: dict) -> None:
         )
 
     st.subheader("\u8cc7\u6599\u4f86\u6e90\u8207\u5b8c\u6574\u6027")
-    provenance_rows = []
-    for row in comparison["provenance"]:
-        baseline_value = row.get("baseline")
-        current_value = row.get("current")
-        if row["field"] == "\u6b77\u53f2\u8cc7\u6599\u6307\u7d0b":
-            baseline_text = str(baseline_value or "")
-            current_text = str(current_value or "")
-            baseline_value = (
-                f"{baseline_text[:12]}\u2026{baseline_text[-8:]}"
-                if len(baseline_text) > 24
-                else baseline_text
-            )
-            current_value = (
-                f"{current_text[:12]}\u2026{current_text[-8:]}"
-                if len(current_text) > 24
-                else current_text
-            )
-        provenance_rows.append(
-            {
-                "\u6b04\u4f4d": row["field"],
-                "\u57fa\u6e96\u5feb\u7167": baseline_value,
-                "\u76ee\u524d\u5feb\u7167": current_value,
-                "\u72c0\u614b": "\u5df2\u8b8a\u66f4" if row["changed"] else "\u76f8\u540c",
-            }
-        )
+    provenance_rows = format_provenance_rows(comparison["provenance"])
     st.dataframe(pd.DataFrame(provenance_rows), width="stretch", hide_index=True)
 
     warning_groups = (
@@ -2852,6 +4045,25 @@ def render_snapshot_comparison_page(theme: dict) -> None:
         if warnings:
             st.warning(f"{label}\uff1a" + "\uff1b".join(str(item) for item in warnings))
 
+    memo_comparison = comparison.get("memo", {})
+    st.subheader("研究備忘錄差異")
+    changed_memo_fields = int(memo_comparison.get("changed_field_count", 0) or 0)
+    if changed_memo_fields:
+        memo_items = []
+        for row in memo_comparison.get("fields", []):
+            if not row.get("changed"):
+                continue
+            memo_items.append(
+                f'<article class="memo-diff-item"><strong>{escape_html(MEMO_FIELD_LABELS.get(row.get("field", ""), row.get("field", "")))}</strong>'
+                f'<div><span>基準：{escape_html(row.get("baseline", "")) or "未記錄"}</span>'
+                f'<span>目前：{escape_html(row.get("current", "")) or "未記錄"}</span></div></article>'
+            )
+        st.markdown(
+            f'<div class="memo-diff-grid">{"".join(memo_items)}</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.info("兩份快照的研究備忘錄沒有欄位變更。")
     st.subheader("\u8b49\u64da\u72c0\u614b\u5dee\u7570")
     evidence_rows = []
     for row in comparison["evidence"]:
@@ -2902,12 +4114,8 @@ def render_snapshot_comparison_page(theme: dict) -> None:
 def render_anomaly_page(cfg: dict, theme: dict) -> None:
     render_page_header(
         "異常偵測展示",
-        "資料工程 · 特徵工程 · 異常標記流程",
+        "異常事件 · 研究資料",
         "本機分析資料",
-    )
-    st.markdown(
-        '<div class="notice"><b>展示定位：</b>本頁獨立呈現原本的異常波動偵測流程，不混入股票分析頁。</div>',
-        unsafe_allow_html=True,
     )
     with st.spinner("正在載入異常偵測資料..."):
         data, error = load_dashboard_data(cfg)
@@ -2943,8 +4151,7 @@ def render_anomaly_page(cfg: dict, theme: dict) -> None:
         return
     kpis = build_kpis(filtered)
 
-    st.header("展示核心指標")
-    st.caption("以下 KPI 用來快速觀察選定股票在區間內的最新狀態、波動程度與異常事件數。")
+    st.header("核心指標")
     cols = st.columns(4)
     cols[0].metric("最新收盤價", kpis["latest_close"])
     cols[1].metric("近期波動率", kpis["recent_volatility"])
@@ -2954,7 +4161,6 @@ def render_anomaly_page(cfg: dict, theme: dict) -> None:
     left, right = st.columns([1.3, 1])
     with left:
         st.subheader("股價趨勢與異常事件")
-        st.caption("異常標記代表模型判定的異常波動日期，只表示資料行為異常，不代表投資訊號。")
         st.plotly_chart(
             line_with_anomalies(filtered, "close", "股價趨勢與異常事件", "收盤價", theme),
             width="stretch",
@@ -2962,7 +4168,6 @@ def render_anomaly_page(cfg: dict, theme: dict) -> None:
         )
     with right:
         st.subheader("20 日波動率")
-        st.caption("波動率用於觀察價格變動幅度是否擴大或收斂。")
         st.plotly_chart(
             line_with_anomalies(filtered, "volatility_20", "20 日波動率趨勢", "20 日波動率", theme),
             width="stretch",
@@ -2986,7 +4191,6 @@ def render_anomaly_page(cfg: dict, theme: dict) -> None:
     fx_fig.update_xaxes(title_text="日期", title_font=dict(color=theme["text"]))
     fx_fig.update_yaxes(title_text="匯率", title_font=dict(color=theme["text"]))
     st.header("匯率趨勢")
-    st.caption("匯率資料與股價資料依日期對齊，用於觀察外匯變動與市場波動的關聯。")
     if fx_filtered.empty:
         st.info("所選日期區間沒有匯率資料。")
     else:
@@ -3001,7 +4205,6 @@ def render_anomaly_page(cfg: dict, theme: dict) -> None:
         st.dataframe(chart_table.head(500), width="stretch", hide_index=True)
 
     st.header("異常波動日期列表")
-    st.caption("列表顯示模型標記的異常事件，欄位已轉為中文名稱以利閱讀。")
     anomalies = filtered[filtered["model_anomaly"] == 1].sort_values("date", ascending=False)
     visible_columns = ["date", "symbol", "close", "daily_return", "volume_zscore_20", "risk_score_baseline", "anomaly_score"]
     table = anomalies[visible_columns].copy()
@@ -3039,6 +4242,16 @@ def main() -> None:
         theme = get_theme(fallback_name)
     inject_global_css(theme)
 
+    st.markdown(
+        """
+        <div class="product-brand" aria-label="Research Trust Workbench">
+            <span class="product-brand-mark" aria-hidden="true">RT</span>
+            <span class="product-brand-name">Research Trust</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     if "active_page" not in st.session_state:
         st.session_state["active_page"] = page_label_from_route(
             st.query_params.get("page", "stocks")
@@ -3051,6 +4264,10 @@ def main() -> None:
         label_visibility="collapsed",
     )
     st.query_params["page"] = route_from_page_label(page_name)
+    allowed_query_keys = query_keys_for_page(page_name)
+    for query_key in list(st.query_params.keys()):
+        if query_key not in allowed_query_keys:
+            del st.query_params[query_key]
 
     if page_name != "快照比較":
         with st.sidebar:
@@ -3058,6 +4275,8 @@ def main() -> None:
 
     if page_name == "\u80a1\u7968\u5206\u6790":
         render_stock_analysis_page(theme)
+    elif page_name == "市場雷達":
+        render_market_radar_page(theme)
     elif page_name == "\u5feb\u7167\u6bd4\u8f03":
         render_snapshot_comparison_page(theme)
     else:

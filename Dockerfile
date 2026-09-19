@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -8,8 +8,9 @@ WORKDIR /app
 
 RUN useradd --create-home --uid 10001 appuser
 
-COPY requirements.txt ./
-RUN python -m pip install --no-cache-dir -r requirements.txt
+COPY requirements-runtime.lock ./
+RUN python -m pip install --no-cache-dir "pip>=26.2" \
+    && python -m pip install --no-cache-dir -r requirements-runtime.lock
 
 COPY --chown=appuser:appuser . .
 RUN python run_all.py --mode sample && chown -R appuser:appuser /app

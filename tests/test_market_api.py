@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from src.utils import MAX_HTTP_RESPONSE_BYTES
+
 import sys
 
 import pandas as pd
@@ -9,6 +11,7 @@ from src.market_api import (
     TWSE_GOVERNANCE_URL,
     _fetch_twse_dataset,
     build_twse_stock_universe,
+    build_market_cards,
     build_stock_analysis,
     build_watchlist_cards,
     compute_technical_indicators,
@@ -68,6 +71,65 @@ def test_build_watchlist_cards_keeps_stock_metadata(monkeypatch) -> None:
     assert cards[0]["category"] == "台股上市"
     assert cards[0]["latest_date"] == "2026-02-11"
     assert requested_periods == ["1y"]
+
+
+def test_market_and_watchlist_cards_reuse_preloaded_histories(monkeypatch) -> None:
+    from src import market_api
+
+    dates = pd.bdate_range("2026-01-01", periods=30)
+    prices = pd.Series(range(100, 130), dtype="float64")
+    history = pd.DataFrame(
+        {
+            "date": dates,
+            "open": prices,
+            "high": prices + 1,
+            "low": prices - 1,
+            "close": prices,
+            "volume": 1_000_000,
+        }
+    )
+    histories = {
+        symbol: (history.assign(symbol=symbol), "preloaded")
+        for symbol in {item["symbol"] for item in market_api.MARKET_INDEXES} | {"2330.TW"}
+    }
+
+    def fail_if_requested(*args, **kwargs):
+        raise AssertionError("preloaded histories should avoid another request")
+
+    monkeypatch.setattr(market_api, "fetch_yfinance_histories", fail_if_requested)
+    market_cards = build_market_cards(histories=histories)
+    watchlist_cards = build_watchlist_cards(["2330.TW"], histories=histories)
+
+    assert market_cards
+    assert all(card["source"] == "preloaded" for card in market_cards)
+    assert watchlist_cards[0]["display"] == "台積電"
+    assert watchlist_cards[0]["source"] == "preloaded"
+
+
+def test_preloaded_histories_tolerate_missing_symbols() -> None:
+    from src import market_api
+
+    dates = pd.bdate_range("2026-01-01", periods=3)
+    history = pd.DataFrame(
+        {
+            "date": dates,
+            "open": [100.0, 101.0, 102.0],
+            "high": [101.0, 102.0, 103.0],
+            "low": [99.0, 100.0, 101.0],
+            "close": [100.0, 101.0, 102.0],
+            "volume": [1_000_000, 1_000_000, 1_000_000],
+            "symbol": [market_api.MARKET_INDEXES[0]["symbol"]] * 3,
+        }
+    )
+    histories = {
+        market_api.MARKET_INDEXES[0]["symbol"]: (history, "preloaded"),
+    }
+
+    market_cards = build_market_cards(histories=histories)
+    watchlist_cards = build_watchlist_cards(["2330.TW"], histories=histories)
+
+    assert [card["symbol"] for card in market_cards] == [market_api.MARKET_INDEXES[0]["symbol"]]
+    assert watchlist_cards == []
 
 
 def test_batch_yfinance_download_is_split_by_symbol(monkeypatch) -> None:
@@ -177,6 +239,32 @@ def test_sample_fallback_is_deterministic_and_symbol_specific(monkeypatch) -> No
     assert nvda_first == second["NVDA"][0]["close"].tolist()
     assert aapl_first != nvda_first
 
+
+def test_offline_mode_bypasses_external_provider_requests(monkeypatch, tmp_path) -> None:
+    from src import market_api
+
+    class FailingYFinance:
+        @staticmethod
+        def download(*args, **kwargs):
+            raise AssertionError("offline mode must not call yfinance")
+
+    class FailingRequests:
+        @staticmethod
+        def get(*args, **kwargs):
+            raise AssertionError("offline mode must not call TWSE")
+
+    monkeypatch.setenv("MARKET_DASHBOARD_OFFLINE", "1")
+    monkeypatch.setattr(market_api, "yf", FailingYFinance)
+    monkeypatch.setattr(market_api, "requests", FailingRequests)
+
+    histories = market_api.fetch_yfinance_histories(["2330.TW"], period="1mo")
+    data, source = market_api._fetch_twse_dataset("https://example.test", tmp_path / "twse.csv", 1)
+
+    assert histories["2330.TW"][1] == "sample"
+    assert not histories["2330.TW"][0].empty
+    assert source == "unavailable"
+    assert data.empty
+
 def test_twse_dataset_unwraps_list_payload(monkeypatch, tmp_path) -> None:
     from src import market_api
 
@@ -230,3 +318,90 @@ def test_twse_governance_lookup_aliases() -> None:
     assert info["twse_name"] == "台積電"
     assert info["governance_level"] == "前 5%"
     assert TWSE_GOVERNANCE_URL.endswith("t187ap46_L_20")
+
+
+def test_rsi_handles_one_sided_and_flat_windows() -> None:
+    dates = pd.bdate_range("2026-01-02", periods=30)
+    cases = [
+        (range(100, 130), 100.0),
+        (range(130, 100, -1), 0.0),
+        ([100.0] * 30, 50.0),
+    ]
+
+    for closes, expected in cases:
+        close = pd.Series(closes, dtype="float64")
+        history = pd.DataFrame(
+            {
+                "date": dates,
+                "open": close,
+                "high": close + 1,
+                "low": close - 1,
+                "close": close,
+                "volume": 1_000_000,
+            }
+        )
+
+        result = compute_technical_indicators(history)
+
+        assert result.iloc[-1]["rsi14"] == expected
+
+def test_batch_fallback_reads_sample_file_once(monkeypatch, tmp_path) -> None:
+    from src import market_api
+
+    sample_path = tmp_path / "market_anomaly_results.csv"
+    rows = []
+    for symbol in ("2330", "2454"):
+        for date in pd.bdate_range("2026-01-02", periods=5):
+            rows.append(
+                {
+                    "date": date,
+                    "symbol": symbol,
+                    "open": 100.0,
+                    "high": 102.0,
+                    "low": 99.0,
+                    "close": 101.0,
+                    "volume": 1_000_000,
+                }
+            )
+    pd.DataFrame(rows).to_csv(sample_path, index=False)
+
+    read_count = 0
+    original_read_csv = pd.read_csv
+
+    def counting_read_csv(*args, **kwargs):
+        nonlocal read_count
+        read_count += 1
+        return original_read_csv(*args, **kwargs)
+
+    monkeypatch.setattr(market_api, "yf", None)
+    monkeypatch.setattr(market_api, "project_path", lambda *_parts: sample_path)
+    monkeypatch.setattr(market_api.pd, "read_csv", counting_read_csv)
+
+    histories = fetch_yfinance_histories(["2330.TW", "2454.TW", "AAPL"], period="1mo")
+
+    assert set(histories) == {"2330.TW", "2454.TW", "AAPL"}
+    assert read_count == 1
+
+
+def test_twse_dataset_rejects_oversized_response(monkeypatch, tmp_path) -> None:
+    from src import market_api
+
+    class OversizedResponse:
+        headers = {"content-length": str(MAX_HTTP_RESPONSE_BYTES + 1)}
+
+        def raise_for_status(self):
+            return None
+
+        def iter_content(self, chunk_size: int):
+            yield b"not-read"
+
+    class OversizedRequests:
+        @staticmethod
+        def get(*args, **kwargs):
+            return OversizedResponse()
+
+    monkeypatch.setattr(market_api, "requests", OversizedRequests)
+    data, source = _fetch_twse_dataset("https://example.test", tmp_path / "twse.csv", 1)
+
+    assert data.empty
+    assert source == "unavailable"
