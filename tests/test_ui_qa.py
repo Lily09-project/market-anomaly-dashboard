@@ -8,6 +8,7 @@ from scripts.ui_qa import (
     focus_issues,
     CORE_VIEWPORTS,
     EXTENDED_VIEWPORTS,
+    MIN_INTERACTIVE_TARGET_PX,
     interaction_smoke,
     PAGE_CONTRACTS,
     PAGE_LOAD_STATE,
@@ -67,6 +68,7 @@ def test_layout_issues_is_fail_closed_for_browser_contract() -> None:
     assert callable(layout_issues)
     assert callable(focus_issues)
     assert callable(interaction_smoke)
+    assert MIN_INTERACTIVE_TARGET_PX == 44
 
 
 def test_mobile_primary_navigation_uses_the_available_width() -> None:
@@ -87,6 +89,15 @@ def test_primary_navigation_reflows_with_root_text_size() -> None:
     assert "minmax(min(100%, 11rem), 1fr)" in nav_grid
     assert "grid-template-columns: repeat(4, minmax(0, 1fr));" not in nav_grid
     assert "primary navigation label wraps beyond two lines" in inspect.getsource(layout_issues)
+
+
+def test_primary_navigation_labels_are_limited_to_two_readable_lines() -> None:
+    source = Path("app.py").read_text(encoding="utf-8")
+
+    assert ".st-key-active_page label p {{" in source
+    assert "line-height: 1.25 !important;" in source
+    assert "max-height: 2.5em;" in source
+    assert "text-overflow: ellipsis;" in source
 
 
 def test_browser_failure_evidence_is_structured_and_atomic(tmp_path: Path) -> None:

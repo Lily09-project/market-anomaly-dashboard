@@ -1707,6 +1707,14 @@ def inject_global_css(theme: dict) -> None:
             transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
         }}
 
+        .st-key-active_page label p {{
+            margin: 0 !important;
+            line-height: 1.25 !important;
+            max-height: 2.5em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }}
+
         .st-key-active_page label > div:first-child {{
             display: none;
         }}
@@ -2393,9 +2401,14 @@ def inject_global_css(theme: dict) -> None:
             .st-key-active_page label {{
                 min-height: 52px;
                 padding: 0.45rem 0.4rem !important;
-                font-size: 0.78rem !important;
-                line-height: 1.2;
+                font-size: 0.9rem !important;
+                line-height: 1.25 !important;
                 white-space: normal;
+            }}
+
+            .st-key-active_page label p {{
+                line-height: 1.25 !important;
+                max-height: 2.5em;
             }}
 
             .product-footer {{

@@ -20,6 +20,9 @@ PAGE_READY_ATTEMPTS = 120
 PAGE_STABILITY_WAIT_MS = 2500
 STREAMLIT_EXCEPTION_SELECTOR = '[data-testid="stException"]'
 TEXT_SCALE_CSS = ":root { font-size: 200% !important; }"
+# WCAG-friendly touch target floor for user-facing controls. Streamlit's
+# internal toolbar/header controls are explicitly excluded below.
+MIN_INTERACTIVE_TARGET_PX = 44
 CORE_VIEWPORTS = (
     ("desktop", 1440, 1000),
     ("small-mobile", 375, 812),
@@ -73,7 +76,7 @@ def layout_issues(page) -> list[str]:
                 const testId = control.getAttribute('data-testid') || '';
                 if (!inViewport || testId === 'stBaseButton-elementToolbar'
                     || testId.startsWith('stBaseButton-header')) continue;
-                if (rect.width < 24 || rect.height < 24) {
+                if (rect.width < 44 || rect.height < 44) {
                     issues.push(`small interactive target: ${control.tagName}`);
                     break;
                 }
