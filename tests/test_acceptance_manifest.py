@@ -16,6 +16,7 @@ MANIFEST = QUALITY / "test-manifest.json"
 RUNNER = QUALITY / "run_acceptance.py"
 PERFORMANCE_MANIFEST = QUALITY / "performance-manifest.json"
 BENCHMARK_RUNNER = QUALITY / "run_benchmarks.py"
+PROJECT_ID = "market-anomaly-dashboard"
 
 
 def load_runner():
@@ -36,7 +37,7 @@ def test_quality_json_contracts_are_parseable_and_versioned() -> None:
     )
 
     assert manifest["schema_version"] == "1.0"
-    assert manifest["project"] == ROOT.name
+    assert manifest["project"] == PROJECT_ID
     assert manifest_schema["$schema"].endswith("2020-12/schema")
     assert report_schema["properties"]["schema_version"]["const"] == "1.0"
     jsonschema.Draft202012Validator.check_schema(manifest_schema)
@@ -93,7 +94,7 @@ def test_list_mode_has_no_report_side_effect() -> None:
 
 def test_performance_manifest_requires_three_runs_and_strict_thresholds() -> None:
     manifest = json.loads(PERFORMANCE_MANIFEST.read_text(encoding="utf-8"))
-    assert manifest["project"] == ROOT.name
+    assert manifest["project"] == PROJECT_ID
     assert manifest["repetitions"] >= 3
     assert manifest["thresholds"] == {
         "warning_regression_percent": 20,

@@ -24,6 +24,7 @@ MANIFEST_PATH = ROOT / "quality" / "performance-manifest.json"
 BASELINE_PATH = ROOT / "quality" / "performance-baseline.json"
 REPORT_PATH = ROOT / "reports" / "metrics" / "performance_latest.json"
 LOG_ROOT = ROOT / "reports" / "performance"
+PROJECT_ID = "market-anomaly-dashboard"
 
 
 def utc_now() -> str:
@@ -47,8 +48,8 @@ def environment() -> dict[str, Any]:
 def validate_manifest(value: dict[str, Any]) -> None:
     if value.get("schema_version") != "1.0":
         raise ValueError("schema_version must be 1.0")
-    if value.get("project") != ROOT.name:
-        raise ValueError(f"project must be {ROOT.name}")
+    if value.get("project") != PROJECT_ID:
+        raise ValueError(f"project must be {PROJECT_ID}")
     repetitions = value.get("repetitions")
     if not isinstance(repetitions, int) or repetitions < 3 or repetitions > 9:
         raise ValueError("repetitions must be between 3 and 9")
@@ -121,7 +122,7 @@ def main() -> int:
         samples: list[float] = []
         runs: list[dict[str, Any]] = []
         for index in range(1, manifest["repetitions"] + 1):
-            temp_dir = Path(tempfile.mkdtemp(prefix=f"{ROOT.name}-{benchmark['id']}-{index}-"))
+            temp_dir = Path(tempfile.mkdtemp(prefix=f"{PROJECT_ID}-{benchmark['id']}-{index}-"))
             stdout_path = log_dir / f"{benchmark['id']}.{index}.stdout.log"
             stderr_path = log_dir / f"{benchmark['id']}.{index}.stderr.log"
             started = monotonic()
