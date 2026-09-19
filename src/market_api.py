@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import json
+
 import contextlib
 import hashlib
 import io
 import logging
+import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,7 +25,8 @@ try:
 except Exception:
     yf = None
 
-from src.utils import atomic_write_dataframe, clean_numeric, project_path
+from src.utils import atomic_write_dataframe, clean_numeric, project_path, read_http_response_bytes, safe_exception_message
+from src.request_policy import RequestBudget, request_with_retry
 
 
 LOGGER = logging.getLogger(__name__)
@@ -30,6 +35,12 @@ TWSE_ESG_LEGAL_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap46_L_20"
 # Backward-compatible alias for existing callers and tests.
 TWSE_GOVERNANCE_URL = TWSE_ESG_LEGAL_URL
 YFINANCE_TIMEOUT_SECONDS = 15
+
+
+def offline_mode_enabled() -> bool:
+    """Return whether deterministic local fallback mode is enabled."""
+    return os.getenv("MARKET_DASHBOARD_OFFLINE", "").strip().lower() in {"1", "true", "yes"}
+
 
 TWSE_INDUSTRY_MAP = {
     "01": "水泥工業",
@@ -222,11 +233,25 @@ def _fallback_rows_for_period(period: str) -> int:
     }.get(str(period).lower(), 90)
 
 
-def _fallback_history(symbol: str, rows: int = 90) -> pd.DataFrame:
+def _load_fallback_data() -> pd.DataFrame:
     sample_path = project_path("data/processed/market_anomaly_results.csv")
+    if not sample_path.exists():
+        return pd.DataFrame()
+    try:
+        return pd.read_csv(sample_path, parse_dates=["date"])
+    except (OSError, ValueError):
+        return pd.DataFrame()
+
+
+def _fallback_history(
+    symbol: str,
+    rows: int = 90,
+    sample_data: pd.DataFrame | None = None,
+) -> pd.DataFrame:
     clean_symbol = symbol.replace(".TW", "")
-    if sample_path.exists():
-        data = pd.read_csv(sample_path, parse_dates=["date"])
+    data = _load_fallback_data() if sample_data is None else sample_data
+    required_columns = {"symbol", "date", "open", "high", "low", "close", "volume"}
+    if not data.empty and required_columns <= set(data.columns):
         match = data[data["symbol"].astype(str) == clean_symbol].copy()
         if not match.empty:
             match = match.tail(rows)
@@ -287,7 +312,21 @@ def _normalize_yfinance_download(history: pd.DataFrame | None, symbol: str) -> p
     required = ["date", "open", "high", "low", "close", "volume"]
     if any(col not in data.columns for col in required):
         return pd.DataFrame()
-    data = data[required].dropna()
+    data = data[required].copy()
+    data["date"] = pd.to_datetime(data["date"], errors="coerce")
+    for column in required[1:]:
+        data[column] = pd.to_numeric(
+            data[column].astype(str).str.replace(",", "", regex=False),
+            errors="coerce",
+        )
+    data = (
+        data.dropna(subset=required)
+        .sort_values("date")
+        .drop_duplicates(subset=["date"], keep="last")
+        .reset_index(drop=True)
+    )
+    if data.empty:
+        return pd.DataFrame()
     data["symbol"] = symbol
     return data
 
@@ -301,29 +340,42 @@ def fetch_yfinance_histories(
     fallback_rows = _fallback_rows_for_period(period)
     if not yf_symbols:
         return {}
-    if yf is None:
-        return {symbol: (_fallback_history(symbol, fallback_rows), "sample") for symbol in yf_symbols}
+    if offline_mode_enabled() or yf is None:
+        fallback_data = _load_fallback_data()
+        return {
+            symbol: (_fallback_history(symbol, fallback_rows, fallback_data), "sample")
+            for symbol in yf_symbols
+        }
 
-    try:
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            downloaded = yf.download(
-                yf_symbols,
-                period=period,
-                interval=interval,
-                progress=False,
-                auto_adjust=False,
-                threads=len(yf_symbols) > 1,
-                group_by="ticker",
-                timeout=YFINANCE_TIMEOUT_SECONDS,
-            )
-    except Exception:
-        downloaded = pd.DataFrame()
+    downloaded = pd.DataFrame()
+    for attempt in range(1, 3):
+        try:
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                downloaded = yf.download(
+                    yf_symbols,
+                    period=period,
+                    interval=interval,
+                    progress=False,
+                    auto_adjust=False,
+                    threads=len(yf_symbols) > 1,
+                    group_by="ticker",
+                    timeout=YFINANCE_TIMEOUT_SECONDS,
+                )
+            if isinstance(downloaded, pd.DataFrame) and not downloaded.empty:
+                break
+        except Exception as exc:
+            LOGGER.debug("yfinance attempt %s failed: %s", attempt, safe_exception_message(exc))
+        if attempt < 2:
+            time.sleep(0.25 * (2 ** (attempt - 1)))
 
     histories = {}
+    fallback_data = None
     for symbol in yf_symbols:
         normalized = _normalize_yfinance_download(downloaded, symbol)
         if normalized.empty:
-            histories[symbol] = (_fallback_history(symbol, fallback_rows), "sample")
+            if fallback_data is None:
+                fallback_data = _load_fallback_data()
+            histories[symbol] = (_fallback_history(symbol, fallback_rows, fallback_data), "sample")
         else:
             histories[symbol] = (normalized, "yfinance")
     return histories
@@ -355,11 +407,17 @@ def summarize_history(history: pd.DataFrame) -> dict[str, Any]:
     }
 
 
-def build_market_cards() -> list[dict[str, Any]]:
+def build_market_cards(
+    histories: dict[str, tuple[pd.DataFrame, str]] | None = None,
+) -> list[dict[str, Any]]:
     cards = []
-    histories = fetch_yfinance_histories([item["symbol"] for item in MARKET_INDEXES], period="2mo")
+    if histories is None:
+        histories = fetch_yfinance_histories([item["symbol"] for item in MARKET_INDEXES], period="2mo")
     for item in MARKET_INDEXES:
-        history, source = histories[to_yfinance_symbol(item["symbol"])]
+        history, source = histories.get(
+            to_yfinance_symbol(item["symbol"]),
+            (pd.DataFrame(), "unavailable"),
+        )
         summary = summarize_history(history)
         if not summary:
             continue
@@ -367,7 +425,10 @@ def build_market_cards() -> list[dict[str, Any]]:
     return cards
 
 
-def build_watchlist_cards(symbols: list[str] | None = None) -> list[dict[str, Any]]:
+def build_watchlist_cards(
+    symbols: list[str] | None = None,
+    histories: dict[str, tuple[pd.DataFrame, str]] | None = None,
+) -> list[dict[str, Any]]:
     cards = []
     if symbols is None:
         watchlist = WATCHLIST
@@ -378,9 +439,13 @@ def build_watchlist_cards(symbols: list[str] | None = None) -> list[dict[str, An
             yf_symbol = to_yfinance_symbol(symbol)
             item = universe_lookup.get(yf_symbol, {"symbol": yf_symbol, "display": "自訂標的", "category": "自訂"})
             watchlist.append(item)
-    histories = fetch_yfinance_histories([item["symbol"] for item in watchlist], period="1y")
+    if histories is None:
+        histories = fetch_yfinance_histories([item["symbol"] for item in watchlist], period="1y")
     for item in watchlist:
-        history, source = histories[to_yfinance_symbol(item["symbol"])]
+        history, source = histories.get(
+            to_yfinance_symbol(item["symbol"]),
+            (pd.DataFrame(), "unavailable"),
+        )
         summary = summarize_history(history)
         if not summary:
             continue
@@ -389,28 +454,56 @@ def build_watchlist_cards(symbols: list[str] | None = None) -> list[dict[str, An
     return cards
 
 
-def _fetch_twse_dataset(url: str, raw_path: Path, timeout: int) -> tuple[pd.DataFrame, str]:
+def _fetch_twse_dataset(
+    url: str,
+    raw_path: Path,
+    timeout: int,
+    budget: RequestBudget | None = None,
+) -> tuple[pd.DataFrame, str]:
+    if offline_mode_enabled():
+        if raw_path.exists():
+            return pd.read_csv(raw_path), "local_cache"
+        return pd.DataFrame(), "unavailable"
     if requests is not None:
+        response = None
         try:
-            response = requests.get(url, timeout=timeout)
+            response, _attempts = request_with_retry(
+                requests.get,
+                url,
+                timeout=timeout,
+                budget=budget or RequestBudget(max_requests=2),
+                provider="twse_api",
+            )
             response.raise_for_status()
-            payload = response.json()
+            try:
+                payload = json.loads(read_http_response_bytes(response).decode("utf-8-sig"))
+            except TypeError:
+                # Keep compatibility with the small response doubles used by tests.
+                payload = response.json()
             if isinstance(payload, dict):
                 for key in ("data", "records", "result"):
                     if isinstance(payload.get(key), list):
                         payload = payload[key]
                         break
+            if not isinstance(payload, list) or any(not isinstance(row, dict) for row in payload):
+                raise ValueError("TWSE response must be a list of record objects")
             data = pd.DataFrame(payload)
             if not data.empty:
                 raw_path.parent.mkdir(parents=True, exist_ok=True)
                 atomic_write_dataframe(data, raw_path)
                 return data, "twse_openapi"
         except Exception as exc:
-            LOGGER.debug("TWSE request failed; local cache will be used: %s", exc)
+            LOGGER.debug(
+                "TWSE request failed; local cache will be used: %s",
+                safe_exception_message(exc),
+            )
+        finally:
+            close = getattr(response, "close", None)
+            if callable(close):
+                close()
     if raw_path.exists():
         return pd.read_csv(raw_path), "local_cache"
     return pd.DataFrame(), "unavailable"
-
 
 def fetch_twse_company_profiles(timeout: int = 8) -> tuple[pd.DataFrame, str]:
     return _fetch_twse_dataset(
@@ -476,6 +569,22 @@ def format_number(value: float | int | None, digits: int = 2) -> str:
     return f"{value:,.{digits}f}"
 
 
+def _compute_rsi(close: pd.Series, window: int = 14) -> pd.Series:
+    delta = close.diff()
+    average_gain = delta.clip(lower=0).rolling(window, min_periods=1).mean()
+    average_loss = (-delta.clip(upper=0)).rolling(window, min_periods=1).mean()
+
+    rsi = pd.Series(50.0, index=close.index, dtype="float64")
+    has_gain = average_gain > 0
+    has_loss = average_loss > 0
+    two_sided = has_gain & has_loss
+    relative_strength = average_gain[two_sided] / average_loss[two_sided]
+    rsi.loc[two_sided] = 100 - (100 / (1 + relative_strength))
+    rsi.loc[has_gain & ~has_loss] = 100.0
+    rsi.loc[~has_gain & has_loss] = 0.0
+    return rsi
+
+
 def compute_technical_indicators(history: pd.DataFrame) -> pd.DataFrame:
     data = history.sort_values("date").copy()
     data["ma5"] = data["close"].rolling(5, min_periods=1).mean()
@@ -487,11 +596,7 @@ def compute_technical_indicators(history: pd.DataFrame) -> pd.DataFrame:
     data["volume_ratio_20"] = data["volume"] / data["volume_ma20"].replace(0, np.nan)
     data["high_20"] = data["high"].rolling(20, min_periods=1).max()
     data["low_20"] = data["low"].rolling(20, min_periods=1).min()
-    delta = data["close"].diff()
-    gain = delta.clip(lower=0).rolling(14, min_periods=1).mean()
-    loss = (-delta.clip(upper=0)).rolling(14, min_periods=1).mean()
-    rs = gain / loss.replace(0, np.nan)
-    data["rsi14"] = (100 - (100 / (1 + rs))).fillna(50)
+    data["rsi14"] = _compute_rsi(data["close"])
     return data
 
 

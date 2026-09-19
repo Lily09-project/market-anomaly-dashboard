@@ -30,13 +30,13 @@ def assert_bat_files_are_valid() -> None:
         'set "PY_ARGS="',
         "python --version >nul 2>nul",
         "py -3 --version >nul 2>nul",
-        'set "CODEX_BUNDLED_PY=%USERPROFILE%\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe"',
-        '"%CODEX_BUNDLED_PY%" --version >nul 2>nul',
+        'if exist "%CD%\\.venv\\Scripts\\python.exe"',
+        'if defined PY_EXE goto :python_ready',
         'set "STREAMLIT_PORT=8765"',
         'set "VENV_PY=%CD%\\.venv\\Scripts\\python.exe"',
         '"%PY_EXE%" %PY_ARGS% -m venv .venv',
         '"%VENV_PY%" -m pip install -r requirements-dev.txt',
-        '"%VENV_PY%" -m pytest -q',
+        '"%VENV_PY%" -W error -m pytest -q -p no:cacheprovider --basetemp "%PYTEST_BASETEMP%"',
         '"%VENV_PY%" -m streamlit run app.py',
         "--server.port %STREAMLIT_PORT%",
         "Using Python: %PY_EXE% %PY_ARGS%",
@@ -46,6 +46,9 @@ def assert_bat_files_are_valid() -> None:
     for item in required:
         if item not in bat:
             raise AssertionError(f"BAT file missing required string: {item}")
+
+    if "%userprofile%\\.cache\\" in bat.lower():
+        raise AssertionError("BAT file must not depend on an agent-specific Python runtime")
 
     direct_streamlit_lines = [
         line.strip().lower()

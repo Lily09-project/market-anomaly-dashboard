@@ -9,9 +9,11 @@ import pytest
 from src.research_snapshot import build_research_snapshot, snapshot_to_json_bytes
 from src.snapshot_compare import (
     MAX_SNAPSHOT_BYTES,
+    MAX_SNAPSHOT_NESTING,
     SnapshotValidationError,
     compare_snapshots,
     comparison_to_json_bytes,
+    format_provenance_rows,
     parse_snapshot_bytes,
 )
 
@@ -78,6 +80,14 @@ def test_parse_snapshot_bytes_accepts_valid_snapshot() -> None:
     assert parsed["schema_version"] == "1.0"
 
 
+def test_parse_snapshot_bytes_rejects_mismatched_methodology_fingerprint() -> None:
+    snapshot = make_snapshot()
+    snapshot["research"]["methodology"] = {"version": "1.0", "technical_indicators": {"rsi_period": 21}}
+    snapshot["research"]["methodology_fingerprint"] = "0" * 64
+
+    with pytest.raises(SnapshotValidationError, match="方法指紋"):
+        parse_snapshot_bytes(json.dumps(snapshot, ensure_ascii=False).encode("utf-8"))
+
 def test_parse_snapshot_bytes_rejects_tampered_snapshot_id() -> None:
     snapshot = make_snapshot()
     snapshot["as_of_date"] = "2099-01-01"
@@ -117,6 +127,36 @@ def test_compare_snapshots_rejects_cross_symbol_inputs() -> None:
         compare_snapshots(make_snapshot("2330.TW"), make_snapshot("AAPL"))
 
 
+def test_format_provenance_rows_normalizes_mixed_values_for_display() -> None:
+    fingerprint = "a" * 64
+    rows = format_provenance_rows(
+        [
+            {"field": "觀測筆數", "baseline": 30, "current": 31, "changed": True},
+            {"field": "欄位覆蓋率", "baseline": 100.0, "current": None, "changed": True},
+            {
+                "field": "歷史資料指紋",
+                "baseline": fingerprint,
+                "current": fingerprint,
+                "changed": False,
+            },
+        ]
+    )
+
+    assert rows[0] == {
+        "欄位": "觀測筆數",
+        "基準快照": "30",
+        "目前快照": "31",
+        "狀態": "已變更",
+    }
+    assert rows[1]["目前快照"] == ""
+    assert rows[2]["基準快照"] == "aaaaaaaaaaaa…aaaaaaaa"
+    assert all(
+        isinstance(value, str)
+        for row in rows
+        for value in row.values()
+    )
+
+
 def test_comparison_json_is_utf8_and_contains_snapshot_ids() -> None:
     baseline = make_snapshot(start_date="2026-01-01")
     current = make_snapshot(start_date="2026-03-01")
@@ -127,3 +167,24 @@ def test_comparison_json_is_utf8_and_contains_snapshot_ids() -> None:
     assert parsed["baseline_snapshot_id"] == baseline["snapshot_id"]
     assert parsed["current_snapshot_id"] == current["snapshot_id"]
     assert "台積電" in payload.decode("utf-8")
+
+
+def test_parse_snapshot_bytes_rejects_duplicate_json_keys() -> None:
+    payload = b'{"schema_version":"1.0","schema_version":"1.0"}'
+
+    with pytest.raises(SnapshotValidationError, match="重複"):
+        parse_snapshot_bytes(payload)
+
+
+def test_parse_snapshot_bytes_rejects_non_standard_json_constants() -> None:
+    payload = b'{"value": NaN}'
+
+    with pytest.raises(SnapshotValidationError, match="有效的 JSON"):
+        parse_snapshot_bytes(payload)
+
+
+def test_parse_snapshot_bytes_rejects_excessive_json_nesting() -> None:
+    payload = ("[" * (MAX_SNAPSHOT_NESTING + 1) + "]" * (MAX_SNAPSHOT_NESTING + 1)).encode("ascii")
+
+    with pytest.raises(SnapshotValidationError, match="巢狀"):
+        parse_snapshot_bytes(payload)

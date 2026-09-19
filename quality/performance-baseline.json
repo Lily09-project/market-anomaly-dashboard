@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "project": "market-anomaly-dashboard",
+  "created_at": "2026-08-30T14:57:03.963335Z",
+  "environment": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "machine": "AMD64",
+    "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+    "python": "3.12.13",
+    "cpu_count": 24,
+    "fingerprint": "a4faaf6d2f69a741fcea855497bfee7f59e82d2215d932e8dc09c6665e81a158"
+  },
+  "benchmarks": {
+    "sample_pipeline": 3.187,
+    "app_test": 7.375,
+    "browser_qa": 14.235
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "acceptance-report.schema.json",
+  "title": "Project acceptance report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project", "profile", "manifest_sha256", "started_at", "finished_at", "duration_seconds", "status", "environment", "summary", "gates"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "project": {"type": "string", "minLength": 1},
+    "profile": {"type": "string", "minLength": 1},
+    "manifest_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "started_at": {"type": "string", "format": "date-time"},
+    "finished_at": {"type": "string", "format": "date-time"},
+    "duration_seconds": {"type": "number", "minimum": 0},
+    "status": {"enum": ["passed", "failed"]},
+    "environment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["platform", "runtime", "git_commit", "git_dirty"],
+      "properties": {
+        "platform": {"type": "string"}, "runtime": {"type": "string"},
+        "git_commit": {"type": ["string", "null"]}, "git_dirty": {"type": ["boolean", "null"]}
+      }
+    },
+    "summary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["total", "passed", "failed", "skipped"],
+      "properties": {
+        "total": {"type": "integer", "minimum": 0}, "passed": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0}, "skipped": {"type": "integer", "minimum": 0}
+      }
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "category", "status", "required", "exit_code", "duration_seconds", "timed_out", "stdout_log", "stderr_log", "service_logs", "evidence", "failure_reason"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1}, "category": {"type": "string", "minLength": 1},
+          "status": {"enum": ["passed", "failed", "skipped"]}, "required": {"type": "boolean"},
+          "exit_code": {"type": ["integer", "null"]}, "duration_seconds": {"type": "number", "minimum": 0},
+          "timed_out": {"type": "boolean"}, "stdout_log": {"type": ["string", "null"]},
+          "stderr_log": {"type": ["string", "null"]}, "service_logs": {"type": "array", "items": {"type": "string"}},
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object", "additionalProperties": false, "required": ["path", "exists"],
+              "properties": {
+                "path": {"type": "string"}, "exists": {"type": "boolean"},
+                "size_bytes": {"type": "integer", "minimum": 0},
+                "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+                "modified_at": {"type": "string", "format": "date-time"},
+                "fresh": {"type": ["boolean", "null"]}
+              }
+            }
+          },
+          "failure_reason": {"type": ["string", "null"]}
+        }
+      }
+    }
+  }
+}

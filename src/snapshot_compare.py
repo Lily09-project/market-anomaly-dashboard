@@ -6,10 +6,13 @@ from collections.abc import Mapping
 from datetime import date
 from typing import Any
 
+from src.research_methodology import methodology_fingerprint
+from src.research_memo import compare_research_memos, validate_research_memo
 from src.research_snapshot import SNAPSHOT_SCHEMA_VERSION, calculate_snapshot_id
 
 
 MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024
+MAX_SNAPSHOT_NESTING = 64
 COMPARISON_SCHEMA_VERSION = "1.0"
 EVIDENCE_ORDER = ("trend", "momentum", "participation", "risk")
 
@@ -60,6 +63,27 @@ def _validate_snapshot(snapshot: Mapping[str, Any]) -> dict[str, Any]:
         raise SnapshotValidationError("\u6b77\u53f2\u8cc7\u6599\u6307\u7d0b\u683c\u5f0f\u7121\u6548\u3002")
     if not isinstance(research.get("evidence", []), list):
         raise SnapshotValidationError("\u7814\u7a76\u8b49\u64da\u5fc5\u9808\u662f\u9663\u5217\u683c\u5f0f\u3002")
+    if "memo" in research:
+        try:
+            validate_research_memo(research.get("memo"), allow_missing=False)
+        except ValueError as exc:
+            raise SnapshotValidationError(str(exc)) from exc
+    methodology = research.get("methodology")
+    methodology_hash = research.get("methodology_fingerprint")
+    if methodology is not None or methodology_hash is not None:
+        if not isinstance(methodology, Mapping):
+            raise SnapshotValidationError("研究方法 manifest 格式無效。")
+        supplied_hash = _required_text(methodology_hash, "研究方法指紋")
+        if len(supplied_hash) != 64 or any(
+            character not in "0123456789abcdefABCDEF" for character in supplied_hash
+        ):
+            raise SnapshotValidationError("研究方法指紋格式無效。")
+        try:
+            expected_methodology_hash = methodology_fingerprint(methodology)
+        except (TypeError, ValueError) as exc:
+            raise SnapshotValidationError("研究方法 manifest 格式無效。") from exc
+        if not hmac.compare_digest(supplied_hash.lower(), expected_methodology_hash.lower()):
+            raise SnapshotValidationError("研究方法指紋驗證失敗。")
 
     snapshot_id = _required_text(data.get("snapshot_id"), "snapshot_id")
     if len(snapshot_id) != 64 or any(
@@ -72,6 +96,44 @@ def _validate_snapshot(snapshot: Mapping[str, Any]) -> dict[str, Any]:
     return data
 
 
+def _reject_json_constant(value: str) -> None:
+    del value
+    raise ValueError("non-standard JSON constant")
+
+
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON key")
+        result[key] = value
+    return result
+
+
+def _validate_json_nesting(text: str, maximum: int = MAX_SNAPSHOT_NESTING) -> None:
+    depth = 0
+    in_string = False
+    escaped = False
+    for character in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+            continue
+        if character == '"':
+            in_string = True
+        elif character in "[{":
+            depth += 1
+            if depth > maximum:
+                raise ValueError(f"快照 JSON 巢狀層級不可超過 {maximum}。")
+        elif character in "]}":
+            depth -= 1
+            if depth < 0:
+                raise ValueError("快照 JSON 巢狀結構無效。")
+
 def parse_snapshot_bytes(payload: bytes) -> dict[str, Any]:
     """Parse and validate one in-memory Research Snapshot JSON payload."""
     if not isinstance(payload, bytes) or not payload:
@@ -83,9 +145,22 @@ def parse_snapshot_bytes(payload: bytes) -> dict[str, Any]:
     except UnicodeDecodeError as exc:
         raise SnapshotValidationError("\u5feb\u7167\u5fc5\u9808\u662f UTF-8 JSON \u6a94\u6848\u3002") from exc
     try:
-        value = json.loads(text)
+        _validate_json_nesting(text)
+    except ValueError as exc:
+        raise SnapshotValidationError(str(exc)) from exc
+    try:
+        value = json.loads(
+            text,
+            parse_constant=_reject_json_constant,
+            object_pairs_hook=_reject_duplicate_json_keys,
+        )
     except json.JSONDecodeError as exc:
-        raise SnapshotValidationError("\u5feb\u7167\u4e0d\u662f\u6709\u6548\u7684 JSON \u6a94\u6848\u3002") from exc
+        raise SnapshotValidationError("快照不是有效的 JSON 檔案。") from exc
+    except ValueError as exc:
+        message = str(exc)
+        if message == "duplicate JSON key":
+            raise SnapshotValidationError("快照 JSON 不得包含重複欄位。") from exc
+        raise SnapshotValidationError("快照不是有效的 JSON 檔案。") from exc
     if not isinstance(value, Mapping):
         raise SnapshotValidationError("\u5feb\u7167 JSON \u6839\u7bc0\u9ede\u5fc5\u9808\u662f\u7269\u4ef6\u3002")
     return _validate_snapshot(value)
@@ -124,6 +199,37 @@ def _evidence_metrics(item: Mapping[str, Any] | None) -> list[str]:
     if not isinstance(metrics, list):
         return []
     return [str(metric) for metric in metrics]
+
+
+def format_provenance_rows(rows: list[Mapping[str, Any]]) -> list[dict[str, str]]:
+    """Build an Arrow-safe display table from mixed provenance values."""
+    display_rows: list[dict[str, str]] = []
+    for row in rows:
+        field = str(row.get("field") or "")
+        baseline_value = row.get("baseline")
+        current_value = row.get("current")
+        if field == "歷史資料指紋":
+            baseline_text = str(baseline_value or "")
+            current_text = str(current_value or "")
+            baseline_value = (
+                f"{baseline_text[:12]}…{baseline_text[-8:]}"
+                if len(baseline_text) > 24
+                else baseline_text
+            )
+            current_value = (
+                f"{current_text[:12]}…{current_text[-8:]}"
+                if len(current_text) > 24
+                else current_text
+            )
+        display_rows.append(
+            {
+                "欄位": field,
+                "基準快照": "" if baseline_value is None else str(baseline_value),
+                "目前快照": "" if current_value is None else str(current_value),
+                "狀態": "已變更" if bool(row.get("changed")) else "相同",
+            }
+        )
+    return display_rows
 
 
 def compare_snapshots(
@@ -190,6 +296,12 @@ def compare_snapshots(
 
     baseline_provenance = _mapping(baseline_data.get("provenance"), "\u4f86\u6e90")
     current_provenance = _mapping(current_data.get("provenance"), "\u4f86\u6e90")
+    baseline_research = _mapping(baseline_data.get("research"), "研究")
+    current_research = _mapping(current_data.get("research"), "研究")
+    memo_comparison = compare_research_memos(
+        baseline_research.get("memo"),
+        current_research.get("memo"),
+    )
     provenance_fields = (
         ("source", "\u8cc7\u6599\u4f86\u6e90"),
         ("quality_state", "\u8cc7\u6599\u54c1\u8cea"),
@@ -240,6 +352,8 @@ def compare_snapshots(
         "changed_evidence_count": sum(
             1 for row in evidence_rows if row["changed"]
         ),
+        "memo": memo_comparison,
+        "changed_memo_field_count": memo_comparison["changed_field_count"],
     }
 
 

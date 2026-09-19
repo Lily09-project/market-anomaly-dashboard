@@ -1,0 +1,101 @@
+from __future__ import annotations
+
+import inspect
+import json
+from pathlib import Path
+
+from scripts.ui_qa import (
+    focus_issues,
+    CORE_VIEWPORTS,
+    EXTENDED_VIEWPORTS,
+    interaction_smoke,
+    PAGE_CONTRACTS,
+    PAGE_LOAD_STATE,
+    STREAMLIT_EXCEPTION_SELECTOR,
+    TEXT_SCALE_CSS,
+    VIEWPORTS,
+    describe_console_error,
+    layout_issues,
+    missing_page_contracts,
+    viewport_matrix,
+    write_failure_evidence,
+)
+
+
+class _ConsoleMessage:
+    text = "Failed to load resource: net::ERR_CONNECTION_FAILED"
+    location = {"url": "https://example.invalid/font.woff2"}
+
+
+def test_ui_page_contracts_cover_all_public_routes() -> None:
+    assert set(PAGE_CONTRACTS) == {"stocks", "radar", "anomalies", "compare"}
+    assert PAGE_LOAD_STATE == "domcontentloaded"
+
+
+def test_console_error_includes_originating_resource_url() -> None:
+    assert describe_console_error(_ConsoleMessage()).endswith(
+        "@ https://example.invalid/font.woff2"
+    )
+
+
+def test_ui_page_contract_reports_missing_content() -> None:
+    assert missing_page_contracts("stocks", "股票分析\n大盤指數") == []
+    assert missing_page_contracts("stocks", "股票分析") == ["大盤指數"]
+
+
+def test_ui_page_contract_rejects_unknown_route() -> None:
+    assert missing_page_contracts("unknown", "任何內容") == ["unknown route"]
+
+def test_ui_qa_checks_streamlit_runtime_exceptions() -> None:
+    assert STREAMLIT_EXCEPTION_SELECTOR == '[data-testid="stException"]'
+
+
+def test_ui_qa_covers_small_phone_and_landscape_layouts() -> None:
+    viewports = {name: (width, height) for name, width, height in VIEWPORTS}
+
+    assert viewports["desktop"] == (1440, 1000)
+    assert viewports["small-mobile"][0] == 375
+    assert viewports["tablet"] == (768, 1024)
+    assert viewports["landscape"][0] > viewports["landscape"][1]
+    assert viewports["wide-tablet"] == (1024, 768)
+    assert viewport_matrix() == CORE_VIEWPORTS
+    assert viewport_matrix(extended=True) == CORE_VIEWPORTS + EXTENDED_VIEWPORTS
+    assert "200%" in TEXT_SCALE_CSS
+
+
+def test_layout_issues_is_fail_closed_for_browser_contract() -> None:
+    assert callable(layout_issues)
+    assert callable(focus_issues)
+    assert callable(interaction_smoke)
+
+
+def test_mobile_primary_navigation_uses_the_available_width() -> None:
+    source = Path("app.py").read_text(encoding="utf-8")
+    mobile_rules = source.split("@media (max-width: 760px)", 1)[1]
+
+    assert ".st-key-active_page {{" in mobile_rules
+    assert "width: 100% !important;" in mobile_rules
+    assert "min-width: 0;" in mobile_rules
+
+
+def test_primary_navigation_reflows_with_root_text_size() -> None:
+    source = Path("app.py").read_text(encoding="utf-8")
+    nav_grid_start = source.index('        .st-key-active_page [role="radiogroup"]')
+    nav_grid_end = source.index('        .st-key-active_page label {{', nav_grid_start)
+    nav_grid = source[nav_grid_start:nav_grid_end]
+
+    assert "minmax(min(100%, 11rem), 1fr)" in nav_grid
+    assert "grid-template-columns: repeat(4, minmax(0, 1fr));" not in nav_grid
+    assert "primary navigation label wraps beyond two lines" in inspect.getsource(layout_issues)
+
+
+def test_browser_failure_evidence_is_structured_and_atomic(tmp_path: Path) -> None:
+    (tmp_path / "failure-stocks-mobile.png").write_bytes(b"png")
+    (tmp_path / "stocks-mobile.png").write_bytes(b"png")
+    path = write_failure_evidence("http://127.0.0.1:8765", tmp_path, "mobile/stocks: console error")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert payload["status"] == "failed"
+    assert "mobile/stocks" in payload["error"]
+    assert payload["screenshots"] == ["failure-stocks-mobile.png", "stocks-mobile.png"]
+    assert not (tmp_path / "failure-evidence.json.tmp").exists()

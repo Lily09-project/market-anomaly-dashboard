@@ -77,6 +77,10 @@ def test_app_frontend_contracts() -> None:
     assert 'st.context.theme.get("type")' in source
     assert "get_theme(fallback_name)" in source
     assert "render_stock_analysis_page" in source
+    assert "render_market_radar_page" in source
+    radar_source = project_path("src/market_radar_page.py").read_text(encoding="utf-8")
+    assert "研究優先序" in radar_source
+    assert "最低證據分數" in radar_source
     assert "render_anomaly_page" in source
     assert "自訂股票代號" in source
     assert "套用代號" in source
@@ -85,9 +89,15 @@ def test_app_frontend_contracts() -> None:
     assert "研究摘要" in source
     assert "資料可信度" in source
     assert "證據矩陣" in source
+    assert "證據一致性" in source
+    assert "render_evidence_coherence" in source
     assert "本期變化" in source
     assert "同業脈絡" in source
     assert "render_research_brief" in source
+    assert "render_research_workflow" in source
+    assert source.index("render_research_workflow(workflow)") < source.index("render_research_brief(brief)")
+    assert "build_research_workflow" in source
+    assert "研究路徑" in source
     assert "build_research_brief" in source
     assert "近期表現" in source
     assert "異常偵測展示" in source
@@ -131,14 +141,25 @@ def test_app_frontend_contracts() -> None:
     assert 'st.query_params["page"]' in source
     assert 'st.query_params["symbol"]' in source
     assert ".st-key-active_page label > div:first-child" in source
+    nav_grid_start = source.index('        .st-key-active_page [role="radiogroup"]')
+    nav_grid_end = source.index('        .st-key-active_page label {{', nav_grid_start)
+    nav_grid = source[nav_grid_start:nav_grid_end]
+    assert "grid-template-columns: repeat(" in nav_grid
+    assert "auto-fit" in nav_grid
+    assert "minmax(min(100%, 11rem), 1fr)" in nav_grid
     assert "render_data_service_notice" in source
     assert "render_product_footer" in source
 
     readme = project_path("README.md").read_text(encoding="utf-8")
     assert "可解釋研究工作台" in readme
+    assert "可解釋市場雷達" in readme
+    assert "src/market_screener.py" in readme
     assert "資料來源與降級" in readme
     assert "不提供買賣建議" in readme
     assert "研究工作流" in readme
+
+    user_guide = project_path("docs/user-guide.md").read_text(encoding="utf-8")
+    assert "`r`n" not in user_guide
     assert "docs/research-workflow.md" in readme
     assert "docs/user-guide.md" in readme
     assert "docs/deployment.md" in readme
@@ -151,6 +172,8 @@ def test_app_frontend_contracts() -> None:
 def test_custom_symbol_validation_and_theme_resolution() -> None:
     app = importlib.import_module("app")
     assert app.resolve_custom_stock_symbol("2881") == "2881.TW"
+    assert app.resolve_custom_stock_symbol("12") is None
+    assert app.resolve_custom_stock_symbol("1234567") is None
     assert app.resolve_custom_stock_symbol("tsla") == "TSLA"
     assert app.resolve_custom_stock_symbol("^GSPC") == "^GSPC"
     assert app.resolve_custom_stock_symbol("<script>") is None
@@ -209,6 +232,10 @@ def test_global_css_uses_selected_light_theme(monkeypatch) -> None:
     assert ".data-rail" in css
     assert ".instrument-workspace" in css
     assert ".evidence-grid" in css
+    assert ".research-path" in css
+    assert ".research-path-grid" in css
+    assert ".coherence-panel" in css
+    assert ".coherence-grid" in css
     assert light_theme["success"] in css
     assert light_theme["danger"] in css
     assert "@media (prefers-reduced-motion: reduce)" in css
@@ -279,3 +306,10 @@ def test_snapshot_comparison_public_contract() -> None:
     workflow = project_path("docs/research-workflow.md").read_text(encoding="utf-8")
     assert "Snapshot Comparison" in readme
     assert "integrity verification" in workflow
+
+def test_stock_page_exposes_research_readiness_panel() -> None:
+    source = project_path("app.py").read_text(encoding="utf-8")
+
+    assert "研究就緒度" in source
+    assert "readiness-grid" in source
+    assert "這不是股票評分" in source

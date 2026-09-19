@@ -30,9 +30,38 @@ This project does not predict price direction, calculate target prices, recommen
 
 A chart screenshot loses the source, data date, fallback status, and inputs that gave an observation meaning. The stock page therefore exports an offline Research Snapshot as JSON and self-contained printable HTML. It records the provider label, market `as_of_date`, export timestamp, data-quality warnings, evidence, changes, peer context, and a SHA-256 fingerprint of normalised history.
 
-The snapshot has a deterministic `snapshot_id`: its canonical research content is hashed without the export timestamp, so the same inputs create the same identifier. The files do not include raw OHLCV rows, do not write to a server, and do not create public links. They preserve provenance and limitations; a snapshot does not predict price direction, recommend a trade, or claim investment performance.
+It also includes a versioned methodology manifest and a separate methodology fingerprint. The manifest records moving-average windows, RSI and volatility parameters, minimum observation thresholds, evidence dimensions and coherence states. If those parameters change, the fingerprint and snapshot identity change with them, making method changes distinguishable from market-data changes. The snapshot has a deterministic `snapshot_id`: its canonical research content is hashed without the export timestamp, so the same inputs create the same identifier. The files do not include raw OHLCV rows, do not write to a server, and do not create public links. They preserve provenance and limitations; a snapshot does not predict price direction, recommend a trade, or claim investment performance.
 
-## 7. Compare Verified Snapshots
+## 7. Use the Research Path as a Review Checklist
+
+The stock page presents a compact Research Path before the detailed evidence and export actions. It does not rank the stock or produce an investment signal. It translates the existing research contracts into four explicit checkpoints:
+
+1. **Data conditions**: confirm source, freshness, OHLCV coverage and sample depth.
+2. **Technical evidence**: inspect whether trend, momentum, participation and risk are complete and coherent.
+3. **Peer context**: use the industry comparison when comparable observations are available; otherwise keep the limitation visible.
+4. **Research record**: export a snapshot only after the limitations are understood. The export preserves them instead of hiding them.
+
+The first incomplete or review-needed checkpoint is surfaced as the next step. This keeps the interface useful in DEMO and degraded-data states without pretending that a missing input is a neutral result.
+
+## 8. Record the Reasoning, Not Only the Chart
+
+The stock page includes a session-scoped Research Memo for the selected symbol. It has a small, explicit schema:
+
+- status: draft, monitoring, or reviewed;
+- hypothesis / core question;
+- supporting evidence and counter-evidence;
+- risks and unknowns;
+- next question and optional next review date.
+
+The form validates text length and dates before saving. The memo is not an investment recommendation and is not written to a server-side user database. When a snapshot is exported, the normalized memo becomes part of the research content, so its deterministic `snapshot_id` changes when the research record changes. Snapshot Comparison reports memo changes field by field instead of hiding them in a generic text diff.
+
+## 9. Monitor Provider Health
+
+Provider health is derived from the same source labels used by the market cards. It reports whether yfinance is healthy, mixed, fallback, or unavailable, together with the effective source, record count, latest available date and a user-facing reason. TWSE company-list health is reported separately. A sample fallback can keep the UI usable, but it can never be presented as live market data.
+
+External fetchers use a bounded request policy: timeout, a small maximum attempt count, short backoff and a per-operation request budget. This makes transient failures recoverable without turning a page refresh into an unbounded upstream request loop.
+
+## 10. Compare Verified Snapshots
 
 Snapshot Comparison accepts two schema 1.0 Research Snapshot JSON exports for the same stock. Before comparison, integrity verification recalculates each deterministic snapshot_id and rejects altered content, unsupported schemas, malformed JSON, files larger than 2 MiB, and mismatched symbols.
 
