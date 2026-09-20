@@ -60,7 +60,7 @@ def test_github_actions_runs_locked_release_and_browser_gates() -> None:
     assert "group: security-${{ github.workflow }}-${{ github.ref }}" in workflow
     assert "cancel-in-progress: true" in workflow
     assert 'python -m pip install "pip>=26.2"' in workflow
-    assert "pip install --requirement requirements-dev.lock" in workflow
+    assert "pip install --requirement requirements-dev.lock.txt" in workflow
     assert "python scripts/verify_release.py" in workflow
     assert "python -m pip_audit --strict --progress-spinner off" in workflow
     assert "python -W error -m pytest" in workflow
@@ -89,8 +89,8 @@ def test_github_actions_runs_locked_release_and_browser_gates() -> None:
 
 
 def test_runtime_and_development_locks_include_transitive_dependencies() -> None:
-    runtime_lock = project_path("requirements-runtime.lock").read_text(encoding="utf-8")
-    dev_lock = project_path("requirements-dev.lock").read_text(encoding="utf-8")
+    runtime_lock = project_path("requirements-runtime.lock.txt").read_text(encoding="utf-8")
+    dev_lock = project_path("requirements-dev.lock.txt").read_text(encoding="utf-8")
 
     for token in (
         "altair==",

@@ -65,10 +65,10 @@ def _tracked_files() -> list[str]:
 
 def run_checks() -> list[str]:
     failures: list[str] = []
-    runtime_lock = PROJECT_ROOT / "requirements-runtime.lock"
-    dev_lock = PROJECT_ROOT / "requirements-dev.lock"
+    runtime_lock = PROJECT_ROOT / "requirements-runtime.lock.txt"
+    dev_lock = PROJECT_ROOT / "requirements-dev.lock.txt"
     if not runtime_lock.exists():
-        failures.append("requirements-runtime.lock is missing")
+        failures.append("requirements-runtime.lock.txt is missing")
     else:
         packages = _lock_packages(runtime_lock)
         missing = sorted(_normalise_package_name(item) for item in REQUIRED_RUNTIME - packages)
@@ -77,7 +77,7 @@ def run_checks() -> list[str]:
         if any("==" not in line for line in runtime_lock.read_text(encoding="utf-8").splitlines() if line.strip() and not line.startswith("#")):
             failures.append("runtime lock contains an unpinned dependency")
     if not dev_lock.exists():
-        failures.append("requirements-dev.lock is missing")
+        failures.append("requirements-dev.lock.txt is missing")
 
     try:
         tracked = _tracked_files()

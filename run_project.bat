@@ -144,13 +144,13 @@ if errorlevel 1 (
     exit /b 1
 )
 
-if exist "requirements-dev.lock" (
-    "%VENV_PY%" -m pip install -r requirements-dev.lock
+if exist "requirements-dev.lock.txt" (
+    "%VENV_PY%" -m pip install -r requirements-dev.lock.txt
 ) else (
     "%VENV_PY%" -m pip install -r requirements-dev.txt
 )
 if errorlevel 1 (
-    echo [ERROR] Failed to install requirements-dev.txt.
+    echo [ERROR] Failed to install the development dependency lock.
     if /I not "%~1"=="--validate" pause
     exit /b 1
 )
