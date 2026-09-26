@@ -91,13 +91,17 @@ def test_primary_navigation_reflows_with_root_text_size() -> None:
     assert "primary navigation label wraps beyond two lines" in inspect.getsource(layout_issues)
 
 
-def test_primary_navigation_labels_are_limited_to_two_readable_lines() -> None:
+def test_primary_navigation_labels_allow_full_mobile_reflow() -> None:
     source = Path("app.py").read_text(encoding="utf-8")
 
     assert ".st-key-active_page label p {{" in source
     assert "line-height: 1.25 !important;" in source
+    # Desktop keeps compact two-line labels; the final mobile layer must
+    # release that cap so 200% text can reflow instead of being clipped.
     assert "max-height: 2.5em;" in source
-    assert "text-overflow: ellipsis;" in source
+    assert "max-height: none !important;" in source
+    mobile_rules = source.split("@media (max-width: 480px)", 1)[1]
+    assert "grid-template-columns: minmax(0, 1fr);" in mobile_rules
 
 
 def test_browser_failure_evidence_is_structured_and_atomic(tmp_path: Path) -> None:

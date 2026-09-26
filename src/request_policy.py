@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import ipaddress
+import socket
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
 
 
 DEFAULT_RETRY_ATTEMPTS = 2
@@ -13,6 +16,72 @@ RETRYABLE_STATUS_CODES = frozenset({408, 425, 429, 500, 502, 503, 504})
 
 class RequestBudgetExceeded(RuntimeError):
     """Raised when a data provider would exceed the configured request budget."""
+
+
+def validate_upstream_url(
+    url: str,
+    *,
+    allowed_hosts: Collection[str] | None = None,
+) -> str:
+    """Validate an HTTPS upstream URL before making an outbound request."""
+
+    try:
+        parsed = urlsplit(str(url))
+        hostname = parsed.hostname
+        port = parsed.port
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Upstream URL is malformed.") from exc
+    if parsed.scheme != "https" or not hostname:
+        raise ValueError("Upstream URL must use HTTPS and include a hostname.")
+    if parsed.username or parsed.password or parsed.fragment:
+        raise ValueError("Upstream URL must not include credentials or fragments.")
+    if port not in (None, 443):
+        raise ValueError("Upstream URL must use the default HTTPS port.")
+
+    normalized_host = hostname.rstrip(".").lower()
+    if normalized_host in {"localhost", "localhost.localdomain"} or normalized_host.endswith(
+        (".localhost", ".local")
+    ):
+        raise ValueError("Upstream host must be publicly routable.")
+    if allowed_hosts is not None:
+        normalized_allowed = {str(host).rstrip(".").lower() for host in allowed_hosts}
+        if normalized_host not in normalized_allowed:
+            raise ValueError(f"Upstream host is not allowed: {normalized_host}.")
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        try:
+            address = ipaddress.ip_address(socket.inet_aton(hostname))
+        except (OSError, ValueError):
+            address = None
+    if address is not None and not address.is_global:
+        raise ValueError("Upstream IP address must be globally routable.")
+    return str(url)
+
+
+def validate_response_origin(
+    response: Any,
+    requested_url: str,
+    *,
+    allowed_hosts: Collection[str] | None = None,
+) -> None:
+    """Reject redirects or a response whose origin differs from the request."""
+
+    status_code = getattr(response, "status_code", None)
+    if status_code is not None and 300 <= int(status_code) < 400:
+        raise ValueError("Upstream redirects are not allowed.")
+    requested = validate_upstream_url(requested_url, allowed_hosts=allowed_hosts)
+    response_url = str(getattr(response, "url", "") or "")
+    if not response_url:
+        return
+    response_parsed = urlsplit(response_url)
+    requested_parsed = urlsplit(requested)
+    validate_upstream_url(response_url, allowed_hosts=allowed_hosts)
+    if (
+        response_parsed.hostname.rstrip(".").lower()
+        != requested_parsed.hostname.rstrip(".").lower()
+    ):
+        raise ValueError("Upstream response origin differs from the requested host.")
 
 
 @dataclass
@@ -49,6 +118,7 @@ def request_with_retry(
 ) -> tuple[Any, int]:
     """Run a bounded GET with retryable HTTP status handling.
 
+    Redirects are disabled; callers validate the response origin before parsing.
     The response is returned open so the caller can stream and close it after
     parsing. Network failures are re-raised after the final attempt.
     """
@@ -60,7 +130,7 @@ def request_with_retry(
             budget.reserve(provider)
         response = None
         try:
-            response = request_get(url, timeout=timeout, stream=True)
+            response = request_get(url, timeout=timeout, stream=True, allow_redirects=False)
             status_code = getattr(response, "status_code", None)
             if status_code in RETRYABLE_STATUS_CODES and attempt < attempts:
                 close = getattr(response, "close", None)

@@ -3,3 +3,4 @@
 bandit>=1.8,<2
 pip-audit>=2.9,<3
 pytest>=8,<10
+ruff>=0.16,<0.17

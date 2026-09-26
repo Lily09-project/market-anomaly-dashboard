@@ -26,12 +26,18 @@ except Exception:
     yf = None
 
 from src.utils import atomic_write_dataframe, clean_numeric, project_path, read_http_response_bytes, safe_exception_message
-from src.request_policy import RequestBudget, request_with_retry
+from src.request_policy import (
+    RequestBudget,
+    request_with_retry,
+    validate_response_origin,
+    validate_upstream_url,
+)
 
 
 LOGGER = logging.getLogger(__name__)
 TWSE_COMPANY_PROFILE_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap03_L"
 TWSE_ESG_LEGAL_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap46_L_20"
+TWSE_ALLOWED_HOSTS = frozenset({"openapi.twse.com.tw"})
 # Backward-compatible alias for existing callers and tests.
 TWSE_GOVERNANCE_URL = TWSE_ESG_LEGAL_URL
 YFINANCE_TIMEOUT_SECONDS = 15
@@ -459,6 +465,7 @@ def _fetch_twse_dataset(
     raw_path: Path,
     timeout: int,
     budget: RequestBudget | None = None,
+    allowed_hosts: set[str] | frozenset[str] | None = None,
 ) -> tuple[pd.DataFrame, str]:
     if offline_mode_enabled():
         if raw_path.exists():
@@ -467,6 +474,7 @@ def _fetch_twse_dataset(
     if requests is not None:
         response = None
         try:
+            validate_upstream_url(url, allowed_hosts=allowed_hosts)
             response, _attempts = request_with_retry(
                 requests.get,
                 url,
@@ -474,6 +482,7 @@ def _fetch_twse_dataset(
                 budget=budget or RequestBudget(max_requests=2),
                 provider="twse_api",
             )
+            validate_response_origin(response, url, allowed_hosts=allowed_hosts)
             response.raise_for_status()
             try:
                 payload = json.loads(read_http_response_bytes(response).decode("utf-8-sig"))
@@ -510,6 +519,7 @@ def fetch_twse_company_profiles(timeout: int = 8) -> tuple[pd.DataFrame, str]:
         TWSE_COMPANY_PROFILE_URL,
         project_path("data/raw/twse_company_profiles.csv"),
         timeout,
+        allowed_hosts=TWSE_ALLOWED_HOSTS,
     )
 
 
@@ -518,6 +528,7 @@ def fetch_twse_esg_legal_data(timeout: int = 8) -> tuple[pd.DataFrame, str]:
         TWSE_ESG_LEGAL_URL,
         project_path("data/raw/twse_esg_legal.csv"),
         timeout,
+        allowed_hosts=TWSE_ALLOWED_HOSTS,
     )
     if not data.empty:
         return data, source

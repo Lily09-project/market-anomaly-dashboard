@@ -9,6 +9,8 @@ from src import fetch_fx_data, fetch_market_data
 
 class JsonResponse:
     def __init__(self, payload: object):
+        self.status_code = 200
+        self.url = "https://example.test/data"
         self.headers = {"content-type": "application/json"}
         self._body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.closed = False
@@ -61,6 +63,7 @@ def test_market_fetcher_streams_and_normalizes_json(monkeypatch, tmp_path) -> No
     assert output == tmp_path / "market_raw.csv"
     assert pd.read_csv(output).iloc[0]["close"] == 104
     assert calls["kwargs"]["stream"] is True
+    assert calls["kwargs"]["allow_redirects"] is False
     assert response.closed is True
 
 
@@ -94,3 +97,18 @@ def test_market_fetcher_does_not_print_url_credentials_on_failure(monkeypatch, t
     output = capsys.readouterr().out
     assert "private-token" not in output
     assert "[REDACTED]" in output
+
+
+def test_market_fetcher_rejects_redirect_response(monkeypatch, tmp_path) -> None:
+    response = JsonResponse({"data": []})
+    response.status_code = 302
+    response.url = "https://evil.invalid/redirect"
+
+    class Requests:
+        @staticmethod
+        def get(url, **kwargs):
+            return response
+
+    monkeypatch.setattr(fetch_market_data, "requests", Requests)
+    assert fetch_market_data.fetch_market_data(_base_config(tmp_path)) is None
+    assert response.closed is True

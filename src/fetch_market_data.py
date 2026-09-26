@@ -12,7 +12,12 @@ except Exception:
     requests = None
 
 from src.utils import atomic_write_dataframe, clean_numeric, ensure_parent, load_config, normalize_http_timeout, parse_date, read_http_response_bytes, safe_exception_message
-from src.request_policy import RequestBudget, request_with_retry
+from src.request_policy import (
+    RequestBudget,
+    request_with_retry,
+    validate_response_origin,
+    validate_upstream_url,
+)
 
 
 MARKET_COLUMN_ALIASES = {
@@ -75,6 +80,7 @@ def fetch_market_data(config: dict | None = None) -> Path | None:
         print("Market API URL is empty; fallback will be used.")
         return None
     try:
+        validate_upstream_url(url)
         timeout = normalize_http_timeout(cfg["api"].get("timeout_seconds"), default=15.0)
         response, _attempts = request_with_retry(
             requests.get,
@@ -84,6 +90,7 @@ def fetch_market_data(config: dict | None = None) -> Path | None:
             provider="market_api",
         )
         try:
+            validate_response_origin(response, url)
             response.raise_for_status()
             payload = read_http_response_bytes(response)
             normalized = normalize_market_columns(

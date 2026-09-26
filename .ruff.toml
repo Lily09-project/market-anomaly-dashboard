@@ -1,0 +1,7 @@
+target-version = "py312"
+line-length = 100
+
+[lint]
+# Keep the first CI gate focused on syntax and name-resolution regressions.
+# Broader style rules can be enabled incrementally after a dedicated cleanup.
+select = ["E9", "F821", "F822", "F823"]

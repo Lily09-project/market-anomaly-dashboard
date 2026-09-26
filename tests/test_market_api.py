@@ -289,6 +289,20 @@ def test_twse_dataset_unwraps_list_payload(monkeypatch, tmp_path) -> None:
     assert data.to_dict(orient="records") == [{"公司代號": "2330", "公司簡稱": "台積電"}]
 
 
+def test_twse_wrapper_enforces_official_host(tmp_path) -> None:
+    from src import market_api
+
+    data, source = market_api._fetch_twse_dataset(
+        "https://example.test/twse",
+        tmp_path / "twse.csv",
+        1,
+        allowed_hosts=market_api.TWSE_ALLOWED_HOSTS,
+    )
+
+    assert data.empty
+    assert source == "unavailable"
+
+
 def test_technical_indicators_are_generated() -> None:
     history, _ = fetch_yfinance_history("2330.TW", period="1mo")
     data = compute_technical_indicators(history)

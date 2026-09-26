@@ -2771,6 +2771,7 @@ def inject_global_css(theme: dict) -> None:
         .st-key-active_page label p,
         .st-key-active_page label span {{
             max-width: 100% !important;
+            max-height: none !important;
             color: inherit !important;
             overflow: visible !important;
             white-space: inherit !important;
@@ -2928,6 +2929,11 @@ def inject_global_css(theme: dict) -> None:
             .market-card, .watch-card {{ min-height: 0; }}
             .detail-title, .instrument-workspace .detail-title {{ font-size: clamp(1.55rem, 8vw, 2.2rem) !important; }}
             .product-footer {{ font-size: .86rem; }}
+        }}
+        @media (max-width: 480px) {{
+            /* Keep every route label readable at 200% text size. */
+            .st-key-active_page [role="radiogroup"] {{ grid-template-columns: minmax(0, 1fr); }}
+            .st-key-active_page label {{ min-height: 48px !important; }}
         }}
         @media (prefers-reduced-motion: reduce) {{
             *, *::before, *::after {{ animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }}
