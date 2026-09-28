@@ -119,6 +119,14 @@ def test_browser_qa_ci_runs_extended_200_percent_text_matrix() -> None:
     )
 
 
+def test_focus_audit_uses_real_keyboard_tab_navigation() -> None:
+    source = Path("scripts/ui_qa.py").read_text(encoding="utf-8")
+
+    assert 'page.keyboard.press("Tab")' in source
+    assert "keyboard focus did not reach the skip link" in source
+    assert ".focus({preventScroll: true})" not in source
+
+
 def test_browser_failure_evidence_is_structured_and_atomic(tmp_path: Path) -> None:
     (tmp_path / "failure-stocks-mobile.png").write_bytes(b"png")
     (tmp_path / "stocks-mobile.png").write_bytes(b"png")
