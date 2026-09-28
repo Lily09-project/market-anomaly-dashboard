@@ -3726,7 +3726,7 @@ def render_page_header(title: str, subtitle: str, status_text: str, status_live:
     status_class = "status-pill live" if status_live else "status-pill"
     st.markdown(
         f"""
-        <a class="skip-link" href="#main-content">跳到主要內容</a>
+        <a class="skip-link" href="#main-content" tabindex="1">跳到主要內容</a>
         <div class="dashboard-topline research-shell">
             <div class="page-header-copy" id="main-content" tabindex="-1">
                 <div class="page-eyebrow"><span class="page-eyebrow-mark" aria-hidden="true">RT</span><span>RESEARCH TRUST</span></div>
