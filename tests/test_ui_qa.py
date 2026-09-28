@@ -104,6 +104,15 @@ def test_primary_navigation_labels_allow_full_mobile_reflow() -> None:
     assert "grid-template-columns: minmax(0, 1fr);" in mobile_rules
 
 
+def test_browser_qa_ci_runs_extended_200_percent_text_matrix() -> None:
+    workflow = Path(".github/workflows/security.yml").read_text(encoding="utf-8")
+
+    assert (
+        "python scripts/ui_qa.py --url http://127.0.0.1:8765 --extended --text-scale"
+        in workflow
+    )
+
+
 def test_browser_failure_evidence_is_structured_and_atomic(tmp_path: Path) -> None:
     (tmp_path / "failure-stocks-mobile.png").write_bytes(b"png")
     (tmp_path / "stocks-mobile.png").write_bytes(b"png")
