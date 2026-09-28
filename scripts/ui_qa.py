@@ -160,7 +160,9 @@ def interaction_smoke(page, base_url: str) -> list[str]:
         ("股票分析", "股票研究工作台"),
     ):
         option = navigation.locator("label").filter(has_text=route).first
-        if not option.count():
+        try:
+            option.wait_for(state="visible", timeout=30_000)
+        except PlaywrightError:
             failures.append(f"primary navigation option missing: {route}")
             continue
         option.click()

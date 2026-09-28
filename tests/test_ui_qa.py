@@ -104,6 +104,12 @@ def test_primary_navigation_labels_allow_full_mobile_reflow() -> None:
     assert "grid-template-columns: minmax(0, 1fr);" in mobile_rules
 
 
+def test_interaction_smoke_waits_for_streamlit_navigation_hydration() -> None:
+    source = inspect.getsource(interaction_smoke)
+
+    assert 'option.wait_for(state="visible", timeout=30_000)' in source
+
+
 def test_browser_qa_ci_runs_extended_200_percent_text_matrix() -> None:
     workflow = Path(".github/workflows/security.yml").read_text(encoding="utf-8")
 
