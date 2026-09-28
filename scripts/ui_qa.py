@@ -106,44 +106,73 @@ def layout_issues(page) -> list[str]:
 
 
 def focus_issues(page) -> list[str]:
-    """Verify a keyboard-focus target remains visible and unobscured."""
-    return page.evaluate(
-        """() => {
-            const visible = (element) => {
-                const rect = element.getBoundingClientRect();
-                const style = getComputedStyle(element);
-                return rect.width > 0 && rect.height > 0 && style.display !== 'none'
-                    && style.visibility !== 'hidden';
-            };
-            const inViewportTarget = (element) => {
-                const rect = element.getBoundingClientRect();
-                return rect.right > 0 && rect.left < window.innerWidth
-                    && rect.bottom > 0 && rect.top < window.innerHeight;
-            };
-            const target = [...document.querySelectorAll('button, [role="button"], select, textarea')]
-                .find((element) => visible(element) && inViewportTarget(element));
-            if (!target) {
-                const skipLink = document.querySelector('a.skip-link');
-                if (!skipLink) return ['no keyboard-focus target'];
-                skipLink.focus({preventScroll: true});
-                return document.activeElement === skipLink ? [] : ['focus did not move to skip link'];
-            }
-            target.focus({preventScroll: true});
-            if (document.activeElement !== target) return ['focus did not move to target'];
-            const rect = target.getBoundingClientRect();
-            const inViewport = rect.right > 0 && rect.left < window.innerWidth
-                && rect.bottom > 0 && rect.top < window.innerHeight;
-            if (!inViewport) return ['focused target is outside viewport'];
-            const x = Math.min(window.innerWidth - 1, Math.max(1, rect.left + rect.width / 2));
-            const y = Math.min(window.innerHeight - 1, Math.max(1, rect.top + rect.height / 2));
-            const top = document.elementFromPoint(x, y);
-            if (!top || (!target.contains(top) && !top.contains(target))) {
-                return ['focused target is obscured'];
-            }
-            return [];
-        }"""
-    )
+    """Traverse the real Tab order and validate visible, unobscured focus targets."""
+    issues: list[str] = []
+    page.evaluate("document.activeElement?.blur()")
+    reached_skip_link = False
+    reached_interactive_control = False
+    visited: set[str] = set()
 
+    for _attempt in range(24):
+        page.keyboard.press("Tab")
+        state = page.evaluate(
+            """() => {
+                const target = document.activeElement;
+                if (!target || target === document.body) {
+                    return {key: '', skipLink: false, interactive: false, issue: ''};
+                }
+                const rect = target.getBoundingClientRect();
+                const style = getComputedStyle(target);
+                const key = [
+                    target.tagName,
+                    target.id || '',
+                    target.getAttribute('data-testid') || '',
+                    target.getAttribute('aria-label') || '',
+                    (target.textContent || '').trim().slice(0, 80),
+                ].join('|');
+                if (rect.width <= 0 || rect.height <= 0 || style.display === 'none'
+                        || style.visibility === 'hidden') {
+                    return {key, skipLink: false, interactive: false, issue: 'keyboard-focused target is hidden'};
+                }
+                const inViewport = rect.right > 0 && rect.left < window.innerWidth
+                    && rect.bottom > 0 && rect.top < window.innerHeight;
+                if (!inViewport) {
+                    return {key, skipLink: false, interactive: false, issue: 'keyboard-focused target is outside viewport'};
+                }
+                if (!target.matches(':focus-visible')) {
+                    return {key, skipLink: false, interactive: false, issue: 'keyboard-focused target lacks focus-visible state'};
+                }
+                const x = Math.min(window.innerWidth - 1, Math.max(1, rect.left + rect.width / 2));
+                const y = Math.min(window.innerHeight - 1, Math.max(1, rect.top + rect.height / 2));
+                const top = document.elementFromPoint(x, y);
+                if (!top || (!target.contains(top) && !top.contains(target))) {
+                    return {key, skipLink: false, interactive: false, issue: 'keyboard-focused target is obscured'};
+                }
+                const skipLink = target.matches('a.skip-link');
+                const interactive = !skipLink && target.matches(
+                    'a[href], button, input, select, textarea, [role="button"], [tabindex]'
+                );
+                return {key, skipLink, interactive, issue: ''};
+            }"""
+        )
+        key = str(state.get("key", ""))
+        if not key or key in visited:
+            continue
+        visited.add(key)
+        if state.get("issue"):
+            issues.append(str(state["issue"]))
+        reached_skip_link = reached_skip_link or bool(state.get("skipLink"))
+        reached_interactive_control = reached_interactive_control or bool(
+            state.get("interactive")
+        )
+        if reached_skip_link and reached_interactive_control:
+            break
+
+    if not reached_skip_link:
+        issues.append("keyboard focus did not reach the skip link")
+    if not reached_interactive_control:
+        issues.append("keyboard focus did not reach an interactive control")
+    return issues
 
 def interaction_smoke(page, base_url: str) -> list[str]:
     """Exercise navigation and the compact sidebar, not only static routes."""
