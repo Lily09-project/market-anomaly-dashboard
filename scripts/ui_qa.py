@@ -115,6 +115,7 @@ def focus_issues(page) -> list[str]:
 
     for _attempt in range(24):
         page.keyboard.press("Tab")
+        page.wait_for_timeout(150)
         state = page.evaluate(
             """() => {
                 const target = document.activeElement;
