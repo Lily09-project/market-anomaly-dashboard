@@ -126,6 +126,9 @@ def test_focus_audit_uses_real_keyboard_tab_navigation() -> None:
     assert "keyboard focus did not reach the skip link" in source
     assert ".focus({preventScroll: true})" not in source
 
+    app_source = Path("app.py").read_text(encoding="utf-8")
+    assert '<a class="skip-link" href="#main-content" tabindex="1">' in app_source
+
 
 def test_browser_failure_evidence_is_structured_and_atomic(tmp_path: Path) -> None:
     (tmp_path / "failure-stocks-mobile.png").write_bytes(b"png")
