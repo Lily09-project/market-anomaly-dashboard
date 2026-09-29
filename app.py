@@ -468,7 +468,7 @@ def inject_global_css(theme: dict) -> None:
             position: fixed;
             top: 0.75rem;
             left: 0.75rem;
-            z-index: 1000;
+            z-index: 1000003 !important;
             transform: translateY(-180%);
             padding: 0.65rem 0.85rem;
             border-radius: 8px;
@@ -1384,7 +1384,7 @@ def inject_global_css(theme: dict) -> None:
             position: fixed !important;
             top: 0.75rem !important;
             left: 0.75rem !important;
-            z-index: 1000 !important;
+            z-index: 1000002 !important;
             pointer-events: auto !important;
             width: 44px !important;
             height: 44px !important;
@@ -2670,13 +2670,13 @@ def inject_global_css(theme: dict) -> None:
                 max-width: 100vw !important;
                 margin: 0 !important;
                 transform: none !important;
-                z-index: 1000 !important;
+                z-index: 1000002 !important;
             }}
             [data-testid="stBaseButton-headerNoPadding"] {{
                 position: fixed !important;
                 top: 0.75rem !important;
                 left: 300px !important;
-                z-index: 1001 !important;
+                z-index: 1000002 !important;
                 width: 44px !important;
                 height: 44px !important;
             }}
