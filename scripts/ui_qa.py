@@ -125,6 +125,21 @@ def focus_issues(page) -> list[str]:
                 }
                 const rect = target.getBoundingClientRect();
                 const style = getComputedStyle(target);
+                const details = JSON.stringify({
+                    rect: {
+                        left: Math.round(rect.left),
+                        top: Math.round(rect.top),
+                        right: Math.round(rect.right),
+                        bottom: Math.round(rect.bottom),
+                    },
+                    style: {
+                        display: style.display,
+                        visibility: style.visibility,
+                        position: style.position,
+                        transform: style.transform,
+                    },
+                    parentTestId: target.parentElement?.getAttribute('data-testid') || '',
+                });
                 const key = [
                     target.tagName,
                     target.id || '',
@@ -134,15 +149,15 @@ def focus_issues(page) -> list[str]:
                 ].join('|');
                 if (rect.width <= 0 || rect.height <= 0 || style.display === 'none'
                         || style.visibility === 'hidden') {
-                    return {key, skipLink: false, interactive: false, issue: 'keyboard-focused target is hidden'};
+                    return {key, skipLink: false, interactive: false, issue: `keyboard-focused target is hidden (${details})`};
                 }
                 const inViewport = rect.right > 0 && rect.left < window.innerWidth
                     && rect.bottom > 0 && rect.top < window.innerHeight;
                 if (!inViewport) {
-                    return {key, skipLink: false, interactive: false, issue: 'keyboard-focused target is outside viewport'};
+                    return {key, skipLink: false, interactive: false, issue: `keyboard-focused target is outside viewport (${details})`};
                 }
                 if (!target.matches(':focus-visible')) {
-                    return {key, skipLink: false, interactive: false, issue: 'keyboard-focused target lacks focus-visible state'};
+                    return {key, skipLink: false, interactive: false, issue: `keyboard-focused target lacks focus-visible state (${details})`};
                 }
                 const x = Math.min(window.innerWidth - 1, Math.max(1, rect.left + rect.width / 2));
                 const y = Math.min(window.innerHeight - 1, Math.max(1, rect.top + rect.height / 2));
@@ -155,7 +170,7 @@ def focus_issues(page) -> list[str]:
                 if (!top || (
                     !target.contains(top) && !top.contains(target) && !sharesWidget
                 )) {
-                    return {key, skipLink: false, interactive: false, issue: 'keyboard-focused target is obscured'};
+                    return {key, skipLink: false, interactive: false, issue: `keyboard-focused target is obscured (${details})`};
                 }
                 const skipLink = target.matches('a.skip-link');
                 const interactive = !skipLink && target.matches(
