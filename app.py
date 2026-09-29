@@ -2660,7 +2660,6 @@ def inject_global_css(theme: dict) -> None:
                 max-width: 100vw !important;
                 transform: translateX(0) !important;
             }}
-            [data-testid="stSidebar"][aria-expanded="true"]
             [data-testid="stBaseButton-headerNoPadding"] {{
                 position: fixed !important;
                 top: 0.75rem !important;
