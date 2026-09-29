@@ -457,6 +457,12 @@ def inject_global_css(theme: dict) -> None:
         [data-testid="stSidebar"][aria-expanded="false"] {{
             visibility: hidden !important;
         }}
+        body:has([data-testid="stSidebar"][aria-expanded="false"])
+        button[aria-label="Help for 技術指標"],
+        body:has([data-testid="stSidebar"][aria-expanded="false"])
+        button[aria-label="Help for 自訂股票代號"] {{
+            visibility: hidden !important;
+        }}
 
         .skip-link {{
             position: fixed;
@@ -2649,6 +2655,9 @@ def inject_global_css(theme: dict) -> None:
                 transform: translateX(-100%) !important;
             }}
             [data-testid="stSidebar"][aria-expanded="true"] {{
+                left: 0 !important;
+                width: min(21rem, 100vw) !important;
+                max-width: 100vw !important;
                 transform: translateX(0) !important;
             }}
             [data-testid="stAppViewContainer"],
@@ -2913,7 +2922,7 @@ def inject_global_css(theme: dict) -> None:
         }}
         @media (max-width: 760px) {{
             [data-testid="stSidebar"][aria-expanded="false"] {{ transform: translateX(-100%) !important; }}
-            [data-testid="stSidebar"][aria-expanded="true"] {{ transform: translateX(0) !important; }}
+            [data-testid="stSidebar"][aria-expanded="true"] {{ left: 0 !important; width: min(21rem, 100vw) !important; max-width: 100vw !important; transform: translateX(0) !important; }}
             [data-testid="stAppViewContainer"],
             [data-testid="stAppViewContainer"] > .main,
             [data-testid="stAppViewBlockContainer"] {{ margin-left: 0 !important; padding-left: 0 !important; }}
