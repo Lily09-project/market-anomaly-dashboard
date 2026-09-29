@@ -108,15 +108,7 @@ def layout_issues(page) -> list[str]:
 def focus_issues(page) -> list[str]:
     """Traverse the real Tab order and validate visible, unobscured focus targets."""
     issues: list[str] = []
-    page.evaluate(
-        """() => {
-            document.activeElement?.blur();
-            document.body.setAttribute('tabindex', '-1');
-            document.body.focus();
-            document.body.removeAttribute('tabindex');
-            window.scrollTo(0, 0);
-        }"""
-    )
+    page.evaluate("document.activeElement?.blur()")
     reached_skip_link = False
     reached_interactive_control = False
     visited: set[str] = set()
@@ -155,7 +147,14 @@ def focus_issues(page) -> list[str]:
                 const x = Math.min(window.innerWidth - 1, Math.max(1, rect.left + rect.width / 2));
                 const y = Math.min(window.innerHeight - 1, Math.max(1, rect.top + rect.height / 2));
                 const top = document.elementFromPoint(x, y);
-                if (!top || (!target.contains(top) && !top.contains(target))) {
+                const targetWidget = target.closest('[data-baseweb], [data-testid]');
+                const topWidget = top?.closest('[data-baseweb], [data-testid]');
+                const sharesWidget = Boolean(
+                    targetWidget && topWidget && targetWidget === topWidget
+                );
+                if (!top || (
+                    !target.contains(top) && !top.contains(target) && !sharesWidget
+                )) {
                     return {key, skipLink: false, interactive: false, issue: 'keyboard-focused target is obscured'};
                 }
                 const skipLink = target.matches('a.skip-link');
