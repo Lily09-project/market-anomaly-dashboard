@@ -454,6 +454,10 @@ def inject_global_css(theme: dict) -> None:
             scroll-margin-top: 1rem;
         }}
 
+        [data-testid="stSidebar"][aria-expanded="false"] {{
+            visibility: hidden !important;
+        }}
+
         .skip-link {{
             position: fixed;
             top: 0.75rem;
@@ -4250,7 +4254,7 @@ def main() -> None:
         return
 
     cfg = load_config()
-    st.set_page_config(page_title="股票分析與追蹤 Dashboard", layout="wide", initial_sidebar_state="expanded")
+    st.set_page_config(page_title="股票分析與追蹤 Dashboard", layout="wide", initial_sidebar_state="collapsed")
 
     context_theme_type = st.context.theme.get("type") if hasattr(st.context, "theme") else None
     theme_name = resolve_dashboard_theme_name(cfg, context_theme_type)
