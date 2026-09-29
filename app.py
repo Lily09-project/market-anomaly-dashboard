@@ -2660,6 +2660,15 @@ def inject_global_css(theme: dict) -> None:
                 max-width: 100vw !important;
                 transform: translateX(0) !important;
             }}
+            [data-testid="stSidebar"][aria-expanded="true"]
+            [data-testid="stBaseButton-headerNoPadding"] {{
+                position: fixed !important;
+                top: 0.75rem !important;
+                left: 0.75rem !important;
+                z-index: 1001 !important;
+                width: 44px !important;
+                height: 44px !important;
+            }}
             [data-testid="stAppViewContainer"],
             [data-testid="stAppViewContainer"] > .main,
             [data-testid="stAppViewBlockContainer"] {{
@@ -3739,7 +3748,7 @@ def render_page_header(title: str, subtitle: str, status_text: str, status_live:
     status_class = "status-pill live" if status_live else "status-pill"
     st.markdown(
         f"""
-        <a class="skip-link" href="#main-content" tabindex="1">跳到主要內容</a>
+        <a class="skip-link" href="#main-content" tabindex="0">跳到主要內容</a>
         <div class="dashboard-topline research-shell">
             <div class="page-header-copy" id="main-content" tabindex="-1">
                 <div class="page-eyebrow"><span class="page-eyebrow-mark" aria-hidden="true">RT</span><span>RESEARCH TRUST</span></div>
