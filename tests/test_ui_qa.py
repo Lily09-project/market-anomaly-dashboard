@@ -136,6 +136,7 @@ def test_focus_audit_validates_radio_proxy_and_mobile_controls() -> None:
     assert 'page.keyboard.press("Tab")' in focus_source
     assert "page.wait_for_function(" in focus_source
     assert "DOMMatrixReadOnly" in focus_source
+    assert "document.body.setAttribute('tabindex', '-1')" in focus_source
     assert "page.wait_for_timeout(300)" not in focus_source
     assert 'input[type="radio"]' in focus_source
     assert "keyboard-focused radio proxy lacks a visible focus indicator" in focus_source
@@ -145,6 +146,7 @@ def test_focus_audit_validates_radio_proxy_and_mobile_controls() -> None:
     assert 'data-testid="stExpandSidebarButton"' in styles
     assert 'data-testid="stSidebarCollapseButton"' in styles
     assert 'visibility: hidden !important;' in styles
+    assert '[data-testid="stSidebar"][aria-expanded="false"] *' in styles
 
 
 def test_browser_failure_evidence_is_structured_and_atomic(tmp_path: Path) -> None:

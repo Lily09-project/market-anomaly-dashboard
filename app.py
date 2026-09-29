@@ -3050,6 +3050,11 @@ def inject_global_css(theme: dict) -> None:
                 z-index: 1000003 !important;
             }}
         }}
+        /* Keep hidden sidebar descendants out of the keyboard sequence. */
+        [data-testid="stSidebar"][aria-expanded="false"] * {{
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }}
         </style>
         """,
         unsafe_allow_html=True,
