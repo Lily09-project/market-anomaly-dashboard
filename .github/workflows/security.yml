@@ -104,6 +104,7 @@ jobs:
     timeout-minutes: 30
     env:
       MARKET_DASHBOARD_OFFLINE: "1"
+      UI_THEME: ${{ matrix.theme }}
 
     steps:
       - name: Check out repository
@@ -127,8 +128,6 @@ jobs:
         run: python run_all.py --mode sample
 
       - name: Start Streamlit
-        env:
-          UI_THEME: ${{ matrix.theme }}
         shell: bash
         run: |
           nohup python -m streamlit run app.py --server.address 127.0.0.1 --server.port 8765 --theme.base "$UI_THEME" > streamlit-ui-qa.log 2>&1 &
