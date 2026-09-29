@@ -1383,7 +1383,7 @@ def inject_global_css(theme: dict) -> None:
             visibility: visible !important;
             position: fixed !important;
             top: 0.75rem !important;
-            left: 0.75rem !important;
+            left: 300px !important;
             z-index: 1000 !important;
             pointer-events: auto !important;
             width: 44px !important;
