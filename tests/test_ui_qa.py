@@ -119,6 +119,40 @@ def test_browser_qa_ci_runs_extended_200_percent_text_matrix() -> None:
     )
 
 
+def test_anomalies_contract_uses_visible_page_content() -> None:
+    assert PAGE_CONTRACTS["anomalies"] == ("異常偵測展示", "異常事件")
+
+
+def test_focus_audit_uses_real_keyboard_tab_navigation() -> None:
+    source = Path("scripts/ui_qa.py").read_text(encoding="utf-8")
+
+    assert 'page.keyboard.press("Tab")' in source
+    assert "keyboard focus did not reach the skip link" in source
+    assert ".focus({preventScroll: true})" not in source
+
+    app_source = Path("app.py").read_text(encoding="utf-8")
+    assert '<a class="skip-link" href="#main-content" tabindex="0">' in app_source
+
+
+def test_focus_audit_validates_radio_proxy_and_mobile_controls() -> None:
+    focus_source = inspect.getsource(focus_issues)
+
+    assert 'page.keyboard.press("Tab")' in focus_source
+    assert "page.wait_for_function(" in focus_source
+    assert "DOMMatrixReadOnly" in focus_source
+    assert "document.body.setAttribute('tabindex', '-1')" in focus_source
+    assert "page.wait_for_timeout(300)" not in focus_source
+    assert 'input[type="radio"]' in focus_source
+    assert "keyboard-focused radio proxy lacks a visible focus indicator" in focus_source
+
+    styles = Path("app.py").read_text(encoding="utf-8")
+    assert ':has(input[type="radio"]:focus-visible)' in styles
+    assert 'data-testid="stExpandSidebarButton"' in styles
+    assert 'data-testid="stSidebarCollapseButton"' in styles
+    assert 'visibility: hidden !important;' in styles
+    assert '[data-testid="stSidebar"][aria-expanded="false"] *' in styles
+
+
 def test_browser_failure_evidence_is_structured_and_atomic(tmp_path: Path) -> None:
     (tmp_path / "failure-stocks-mobile.png").write_bytes(b"png")
     (tmp_path / "stocks-mobile.png").write_bytes(b"png")

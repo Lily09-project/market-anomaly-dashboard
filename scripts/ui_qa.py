@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 PAGE_CONTRACTS = {
     "stocks": ("股票分析", "大盤指數"),
     "radar": ("市場雷達", "研究優先序"),
-    "anomalies": ("異常偵測展示", "異常偵測展示代號"),
+    "anomalies": ("異常偵測展示", "異常事件"),
     "compare": ("研究快照比較", "基準快照", "目前快照"),
 }
 PAGE_LOAD_STATE = "domcontentloaded"
@@ -106,44 +106,179 @@ def layout_issues(page) -> list[str]:
 
 
 def focus_issues(page) -> list[str]:
-    """Verify a keyboard-focus target remains visible and unobscured."""
-    return page.evaluate(
+    """Traverse real Tab order, validating visible controls and their focused proxies."""
+    from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
+    issues: list[str] = []
+    page.evaluate(
         """() => {
-            const visible = (element) => {
-                const rect = element.getBoundingClientRect();
-                const style = getComputedStyle(element);
-                return rect.width > 0 && rect.height > 0 && style.display !== 'none'
-                    && style.visibility !== 'hidden';
-            };
-            const inViewportTarget = (element) => {
-                const rect = element.getBoundingClientRect();
-                return rect.right > 0 && rect.left < window.innerWidth
-                    && rect.bottom > 0 && rect.top < window.innerHeight;
-            };
-            const target = [...document.querySelectorAll('button, [role="button"], select, textarea')]
-                .find((element) => visible(element) && inViewportTarget(element));
-            if (!target) {
-                const skipLink = document.querySelector('a.skip-link');
-                if (!skipLink) return ['no keyboard-focus target'];
-                skipLink.focus({preventScroll: true});
-                return document.activeElement === skipLink ? [] : ['focus did not move to skip link'];
-            }
-            target.focus({preventScroll: true});
-            if (document.activeElement !== target) return ['focus did not move to target'];
-            const rect = target.getBoundingClientRect();
-            const inViewport = rect.right > 0 && rect.left < window.innerWidth
-                && rect.bottom > 0 && rect.top < window.innerHeight;
-            if (!inViewport) return ['focused target is outside viewport'];
-            const x = Math.min(window.innerWidth - 1, Math.max(1, rect.left + rect.width / 2));
-            const y = Math.min(window.innerHeight - 1, Math.max(1, rect.top + rect.height / 2));
-            const top = document.elementFromPoint(x, y);
-            if (!top || (!target.contains(top) && !top.contains(target))) {
-                return ['focused target is obscured'];
-            }
-            return [];
+            document.activeElement?.blur();
+            document.body.setAttribute('tabindex', '-1');
+            document.body.focus();
+            document.body.removeAttribute('tabindex');
+            window.scrollTo(0, 0);
         }"""
     )
+    reached_skip_link = False
+    reached_interactive_control = False
+    visited: set[str] = set()
+    visited_order: list[str] = []
 
+    for _attempt in range(24):
+        page.keyboard.press("Tab")
+        try:
+            page.wait_for_function(
+                """() => {
+                    const target = document.activeElement;
+                    if (!target || !target.matches('a.skip-link')) return true;
+                    if (!target.matches(':focus-visible')) return false;
+                    const transform = getComputedStyle(target).transform;
+                    return transform === 'none'
+                        || Math.abs(new DOMMatrixReadOnly(transform).m42) < 1;
+                }""",
+                timeout=2_000,
+            )
+        except PlaywrightTimeoutError:
+            pass
+
+        state = page.evaluate(
+            """() => {
+                const inViewport = rect => rect.right > 0 && rect.left < window.innerWidth
+                    && rect.bottom > 0 && rect.top < window.innerHeight;
+                const rendered = element => {
+                    if (!element || !(element instanceof Element)) return false;
+                    const rect = element.getBoundingClientRect();
+                    if (rect.width <= 0 || rect.height <= 0) return false;
+                    for (let node = element; node && node instanceof HTMLElement; node = node.parentElement) {
+                        const style = getComputedStyle(node);
+                        if (style.display === 'none' || style.visibility === 'hidden'
+                                || Number(style.opacity) === 0) return false;
+                    }
+                    return true;
+                };
+                const target = document.activeElement;
+                if (!target || target === document.body) {
+                    return {key: '', skipLink: false, interactive: false, issue: ''};
+                }
+
+                const targetRect = target.getBoundingClientRect();
+                const targetStyle = getComputedStyle(target);
+                const isRadio = target.matches('input[type="radio"]');
+                const radioItem = isRadio
+                    ? target.closest('[data-baseweb="radio"], [role="radio"], label')
+                    : null;
+                const radioWidget = isRadio
+                    ? target.closest('[data-testid="stRadio"], [role="radiogroup"], [data-baseweb="radio"]')
+                    : null;
+                const associatedLabel = isRadio
+                    ? Array.from(target.labels || []).find(label => rendered(label))
+                    : null;
+                const proxy = associatedLabel || radioItem;
+                const proxyText = proxy
+                    ? (proxy.getAttribute('aria-label') || proxy.innerText || proxy.textContent || '').trim()
+                    : '';
+                const namedProxy = Boolean(proxy && (
+                    proxy.getAttribute('aria-label') || proxy.getAttribute('aria-labelledby') || proxyText
+                ));
+                const hiddenRadioInput = isRadio && (
+                    targetRect.width <= 1 || targetRect.height <= 1
+                    || targetStyle.display === 'none' || targetStyle.visibility === 'hidden'
+                    || Number(targetStyle.opacity) === 0 || !inViewport(targetRect)
+                );
+                const usesProxy = Boolean(
+                    hiddenRadioInput && radioWidget && radioItem && proxy && proxy !== target
+                    && namedProxy && rendered(proxy)
+                );
+                const visualTarget = usesProxy ? proxy : target;
+                const rect = visualTarget.getBoundingClientRect();
+                const style = getComputedStyle(visualTarget);
+                const details = JSON.stringify({
+                    focusedTag: target.tagName,
+                    focusedRect: [Math.round(targetRect.left), Math.round(targetRect.top),
+                        Math.round(targetRect.right), Math.round(targetRect.bottom)],
+                    visibleTarget: visualTarget.tagName,
+                    label: proxyText.slice(0, 80),
+                    visibleRect: [Math.round(rect.left), Math.round(rect.top),
+                        Math.round(rect.right), Math.round(rect.bottom)],
+                    display: style.display,
+                    visibility: style.visibility,
+                    position: style.position,
+                    transform: style.transform,
+                });
+                const key = [
+                    target.tagName, target.id || '', target.getAttribute('data-testid') || '',
+                    target.getAttribute('aria-label') || '', target.type || '', target.value || '',
+                    proxyText.slice(0, 80), (target.textContent || '').trim().slice(0, 40),
+                ].join('|');
+
+                if (!rendered(visualTarget)) {
+                    const message = usesProxy ? 'radio proxy is hidden' : 'keyboard-focused target is hidden';
+                    return {key, skipLink: false, interactive: false, issue: message + ' (' + details + ')'};
+                }
+                if (!inViewport(rect)) {
+                    return {key, skipLink: false, interactive: false, issue: 'keyboard-focused target is outside viewport (' + details + ')'};
+                }
+                if (!target.matches(':focus-visible')) {
+                    return {key, skipLink: false, interactive: false, issue: 'keyboard-focused target lacks focus-visible state (' + details + ')'};
+                }
+                if (usesProxy) {
+                    const width = Number.parseFloat(style.outlineWidth || '0');
+                    const color = style.outlineColor;
+                    if (width < 2 || style.outlineStyle === 'none'
+                            || color === 'transparent' || color === 'rgba(0, 0, 0, 0)') {
+                        return {
+                            key,
+                            skipLink: false,
+                            interactive: false,
+                            issue: 'keyboard-focused radio proxy lacks a visible focus indicator (' + details + ')',
+                        };
+                    }
+                }
+
+                const x = Math.min(window.innerWidth - 1, Math.max(1, rect.left + rect.width / 2));
+                const y = Math.min(window.innerHeight - 1, Math.max(1, rect.top + rect.height / 2));
+                const top = document.elementFromPoint(x, y);
+                const widget = visualTarget.closest('[data-baseweb], [data-testid], [role="radiogroup"]');
+                const topWidget = top?.closest('[data-baseweb], [data-testid], [role="radiogroup"]');
+                const unobscured = usesProxy
+                    ? Boolean(top && (visualTarget.contains(top) || top.contains(visualTarget)))
+                    : Boolean(top && (
+                        visualTarget.contains(top) || top.contains(visualTarget)
+                        || (widget && topWidget && widget === topWidget)
+                    ));
+                if (!unobscured) {
+                    return {key, skipLink: false, interactive: false, issue: 'keyboard-focused target is obscured (' + details + ')'};
+                }
+
+                const skipLink = visualTarget.matches('a.skip-link');
+                const interactive = usesProxy || (
+                    !skipLink && target.matches(
+                        'a[href], button, input, select, textarea, [role="button"], [tabindex]'
+                    )
+                );
+                return {key, skipLink, interactive, issue: ''};
+            }"""
+        )
+        key = str(state.get("key", ""))
+        if not key or key in visited:
+            continue
+        visited.add(key)
+        visited_order.append(key)
+        if state.get("issue"):
+            issues.append(f"{state['issue']}: {key}")
+        reached_skip_link = reached_skip_link or bool(state.get("skipLink"))
+        reached_interactive_control = reached_interactive_control or bool(
+            state.get("interactive")
+        )
+        if reached_skip_link and reached_interactive_control:
+            break
+
+    if not reached_skip_link:
+        traversal = " -> ".join(visited_order[:8]) or "(none)"
+        issues.append(f"keyboard focus did not reach the skip link; visited: {traversal}")
+    if not reached_interactive_control:
+        issues.append("keyboard focus did not reach an interactive control")
+    return issues
 
 def interaction_smoke(page, base_url: str) -> list[str]:
     """Exercise navigation and the compact sidebar, not only static routes."""
