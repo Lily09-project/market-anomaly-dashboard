@@ -2660,10 +2660,15 @@ def inject_global_css(theme: dict) -> None:
                 max-width: 100vw !important;
                 transform: translateX(0) !important;
             }}
-            [data-testid="stSidebarCollapseButton"] {{
+            html body [data-testid="stSidebarCollapseButton"] {{
                 position: fixed !important;
-                top: 0 !important;
+                inset: 0 auto auto 0 !important;
                 left: 0 !important;
+                right: auto !important;
+                bottom: auto !important;
+                width: min(21rem, 100vw) !important;
+                max-width: 100vw !important;
+                margin: 0 !important;
                 transform: none !important;
                 z-index: 1000 !important;
             }}
