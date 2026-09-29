@@ -142,6 +142,6 @@ jobs:
           exit 1
 
       - name: Run responsive browser QA
-        run: python scripts/ui_qa.py --url http://127.0.0.1:8765
+        run: python scripts/ui_qa.py --url http://127.0.0.1:8765 --theme-mode "$UI_THEME"
       - name: Run extended 200% text browser QA
-        run: python scripts/ui_qa.py --url http://127.0.0.1:8765 --extended --text-scale
+        run: python scripts/ui_qa.py --url http://127.0.0.1:8765 --extended --text-scale --theme-mode "$UI_THEME"
