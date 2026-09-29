@@ -108,7 +108,15 @@ def layout_issues(page) -> list[str]:
 def focus_issues(page) -> list[str]:
     """Traverse the real Tab order and validate visible, unobscured focus targets."""
     issues: list[str] = []
-    page.evaluate("document.activeElement?.blur()")
+    page.evaluate(
+        """() => {
+            document.activeElement?.blur();
+            document.body.setAttribute('tabindex', '-1');
+            document.body.focus();
+            document.body.removeAttribute('tabindex');
+            window.scrollTo(0, 0);
+        }"""
+    )
     reached_skip_link = False
     reached_interactive_control = False
     visited: set[str] = set()
