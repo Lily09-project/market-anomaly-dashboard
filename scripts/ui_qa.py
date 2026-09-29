@@ -112,6 +112,7 @@ def focus_issues(page) -> list[str]:
     reached_skip_link = False
     reached_interactive_control = False
     visited: set[str] = set()
+    visited_order: list[str] = []
 
     for _attempt in range(24):
         page.keyboard.press("Tab")
@@ -160,8 +161,9 @@ def focus_issues(page) -> list[str]:
         if not key or key in visited:
             continue
         visited.add(key)
+        visited_order.append(key)
         if state.get("issue"):
-            issues.append(str(state["issue"]))
+            issues.append(f"{state['issue']}: {key}")
         reached_skip_link = reached_skip_link or bool(state.get("skipLink"))
         reached_interactive_control = reached_interactive_control or bool(
             state.get("interactive")
@@ -170,7 +172,10 @@ def focus_issues(page) -> list[str]:
             break
 
     if not reached_skip_link:
-        issues.append("keyboard focus did not reach the skip link")
+        traversal = " -> ".join(visited_order[:8]) or "(none)"
+        issues.append(
+            f"keyboard focus did not reach the skip link; visited: {traversal}"
+        )
     if not reached_interactive_control:
         issues.append("keyboard focus did not reach an interactive control")
     return issues
