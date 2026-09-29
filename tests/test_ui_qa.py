@@ -119,6 +119,10 @@ def test_browser_qa_ci_runs_extended_200_percent_text_matrix() -> None:
     )
 
 
+def test_anomalies_contract_uses_visible_page_content() -> None:
+    assert PAGE_CONTRACTS["anomalies"] == ("異常偵測展示", "異常事件")
+
+
 def test_focus_audit_uses_real_keyboard_tab_navigation() -> None:
     source = Path("scripts/ui_qa.py").read_text(encoding="utf-8")
 

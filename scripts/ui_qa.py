@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 PAGE_CONTRACTS = {
     "stocks": ("股票分析", "大盤指數"),
     "radar": ("市場雷達", "研究優先序"),
-    "anomalies": ("異常偵測展示", "異常偵測展示代號"),
+    "anomalies": ("異常偵測展示", "異常事件"),
     "compare": ("研究快照比較", "基準快照", "目前快照"),
 }
 PAGE_LOAD_STATE = "domcontentloaded"
