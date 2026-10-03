@@ -8,7 +8,7 @@ import io
 import json
 from pathlib import Path
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -207,7 +207,7 @@ def ux_regression_check(page, url, bundle):
     anchor = page.locator("#table tbody tr").first.get_attribute("data-row-id")
     page.locator('#table input[type="checkbox"]').first.check()
     page.set_viewport_size({"width": 390, "height": 844})
-    page.wait_for_function("document.querySelectorAll('#table tbody tr').length === 8")
+    expect(page.locator("#table tbody tr")).to_have_count(8)
     assert anchor in page.locator("#table tbody tr").evaluate_all("(nodes) => nodes.map(node => node.getAttribute('data-row-id'))")
     assert page.locator("#selection-status").inner_text().startswith("已選取 1")
     page.locator("#next").click()
