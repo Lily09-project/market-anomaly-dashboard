@@ -246,6 +246,11 @@ function renderTable() {
   const pages = Math.max(1, Math.ceil(displayed.length / pageSize));
   currentPage = Math.min(currentPage, pages - 1);
   const table = el("table", undefined, {role: "table"});
+  const columns = el("colgroup");
+  columns.append(el("col", undefined, {class: "action-column"}));
+  for (const field of dataset.fields) columns.append(el("col", undefined, {class: field.key === "player_id" ? "identifier-column" : ""}));
+  columns.append(el("col", undefined, {class: "action-column"}));
+  table.append(columns);
   const head = el("thead"), hrow = el("tr");
   const compact = compactFields();
   hrow.append(el("th", "比較", {scope: "col"}));

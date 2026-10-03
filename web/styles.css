@@ -21,3 +21,8 @@ input:focus,input:focus-within,select:focus,button:focus,a:focus,summary:focus{o
   .header{padding-top:1rem}.notice{margin-bottom:1rem}
 }
 @container(max-width:70em){.secondary-field{display:none}}
+
+/* Ten-digit public identities need enough room at the desktop table breakpoint. */
+col.action-column{width:6rem}col.identifier-column{width:9rem}
+@media(max-width:760px){colgroup{display:none}}
+@container(max-width:70em){colgroup{display:none}}
