@@ -22,7 +22,7 @@ function download(text, name, mime) {
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 let bundle, dataset, state, displayed = [], selected = new Set(), currentPage = 0, lastDetailButton;
-const pageSize = 20;
+let pageSize = 20;
 const rowId = row => JSON.stringify(dataset.identity.map(key => row[key]));
 const rowName = row => dataset.name && row[dataset.name] ? String(row[dataset.name]) + " · " + dataset.identity.map(key => format(row[key])).join(" · ") : dataset.identity.map(key => format(row[key])).join(" · ");
 const selectedRows = () => [...selected].map(id => dataset.rows.find(row => rowId(row) === id)).filter(Boolean);
@@ -195,6 +195,7 @@ function renderChart() {
   if (dataset.secondary) $("legend").append(el("p", "測站：" + String(groups[0])));
 }
 function renderTable() {
+  pageSize = matchMedia("(max-width:760px)").matches ? 8 : 20;
   $("table-title").textContent = dataset.label;
   const pages = Math.max(1, Math.ceil(displayed.length / pageSize));
   currentPage = Math.min(currentPage, pages - 1);
@@ -348,13 +349,18 @@ async function compareUploads() {
   }
 }
 
+async function fetchPublic(path) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(path, {cache: "no-cache", signal: controller.signal});
+    if (!response.ok) throw new Error("Public resource unavailable");
+    return await response.text();
+  } finally { clearTimeout(timer); }
+}
 async function initialize() {
-  const response = await fetch("./integrity.json", {cache: "no-cache"});
-  if (!response.ok) throw new Error("Missing integrity manifest");
-  const integrity = await response.json();
-  const dataResponse = await fetch("./data.json", {cache: "no-cache"});
-  if (!dataResponse.ok) throw new Error("Missing public data");
-  const text = await dataResponse.text();
+  const integrity = JSON.parse(await fetchPublic("./integrity.json"));
+  const text = await fetchPublic("./data.json");
   if (await hash(text) !== integrity.data_sha256) throw new Error("Data integrity mismatch");
   bundle = JSON.parse(text);
   if (bundle.schema_version !== "pages-data/1" || !Array.isArray(bundle.datasets) || !bundle.datasets.length) throw new Error("Invalid schema");
@@ -407,5 +413,5 @@ $("retry").addEventListener("click", () => location.reload());
 initialize().catch(() => {
   $("mode").textContent = "載入失敗"; $("status").textContent = "未顯示未驗證資料。";
   $("fatal").hidden = false;
-  for (const id of ["csv", "json", "selection-download", "clear-selection", "previous", "next", "search", "group", "start", "end", "minimum", "sort", "reset", "direction"]) $(id).disabled = true;
+  for (const id of ["theme", "csv", "json", "selection-download", "clear-selection", "previous", "next", "search", "group", "start", "end", "minimum", "sort", "reset", "direction"]) $(id).disabled = true;
 });

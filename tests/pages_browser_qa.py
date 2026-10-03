@@ -31,7 +31,7 @@ def layout_check(page):
       for (const node of document.querySelectorAll("input,select,button,nav a")) {
         if (!node.checkVisibility()) continue;
         const r = node.getBoundingClientRect();
-        if (r.width < 24 || r.height < 24) issues.push("small target: " + node.id);
+        if (r.width < 24 || r.height < 24) issues.push("small target: " + node.tagName + " " + node.id + " " + r.width + "x" + r.height);
         if (r.left < -1 || r.right > innerWidth + 1) issues.push("control overflow: " + node.id);
       }
       return issues;
