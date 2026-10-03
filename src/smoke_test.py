@@ -28,8 +28,8 @@ def assert_bat_files_are_valid() -> None:
     required = [
         'set "PY_EXE="',
         'set "PY_ARGS="',
-        "python --version >nul 2>nul",
-        "py -3 --version >nul 2>nul",
+        "sys.version_info[:2] == (3, 12)",
+        "py -3.12 --version >nul 2>nul",
         'if exist "%CD%\\.venv\\Scripts\\python.exe"',
         'if defined PY_EXE goto :python_ready',
         'set "STREAMLIT_PORT=8765"',
