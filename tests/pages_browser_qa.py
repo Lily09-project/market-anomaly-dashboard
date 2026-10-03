@@ -32,7 +32,7 @@ def layout_check(page):
         if (!node.checkVisibility()) continue;
         const r = node.getBoundingClientRect();
         if (r.width < 24 || r.height < 24) issues.push("small target: " + node.tagName + " " + node.id + " " + r.width + "x" + r.height);
-        if (r.left < -1 || r.right > innerWidth + 1) issues.push("control overflow: " + node.id);
+        if (r.left < -1 || r.right > innerWidth + 1) issues.push("control overflow: " + node.tagName + " " + node.id + " " + r.left + ".." + r.right);
       }
       return issues;
     }""")
@@ -127,6 +127,13 @@ def functional_check(page, url, bundle):
         page.locator("#minimum").fill("100"); page.locator("#minimum").press("Tab")
         players = downloaded_json(page, "#json")
         assert all(row["pa"] >= 100 and len(row["player_id"]) == 10 for row in players["rows"])
+        for row in (item for data in bundle["datasets"] for item in data["rows"] if "player_id" in item):
+            if not row["player_id"].isdigit():
+                page.locator('#views a[href="?view=roster"]').click()
+                page.locator("#search").fill(row["player_id"])
+                page.locator("#table button").first.click()
+                assert page.locator('#detail a[href*="acnt="]').count() == 0
+                break
     if bundle["kind"] == "market":
         page.locator('#views a[href="?view=overview"]').click()
         original = downloaded_json(page, "#json")
@@ -180,7 +187,11 @@ def main():
                     for view in bundle["datasets"]:
                         page.locator('#views a[href="?view=' + view["id"] + '"]').click()
                         assert page.locator("#status").inner_text().startswith(view["label"])
-                        layout_check(page); keyboard_check(page)
+                        try:
+                            layout_check(page); keyboard_check(page)
+                        except AssertionError:
+                            page.screenshot(path=str(evidence / f"failure-{theme}-{width}-{scale}-{view['id']}.png"), full_page=True)
+                            raise
                         if width in (320, 1440):
                             page.screenshot(path=str(evidence / f"{theme}-{width}-{scale}-{view['id']}.png"), full_page=True)
                     assert not errors, errors

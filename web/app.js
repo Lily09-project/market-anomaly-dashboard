@@ -195,7 +195,7 @@ function renderChart() {
   if (dataset.secondary) $("legend").append(el("p", "測站：" + String(groups[0])));
 }
 function renderTable() {
-  pageSize = matchMedia("(max-width:760px)").matches ? 8 : 20;
+  pageSize = $("table").clientWidth <= 70 * parseFloat(getComputedStyle($("table")).fontSize) ? 8 : 20;
   $("table-title").textContent = dataset.label;
   const pages = Math.max(1, Math.ceil(displayed.length / pageSize));
   currentPage = Math.min(currentPage, pages - 1);
