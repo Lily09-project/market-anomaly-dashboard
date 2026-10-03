@@ -29,8 +29,8 @@ function chartDate(time) {
 }
 function compactFields() {
   const extra = bundle.kind === "market" ? ["daily_return"] : dataset.id === "batters" ? ["batting_average"] :
-    dataset.id === "pitchers" ? ["era"] : dataset.id === "roster" ? ["roster_status"] : bundle.kind === "aqi" ? ["pm25"] : [];
-  return new Set([dataset.name, dataset.group, dataset.date, dataset.value, ...extra].filter(Boolean));
+    dataset.id === "pitchers" ? ["era"] : dataset.id === "roster" ? ["roster_status"] : dataset.id === "teams" ? ["wins", "losses"] : bundle.kind === "aqi" ? ["pm25"] : [];
+  return new Set([dataset.name === "snapshot_id" ? null : dataset.name, dataset.group, dataset.date, dataset.value, ...extra].filter(Boolean));
 }
 function tablePageSize() {
   return $("table").clientWidth <= 70 * parseFloat(getComputedStyle($("table")).fontSize) ? 8 : 20;
