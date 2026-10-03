@@ -65,6 +65,9 @@ def contrast_check(page):
         .map(pair=>pair.map(key=>style.getPropertyValue(key).trim()));
     }""")
     def luminance(color):
+        assert color.startswith("#") and len(color) in (4, 7), color
+        if len(color) == 4:
+            color = "#" + "".join(char * 2 for char in color[1:])
         channels = [int(color[index:index + 2], 16) / 255 for index in (1, 3, 5)]
         linear = [value / 12.92 if value <= .04045 else ((value + .055) / 1.055) ** 2.4 for value in channels]
         return sum(a * b for a, b in zip(linear, (.2126, .7152, .0722)))
