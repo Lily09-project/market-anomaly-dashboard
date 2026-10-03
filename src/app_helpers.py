@@ -14,10 +14,10 @@ def safe_load_csv(path: str | Path) -> pd.DataFrame:
     if not resolved.exists():
         return pd.DataFrame()
     try:
-        return pd.read_csv(resolved, parse_dates=["date"])
+        return pd.read_csv(resolved, parse_dates=["date"], dtype={"symbol": "string"})
     except Exception:
         try:
-            return pd.read_csv(resolved)
+            return pd.read_csv(resolved, dtype={"symbol": "string"})
         except Exception:
             return pd.DataFrame()
 

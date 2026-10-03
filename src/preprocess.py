@@ -19,10 +19,10 @@ def _load_market(config: dict) -> pd.DataFrame:
     raw_paths = _candidate_paths(config["data"]["raw_dir"], "*market*.csv")
     sample_path = project_path(config["data"]["sample_market_path"])
     if raw_paths:
-        return normalize_market_columns(pd.read_csv(raw_paths[0]))
+        return normalize_market_columns(pd.read_csv(raw_paths[0], dtype={"symbol": "string", "stock_id": "string", "證券代號": "string", "代號": "string"}))
     if not sample_path.exists():
         generate_sample_data(config)
-    return normalize_market_columns(pd.read_csv(sample_path))
+    return normalize_market_columns(pd.read_csv(sample_path, dtype={"symbol": "string", "stock_id": "string", "證券代號": "string", "代號": "string"}))
 
 
 def _load_fx(config: dict) -> pd.DataFrame:

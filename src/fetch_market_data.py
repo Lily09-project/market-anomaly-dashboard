@@ -61,7 +61,7 @@ def _parse_response_payload(payload: bytes, content_type: str = "") -> pd.DataFr
                 if key in value and isinstance(value[key], list):
                     return pd.DataFrame(value[key])
         return pd.DataFrame(value)
-    return pd.read_csv(StringIO(text))
+    return pd.read_csv(StringIO(text), dtype={"symbol": "string", "stock_id": "string", "證券代號": "string", "代號": "string"})
 
 def _parse_response(response) -> pd.DataFrame:
     """Backward-compatible response parser for callers outside the fetch path."""

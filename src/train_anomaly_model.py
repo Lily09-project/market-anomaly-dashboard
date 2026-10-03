@@ -93,7 +93,7 @@ def train_anomaly_model(config: dict | None = None) -> Path:
     features_path = project_path(cfg["data"]["features_path"])
     if not features_path.exists():
         build_features(cfg)
-    df = pd.read_csv(features_path, parse_dates=["date"]).sort_values(["symbol", "date"])
+    df = pd.read_csv(features_path, parse_dates=["date"], dtype={"symbol": "string"}).sort_values(["symbol", "date"])
     df = add_pseudo_labels(df)
     X = df[MODEL_FEATURES].replace([np.inf, -np.inf], np.nan).fillna(0)
 
