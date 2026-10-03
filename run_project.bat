@@ -96,31 +96,6 @@ if not defined PY_EXE (
 )
 
 :python_ready
-
-where python >nul 2>nul
-if not errorlevel 1 (
-    python --version >nul 2>nul
-    if not errorlevel 1 set "PY_EXE=python"
-)
-
-if not defined PY_EXE (
-    where py >nul 2>nul
-    if not errorlevel 1 (
-        py -3 --version >nul 2>nul
-        if not errorlevel 1 (
-            set "PY_EXE=py"
-            set "PY_ARGS=-3"
-        )
-    )
-)
-
-if not defined PY_EXE (
-    echo [ERROR] Python was not found. Install Python 3.10+ and enable Add Python to PATH.
-    if /I not "%~1"=="--validate" pause
-    exit /b 1
-)
-
-:python_ready
 echo Using Python: %PY_EXE% %PY_ARGS%
 echo [1/9] Creating or checking virtual environment...
 set "VENV_PY=%CD%\.venv\Scripts\python.exe"

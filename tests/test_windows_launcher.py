@@ -9,6 +9,7 @@ def test_launcher_requires_the_locked_python_version():
     assert "Install Python 3.10+" not in source
     assert 'set "PY_ARGS=-3"' not in source
     assert "Existing .venv must use Python 3.12" in source
+    assert source.count("\n:python_ready\n") == 1
 
 
 def test_windows_ci_executes_the_real_noninteractive_launcher():
