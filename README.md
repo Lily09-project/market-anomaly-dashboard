@@ -8,9 +8,13 @@
 
 ## 公開展示版
 
-互動式 GitHub Pages 版提供搜尋、篩選、圖表、明細比較與 CSV／JSON 下載，支援手機與深淺主題。Python／Streamlit 版本保留完整分析流程；展示版的資料模式與部署方式見 [GitHub Pages](docs/GITHUB_PAGES.md)。
+[開啟互動展示網站](https://lily09-project.github.io/market-anomaly-dashboard/) · 不需登入，也不需作者的裝置開機。
 
-## 介面預覽
+搜尋、篩選、圖表、最多三筆比較與 CSV／JSON 下載，支援手機與深淺主題。使用可重現的 DEMO 合成資料，不是即時觀測或行情。Python／Streamlit 版本保留完整分析流程；功能邊界與部署方式見 [GitHub Pages](docs/GITHUB_PAGES.md)。
+
+![GitHub Pages 互動展示版](docs/screenshots/ui-pages.jpg)
+
+## Python／Streamlit 介面預覽
 
 ![個股研究與技術證據](docs/screenshots/ui-stocks.png)
 ![市場雷達與研究排序](docs/screenshots/ui-radar.png)
