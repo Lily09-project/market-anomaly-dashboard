@@ -50,7 +50,7 @@ def keyboard_check(page):
           const x = Math.max(1, Math.min(innerWidth-1, r.left+r.width/2));
           const y = Math.max(1, Math.min(innerHeight-1, r.top+r.height/2));
           const hit = document.elementFromPoint(x,y);
-          return {tag:node.tagName, visible:r.width>0 && r.height>0,
+          return {tag:node.tagName, id:node.id, type:node.type, focusVisible:node.matches(":focus-visible"), visible:r.width>0 && r.height>0,
             outline:style.outlineStyle !== "none" && parseFloat(style.outlineWidth)>=2,
             occluded:!(hit && (node.contains(hit) || hit.contains(node)))};
         }""")
