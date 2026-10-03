@@ -65,15 +65,37 @@ if defined PORT_PID (
 
 :port_ready
 
-REM Find Python
+REM The dependency locks are built and tested with Python 3.12.
 set "PY_EXE="
 set "PY_ARGS="
 if exist "%CD%\.venv\Scripts\python.exe" (
-    "%CD%\.venv\Scripts\python.exe" --version >nul 2>nul
-    if not errorlevel 1 set "PY_EXE=%CD%\.venv\Scripts\python.exe"
+    "%CD%\.venv\Scripts\python.exe" -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)" >nul 2>nul
+    if errorlevel 1 (
+        echo [ERROR] Existing .venv must use Python 3.12. Preserve or move it before creating a new environment.
+        if /I not "%~1"=="--validate" pause
+        exit /b 1
+    )
+    set "PY_EXE=%CD%\.venv\Scripts\python.exe"
+)
+if defined PY_EXE goto :python_ready
+
+py -3.12 --version >nul 2>nul
+if not errorlevel 1 (
+    set "PY_EXE=py"
+    set "PY_ARGS=-3.12"
+)
+if defined PY_EXE goto :python_ready
+
+python -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)" >nul 2>nul
+if not errorlevel 1 set "PY_EXE=python"
+
+if not defined PY_EXE (
+    echo [ERROR] Python 3.12 was not found. Install Python 3.12 and enable Add Python to PATH.
+    if /I not "%~1"=="--validate" pause
+    exit /b 1
 )
 
-if defined PY_EXE goto :python_ready
+:python_ready
 
 where python >nul 2>nul
 if not errorlevel 1 (
