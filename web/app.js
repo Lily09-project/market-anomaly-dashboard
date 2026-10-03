@@ -8,6 +8,45 @@ const el = (tag, text, attrs = {}) => {
 const number = value => typeof value === "number" && Number.isFinite(value);
 const format = value => value === null || value === undefined || value === "" ? "—" :
   number(value) ? new Intl.NumberFormat("zh-TW", {maximumFractionDigits: 3}).format(value) : String(value);
+
+function formatField(field, value) {
+  if (!number(value)) return format(value);
+  const key = field.key;
+  if (key === "season") return String(Math.trunc(value));
+  if (["daily_return", "volatility_20"].includes(key)) return new Intl.NumberFormat("zh-TW", {style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2}).format(value);
+  const digits = ["batting_average", "ops", "win_pct", "whip"].includes(key) ? 3 : ["close", "era"].includes(key) ? 2 : null;
+  return digits === null ? format(value) : new Intl.NumberFormat("zh-TW", {minimumFractionDigits: digits, maximumFractionDigits: digits}).format(value);
+}
+// Published naive timestamps are Taiwan wall time; calendar dates never use viewer time.
+function chartTime(value) {
+  const text = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/u.test(text)) return Date.parse(text + "T00:00:00Z");
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/u.test(text) && !/(?:Z|[+-]\d{2}:?\d{2})$/u.test(text)) return Date.parse(text.replace(" ", "T") + "+08:00");
+  return Date.parse(text);
+}
+function chartDate(time) {
+  return new Intl.DateTimeFormat("en-CA", {timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit"}).format(new Date(time));
+}
+function compactFields() {
+  const extra = bundle.kind === "market" ? ["daily_return"] : dataset.id === "batters" ? ["batting_average"] :
+    dataset.id === "pitchers" ? ["era"] : dataset.id === "roster" ? ["roster_status"] : bundle.kind === "aqi" ? ["pm25"] : [];
+  return new Set([dataset.name, dataset.group, dataset.date, dataset.value, ...extra].filter(Boolean));
+}
+function tablePageSize() {
+  return $("table").clientWidth <= 70 * parseFloat(getComputedStyle($("table")).fontSize) ? 8 : 20;
+}
+function focusResults() {
+  $("table-title").focus({preventScroll: true});
+  $("table-title").scrollIntoView({block: "start", behavior: "auto"});
+}
+function syncAdvancedFilters() {
+  const active = !!(state.start || state.end || (dataset.minimum && state.minimum !== dataset.minimum.value));
+  $("advanced-filters").hidden = !(dataset.date || dataset.minimum);
+  $("advanced-summary").textContent = active ? "進階篩選 · 已套用" :
+    dataset.minimum && state.minimum > 0 ? "進階篩選 · " + dataset.minimum.label + " " + state.minimum : "進階篩選";
+  if (active) $("advanced-filters").open = true;
+}
+
 const hash = async text => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))))
   .map(byte => byte.toString(16).padStart(2, "0")).join("");
 const csvCell = value => {
@@ -22,9 +61,10 @@ function download(text, name, mime) {
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 let bundle, dataset, state, displayed = [], selected = new Set(), currentPage = 0, lastDetailButton;
-let pageSize = 20;
+let pageSize = 20, resizeFrame = 0;
 const rowId = row => JSON.stringify(dataset.identity.map(key => row[key]));
-const rowName = row => dataset.name && row[dataset.name] ? String(row[dataset.name]) + " · " + dataset.identity.map(key => format(row[key])).join(" · ") : dataset.identity.map(key => format(row[key])).join(" · ");
+const rowName = row => [...new Set([dataset.name, ...dataset.identity].filter(Boolean))]
+  .map(key => formatField(dataset.fields.find(field => field.key === key) || {key}, row[key])).join(" · ");
 const selectedRows = () => [...selected].map(id => dataset.rows.find(row => rowId(row) === id)).filter(Boolean);
 function setTheme(theme) {
   document.documentElement.dataset.theme = theme;
@@ -51,6 +91,8 @@ function readState() {
   } catch { /* Ignore invalid, untrusted URL state. */ }
   dataset = view;
   if (!dataset.fields.some(field => field.key === state.sort)) state.sort = dataset.sort;
+  const page = Number(query.get("page") || 1);
+  currentPage = Number.isSafeInteger(page) && page > 0 && page <= 20000 ? page - 1 : 0;
   const valid = new Set(dataset.rows.map(rowId));
   selected = new Set([...selected].filter(id => valid.has(id)));
 }
@@ -63,6 +105,7 @@ function saveState(push = false) {
     if (value) query.set(key, value);
   }
   if (selected.size) query.set("selected", JSON.stringify([...selected]));
+  if (currentPage) query.set("page", String(currentPage + 1));
   history[push ? "pushState" : "replaceState"](null, "", location.pathname + "?" + query);
 }
 function fillControls() {
@@ -85,6 +128,7 @@ function fillControls() {
   $("sort").replaceChildren(...dataset.fields.map(field => el("option", field.label, {value: field.key})));
   $("sort").value = state.sort;
   $("direction").textContent = state.descending ? "遞減" : "遞增";
+  syncAdvancedFilters();
   $("views").replaceChildren(...bundle.datasets.map(item => {
     const link = el("a", item.label, {href: "?view=" + encodeURIComponent(item.id)});
     if (item.id === dataset.id) link.setAttribute("aria-current", "page");
@@ -94,7 +138,7 @@ function fillControls() {
       state = {view: item.id, search: "", group: "", start: "", end: "", minimum: item.minimum?.value || 0,
         sort: item.sort, descending: true, detail: ""};
       dataset = item; selected.clear(); currentPage = 0; fillControls(); saveState(true); render();
-      $("table-title").textContent = dataset.label;
+      focusResults();
     });
     return link;
   }));
@@ -125,11 +169,11 @@ function renderMetrics() {
   const values = displayed.map(row => row[dataset.value]).filter(number);
   const missing = displayed.reduce((count, row) => count + dataset.fields.filter(field => row[field.key] === null).length, 0);
   const cards = [["資料筆數", displayed.length], ["分類數", new Set(displayed.map(row => row[dataset.group])).size],
-    [dataset.fields.find(field => field.key === dataset.value).label + " 平均", values.length ? values.reduce((a, b) => a + b, 0) / values.length : null],
+    [dataset.fields.find(field => field.key === dataset.value).label + " 樣本平均", values.length ? values.reduce((a, b) => a + b, 0) / values.length : null],
     ["缺值數", missing]];
   $("metrics").replaceChildren(...cards.map(([label, value]) => {
     const card = el("article", undefined, {class: "metric"});
-    card.append(el("p", label), el("strong", format(value))); return card;
+    card.append(el("p", label), el("strong", label.includes("樣本平均") ? formatField(dataset.fields.find(field => field.key === dataset.value), value) : format(value))); return card;
   }));
 }
 const svgNS = "http://www.w3.org/2000/svg";
@@ -152,20 +196,22 @@ function renderChart() {
     for (const row of rows) {
       const wrap = el("div", undefined, {class: "bar-row"});
       const name = row[dataset.name] || row[dataset.group];
-      wrap.append(el("p", String(name) + " · " + format(row[dataset.value])),
-        el("meter", format(row[dataset.value]), {min: 0, max, value: row[dataset.value], "aria-label": String(name)}));
+      wrap.append(el("p", String(name) + " · " + formatField(dataset.fields.find(field => field.key === dataset.value), row[dataset.value])),
+        el("meter", formatField(dataset.fields.find(field => field.key === dataset.value), row[dataset.value]), {min: 0, max, value: row[dataset.value], "aria-label": String(name)}));
       $("chart").append(wrap);
     }
     return;
   }
-  const groups = [...new Set(displayed.map(row => row[dataset.group]))].slice(0, 3);
+  const groupOrder = [...new Set(dataset.rows.map(row => row[dataset.group]))].sort((a, b) => String(a).localeCompare(String(b), "zh-TW"));
+  const present = new Set(displayed.map(row => row[dataset.group]));
+  const groups = groupOrder.filter(group => present.has(group)).slice(0, 3);
   const series = dataset.secondary ?
     [{key: dataset.value, label: dataset.fields.find(field => field.key === dataset.value).label, group: groups[0]},
       {key: dataset.secondary, label: dataset.fields.find(field => field.key === dataset.secondary).label, group: groups[0]}] :
     groups.map(group => ({key: dataset.value, label: String(group), group}));
   const all = series.flatMap(item => displayed.filter(row => row[dataset.group] === item.group && number(row[item.key])));
   if (!all.length) { $("chart").append(el("p", "此範圍沒有可繪製的數值。")); return; }
-  const xs = all.map(row => Date.parse(String(row[dataset.date])));
+  const xs = all.map(row => chartTime(row[dataset.date]));
   const lowX = Math.min(...xs), highX = Math.max(...xs);
   const ys = series.flatMap(item => all.filter(row => row[dataset.group] === item.group).map(row => row[item.key]).filter(number));
   const lowY = Math.min(...ys), highY = Math.max(...ys);
@@ -182,30 +228,37 @@ function renderChart() {
       .sort((a, b) => String(a[dataset.date]).localeCompare(String(b[dataset.date])));
     const step = Math.max(1, Math.ceil(rows.length / 1200));
     const points = rows.filter((_, idx) => idx % step === 0 || idx === rows.length - 1).map(row =>
-      (5 + 890 * (Date.parse(String(row[dataset.date])) - lowX) / (highX - lowX || 1)) + "," +
+      (5 + 890 * (chartTime(row[dataset.date]) - lowX) / (highX - lowX || 1)) + "," +
       (210 - 200 * (row[item.key] - lowY) / (highY - lowY || 1))).join(" ");
-    svg.append(svgEl("polyline", {points, class: "line series-" + index}));
-    $("legend").append(el("span", item.label));
+    svg.append(svgEl("polyline", {points, class: "line series-" + (dataset.secondary ? index : groupOrder.indexOf(item.group) % 3)}));
+    $("legend").append(el("span", item.label, {class: "series-" + (dataset.secondary ? index : groupOrder.indexOf(item.group) % 3)}));
   });
   const axis = el("div", undefined, {class: "axis"});
-  axis.append(el("span", new Date(lowX).toISOString().slice(0, 10)), el("span", "數值 " + format(lowY) + "–" + format(highY)),
-    el("span", new Date(highX).toISOString().slice(0, 10)));
+  axis.append(el("span", chartDate(lowX)), el("span", dataset.fields.find(field => field.key === dataset.value).label + " " + formatField(dataset.fields.find(field => field.key === dataset.value), lowY) + "–" + formatField(dataset.fields.find(field => field.key === dataset.value), highY)),
+    el("span", chartDate(highX)));
   $("chart").append(svg, axis);
   if (new Set(displayed.map(row => row[dataset.group])).size > 3) $("legend").append(el("p", "圖表顯示前三組；完整資料見明細。"));
   if (dataset.secondary) $("legend").append(el("p", "測站：" + String(groups[0])));
 }
 function renderTable() {
-  pageSize = $("table").clientWidth <= 70 * parseFloat(getComputedStyle($("table")).fontSize) ? 8 : 20;
+  pageSize = tablePageSize();
   $("table-title").textContent = dataset.label;
   const pages = Math.max(1, Math.ceil(displayed.length / pageSize));
   currentPage = Math.min(currentPage, pages - 1);
   const table = el("table", undefined, {role: "table"});
   const head = el("thead"), hrow = el("tr");
-  for (const label of ["比較", ...dataset.fields.map(field => field.label), "詳情"]) hrow.append(el("th", label, {scope: "col"}));
+  const compact = compactFields();
+  hrow.append(el("th", "比較", {scope: "col"}));
+  for (const field of dataset.fields) {
+    const th = el("th", field.label, {scope: "col", class: compact.has(field.key) ? "" : "secondary-field"});
+    if (field.key === state.sort) th.setAttribute("aria-sort", state.descending ? "descending" : "ascending");
+    hrow.append(th);
+  }
+  hrow.append(el("th", "詳情", {scope: "col"}));
   head.append(hrow); table.append(head);
   const body = el("tbody");
   for (const row of displayed.slice(currentPage * pageSize, (currentPage + 1) * pageSize)) {
-    const tr = el("tr"), id = rowId(row), pick = el("td", undefined, {"data-label": "比較"});
+    const id = rowId(row), tr = el("tr", undefined, {"data-row-id": id}), pick = el("td", undefined, {"data-label": "比較"});
     const label = el("label", undefined, {class: "pick"});
     const check = el("input", undefined, {type: "checkbox", "aria-label": "比較 " + rowName(row)});
     check.checked = selected.has(id);
@@ -216,7 +269,9 @@ function renderTable() {
       for (const input of $("table").querySelectorAll('input[type="checkbox"]')) input.disabled = !input.checked && selected.size >= 3;
     });
     label.append(check, el("span", "選取")); pick.append(label); tr.append(pick);
-    for (const field of dataset.fields) tr.append(el("td", format(row[field.key]), {"data-label": field.label}));
+    for (const field of dataset.fields) tr.append(el("td", formatField(field, row[field.key]), {
+      "data-label": field.label, "data-field": field.key, class: compact.has(field.key) ? "" : "secondary-field"
+    }));
     const cell = el("td", undefined, {"data-label": "詳情"});
     const button = el("button", "查看", {type: "button", "aria-label": "查看 " + rowName(row)});
     button.addEventListener("click", () => {lastDetailButton = button; state.detail = id; saveState(true); renderDetail(true);});
@@ -230,7 +285,7 @@ function renderTable() {
 }
 function valuesDl(row) {
   const dl = el("dl");
-  for (const field of dataset.fields) dl.append(el("dt", field.label), el("dd", format(row[field.key])));
+  for (const field of dataset.fields) dl.append(el("dt", field.label), el("dd", formatField(field, row[field.key])));
   return dl;
 }
 function renderComparison() {
@@ -238,7 +293,10 @@ function renderComparison() {
   $("comparison").replaceChildren(...rows.map(row => {
     const card = el("article"); card.append(el("h3", rowName(row)), valuesDl(row));
     const remove = el("button", "移除", {type: "button", "aria-label": "移除 " + rowName(row)});
-    remove.addEventListener("click", () => {selected.delete(rowId(row)); saveState(); renderTable(); renderComparison(); $("clear-selection").focus();});
+    remove.addEventListener("click", () => {
+      selected.delete(rowId(row)); saveState(); renderTable(); renderComparison();
+      ($("comparison").querySelector("button") || $("compare-title")).focus();
+    });
     card.append(remove); return card;
   }));
   $("selection-status").textContent = rows.length ? "已選取 " + rows.length + " / 3 筆資料。" : "選取最多三筆資料進行比較。";
@@ -259,6 +317,7 @@ function render() {
   const invalid = dataset.date && state.start && state.end && state.start > state.end;
   $("filter-error").hidden = !invalid;
   $("filter-error").textContent = invalid ? "結束日期不能早於開始日期，請修正日期或重設篩選。" : "";
+  syncAdvancedFilters();
   displayed = filteredRows();
   $("status").textContent = dataset.label + " · " + displayed.length + " 筆符合條件";
   renderMetrics(); renderChart(); renderTable(); renderComparison(); renderDetail();
@@ -397,17 +456,35 @@ async function initialize() {
     Object.assign(state, {search: "", group: "", start: "", end: "", detail: "", minimum: dataset.minimum?.value || 0});
     currentPage = 0; fillControls(); saveState(); render();
   });
-  $("previous").addEventListener("click", () => {currentPage--; renderTable(); $("previous").focus();});
-  $("next").addEventListener("click", () => {currentPage++; renderTable(); $("next").focus();});
+  for (const [id, delta] of [["previous", -1], ["next", 1]]) {
+    $(id).addEventListener("click", () => {currentPage += delta; renderTable(); saveState(); focusResults();});
+  }
+  const resize = () => {
+    cancelAnimationFrame(resizeFrame);
+    resizeFrame = requestAnimationFrame(() => {
+      const nextSize = tablePageSize();
+      if (nextSize === pageSize) return;
+      const firstIndex = currentPage * pageSize, focused = document.activeElement;
+      const id = focused.closest?.("tr[data-row-id]")?.getAttribute("data-row-id");
+      const control = focused.tagName;
+      currentPage = Math.floor(firstIndex / nextSize);
+      renderTable(); saveState();
+      if (id) {
+        const replacement = [...$("table").querySelectorAll("tr[data-row-id]")].find(item => item.getAttribute("data-row-id") === id);
+        (replacement?.querySelector(control === "INPUT" ? "input" : "button") || $("table-title")).focus({preventScroll: true});
+      }
+    });
+  };
+  new ResizeObserver(resize).observe($("table"));
   $("csv").addEventListener("click", () => download("\ufeff" + [dataset.fields.map(field => csvCell(field.key)).join(","),
     ...displayed.map(row => dataset.fields.map(field => csvCell(row[field.key])).join(","))].join("\r\n"),
     bundle.project + "-" + dataset.id + ".csv", "text/csv;charset=utf-8"));
   const safeExport = rows => exportReport(rows).catch(() => {$("selection-status").textContent = "無法建立報告，請重新整理後再試。";});
   $("json").addEventListener("click", () => safeExport(displayed));
   $("selection-download").addEventListener("click", () => safeExport(selectedRows()));
-  $("clear-selection").addEventListener("click", () => {selected.clear(); saveState(); renderTable(); renderComparison(); $("reset").focus();});
+  $("clear-selection").addEventListener("click", () => {selected.clear(); saveState(); renderTable(); renderComparison(); $("compare-title").focus();});
   $("close-detail").addEventListener("click", () => {state.detail = ""; saveState(); renderDetail(); if (lastDetailButton?.isConnected) lastDetailButton.focus(); else $("reset").focus();});
-  addEventListener("popstate", () => {readState(); currentPage = 0; fillControls(); render();});
+  addEventListener("popstate", () => {readState(); fillControls(); render(); if (state.detail) renderDetail(true); else focusResults();});
 }
 $("retry").addEventListener("click", () => location.reload());
 initialize().catch(() => {

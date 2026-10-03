@@ -24,11 +24,13 @@
     <div class="filters">
       <label>搜尋<input id="search" type="search" autocomplete="off" placeholder="搜尋名稱或代碼"></label>
       <label id="group-label">分類<select id="group"></select></label>
+      <button id="reset" type="button">重設篩選</button>
+    </div>
+    <details id="advanced-filters"><summary id="advanced-summary">進階篩選</summary><div class="filters advanced-fields">
       <label id="start-label">開始日期<input id="start" type="date"></label>
       <label id="end-label">結束日期<input id="end" type="date"></label>
       <label id="minimum-label" hidden>最低樣本<input id="minimum" type="number" min="0" max="100000" step="1"></label>
-      <button id="reset" type="button">重設篩選</button>
-    </div>
+    </div></details>
     <p id="filter-error" class="error" role="alert" hidden></p>
   </section>
   <p id="status" role="status" aria-live="polite" aria-atomic="true">正在載入資料…</p>
@@ -39,13 +41,13 @@
     <div id="legend" class="legend"></div>
   </section>
   <section class="panel" aria-labelledby="table-title">
-    <div class="section-head"><h2 id="table-title">資料明細</h2><div class="actions"><button id="csv" type="button">下載 CSV</button><button id="json" class="primary" type="button">下載 JSON</button></div></div>
+    <div class="section-head"><h2 id="table-title" tabindex="-1">資料明細</h2><div class="actions"><button id="csv" type="button">下載 CSV</button><button id="json" class="primary" type="button">下載 JSON</button></div></div>
     <div class="sort"><label>排序<select id="sort"></select></label><button id="direction" type="button" aria-label="切換排序方向">遞減</button></div>
     <div id="table" class="table-wrap"></div>
-    <div class="pagination"><button id="previous" type="button">上一頁</button><span id="page-count"></span><button id="next" type="button">下一頁</button></div>
+    <div class="pagination"><button id="previous" type="button">上一頁</button><span id="page-count" role="status" aria-live="polite" aria-atomic="true"></span><button id="next" type="button">下一頁</button></div>
   </section>
   <section class="panel" aria-labelledby="compare-title">
-    <div class="section-head"><h2 id="compare-title">比較清單</h2><div class="actions"><button id="clear-selection" type="button">清除清單</button><button id="selection-download" type="button">下載比較報告</button></div></div>
+    <div class="section-head"><h2 id="compare-title" tabindex="-1">比較清單</h2><div class="actions"><button id="clear-selection" type="button">清除清單</button><button id="selection-download" type="button">下載比較報告</button></div></div>
     <p id="selection-status" role="status" aria-live="polite">選取最多三筆資料進行比較。</p>
     <div id="comparison" class="comparison"></div>
   </section>

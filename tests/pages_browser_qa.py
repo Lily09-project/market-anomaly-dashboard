@@ -92,6 +92,7 @@ def functional_check(page, url, bundle):
     assert len(rows) == len(report["rows"])
     assert all(row[first["group"]] == group for row in rows)
     if first["date"]:
+        page.locator("#advanced-filters").evaluate("(node) => node.open = true")
         dates = sorted(row[first["date"]][:10] for row in report["rows"])
         page.locator("#start").fill(dates[0]); page.locator("#start").press("Tab")
         page.locator("#end").fill(dates[0]); page.locator("#end").press("Tab")
@@ -124,6 +125,7 @@ def functional_check(page, url, bundle):
     assert not page.locator("#detail-panel").is_visible()
     if bundle["kind"] == "cpbl":
         page.locator('#views a[href="?view=batters"]').click()
+        page.locator("#advanced-filters").evaluate("(node) => node.open = true")
         page.locator("#minimum").fill("100"); page.locator("#minimum").press("Tab")
         players = downloaded_json(page, "#json")
         assert all(row["pa"] >= 100 and len(row["player_id"]) == 10 for row in players["rows"])
@@ -161,6 +163,85 @@ def functional_check(page, url, bundle):
         assert page.locator("#snapshot-download").is_disabled()
 
 
+
+def ux_regression_check(page, url, bundle):
+    """Behavioral regressions which geometry-only checks cannot catch."""
+    page.goto(url)
+    page.locator("#status").filter(has_text="筆符合條件").wait_for()
+    first = bundle["datasets"][0]
+    # Table sorting must not silently change the chart's selected series or colors.
+    def chart_signature():
+        return page.locator("#legend span").evaluate_all(
+            "(nodes) => nodes.map(node => [node.textContent, node.className, getComputedStyle(node, '::before').borderTopColor])")
+    signature = chart_signature()
+    for field in first["fields"]:
+        page.locator("#sort").select_option(field["key"])
+        assert chart_signature() == signature, field
+        page.locator("#direction").click()
+        assert chart_signature() == signature, field
+        assert page.locator("th[aria-sort]").count() == 1
+    page.locator("#reset").click()
+    # Keyboard route changes must focus a persistent, visible content target.
+    if len(bundle["datasets"]) > 1:
+        target = bundle["datasets"][1]
+        page.locator('#views a[href="?view=' + target["id"] + '"]').focus()
+        page.keyboard.press("Enter")
+        assert page.locator("#table-title").evaluate("(node) => node === document.activeElement")
+    page.locator('#views a[href="?view=' + first["id"] + '"]').click()
+    page.locator('#table input[type="checkbox"]').first.check()
+    page.locator("#comparison button").first.click()
+    assert page.locator("#compare-title").evaluate("(node) => node === document.activeElement")
+    assert page.locator("#clear-selection").is_disabled()
+    # Preserve complete data in details while compact cards omit secondary fields.
+    page.locator("#table button").first.click()
+    assert page.locator("#detail dt").count() == len(first["fields"])
+    page.locator("#close-detail").click()
+    assert page.locator("#table button").first.evaluate("(node) => node === document.activeElement")
+    # Resize after desktop pagination, without another filter/change event.
+    paginated = next(view for view in bundle["datasets"] if len(view["rows"]) > 20)
+    page.set_viewport_size({"width": 1440, "height": 900})
+    page.locator('#views a[href="?view=' + paginated["id"] + '"]').click()
+    page.locator("#table tbody tr").nth(19).wait_for()
+    page.locator("#next").click()
+    assert page.locator("#table-title").evaluate("(node) => node === document.activeElement")
+    anchor = page.locator("#table tbody tr").first.get_attribute("data-row-id")
+    page.locator('#table input[type="checkbox"]').first.check()
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.wait_for_function("document.querySelectorAll('#table tbody tr').length === 8")
+    assert anchor in page.locator("#table tbody tr").evaluate_all("(nodes) => nodes.map(node => node.getAttribute('data-row-id'))")
+    assert page.locator("#selection-status").inner_text().startswith("已選取 1")
+    page.locator("#next").click()
+    assert page.locator("#table-title").evaluate("(node) => node === document.activeElement")
+    assert 0 <= page.locator("#table-title").bounding_box()["y"] < 844
+    shared = page.url
+    page.reload()
+    page.locator("#status").filter(has_text="筆符合條件").wait_for()
+    assert page.url == shared
+    assert not page.locator("#page-count").inner_text().startswith("1 /")
+    assert page.locator("#selection-status").inner_text().startswith("已選取 1")
+    page.locator("#clear-selection").click()
+    assert page.locator("#compare-title").evaluate("(node) => node === document.activeElement")
+    # A real calendar boundary must survive the viewer's timezone.
+    if bundle["kind"] == "aqi":
+        page.locator('#views a[href="?view=overview"]').click()
+        day = min(row[first["date"]][:10] for row in first["rows"])
+        page.locator("#advanced-filters").evaluate("(node) => node.open = true")
+        for control in ("start", "end"):
+            page.locator("#" + control).fill(day)
+            page.locator("#" + control).press("Tab")
+        assert page.locator("#chart .axis span").first.inner_text() == day
+        assert page.locator("#chart .axis span").last.inner_text() == day
+        page.locator("#advanced-summary").filter(has_text="已套用").wait_for()
+    elif bundle["kind"] == "market":
+        page.locator('#views a[href="?view=overview"]').click()
+        assert "%" in page.locator('td[data-field="daily_return"]').first.inner_text()
+    else:
+        page.locator('#views a[href="?view=teams"]').click()
+        assert "," not in page.locator('td[data-field="season"]').first.inner_text()
+    page.set_viewport_size({"width": 844, "height": 390})
+    layout_check(page)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", required=True)
@@ -187,6 +268,7 @@ def main():
                     for view in bundle["datasets"]:
                         page.locator('#views a[href="?view=' + view["id"] + '"]').click()
                         assert page.locator("#status").inner_text().startswith(view["label"])
+                        assert page.locator("#table-title").evaluate("(node) => node === document.activeElement")
                         try:
                             layout_check(page); keyboard_check(page)
                         except AssertionError:
@@ -199,6 +281,12 @@ def main():
             context = browser.new_context(viewport={"width": 390, "height": 1000}, color_scheme=theme, accept_downloads=True)
             page = context.new_page()
             functional_check(page, args.url, bundle)
+            ux_regression_check(page, args.url, bundle)
+            context.close()
+        for zone in ("UTC", "Asia/Taipei", "America/Los_Angeles"):
+            context = browser.new_context(viewport={"width": 390, "height": 844}, timezone_id=zone, reduced_motion="reduce")
+            page = context.new_page()
+            ux_regression_check(page, args.url, bundle)
             context.close()
         context = browser.new_context()
         page = context.new_page()
