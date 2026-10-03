@@ -105,10 +105,27 @@ def layout_issues(page) -> list[str]:
     )
 
 
+def wait_for_app_idle(page) -> None:
+    """Synchronize with Streamlit reruns before judging rendered UI or uploading."""
+    # Widgets debounce before starting a rerun; wait for the actual completion
+    # state and removed skeletons, as Streamlit's own browser tests do.
+    page.wait_for_timeout(250)
+    page.locator(
+        '[data-testid="stApp"][data-test-connection-state="CONNECTED"]'
+        '[data-test-script-state="notRunning"]'
+    ).wait_for(state="attached", timeout=60_000)
+    page.wait_for_function(
+        "() => document.querySelectorAll('[data-testid=stSkeleton]').length === 0",
+        timeout=60_000,
+    )
+    page.wait_for_timeout(100)
+
+
 def focus_issues(page) -> list[str]:
     """Traverse real Tab order, validating visible controls and their focused proxies."""
     from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
+    wait_for_app_idle(page)
     issues: list[str] = []
     page.evaluate(
         """() => {
@@ -204,6 +221,10 @@ def focus_issues(page) -> list[str]:
                     visibility: style.visibility,
                     position: style.position,
                     transform: style.transform,
+                    occluder: (() => {
+                        const top = document.elementFromPoint(Math.max(1, Math.min(innerWidth - 1, rect.left + rect.width / 2)), Math.max(1, Math.min(innerHeight - 1, rect.top + rect.height / 2)));
+                        return top ? top.outerHTML.slice(0, 500) : null;
+                    })(),
                 });
                 const key = [
                     target.tagName, target.id || '', target.getAttribute('data-testid') || '',
@@ -418,6 +439,7 @@ def apply_theme_mode(
 
 def download_payload(page, label: str, suffix: str) -> bytes:
     """Read the real browser download, not the button's presence or URL."""
+    wait_for_app_idle(page)
     with page.expect_download(timeout=30_000) as pending:
         page.get_by_role("button", name=label).click(timeout=30_000)
     download = pending.value
@@ -451,6 +473,7 @@ def choose_option(page, label: str, value: str) -> None:
     selector.click()
     page.get_by_role("option", name=value, exact=True).click()
     page.keyboard.press("Escape")
+    wait_for_app_idle(page)
 
 
 def functional_download_smoke(page, base_url: str, theme_mode: str | None) -> None:
@@ -468,10 +491,13 @@ def functional_download_smoke(page, base_url: str, theme_mode: str | None) -> No
     navigation = page.locator(".st-key-active_page")
     navigation.locator("label").filter(has_text="快照比較").first.click()
     page.get_by_role("heading", name="研究快照比較", exact=True).wait_for(timeout=60_000)
+    wait_for_app_idle(page)
     for key in ("baseline_snapshot_upload", "current_snapshot_upload"):
         page.locator(f".st-key-{key} input[type=file]").set_input_files(
             {"name": "browser-export.json", "mimeType": "application/json", "buffer": payload}
         )
+        page.locator(f".st-key-{key}").get_by_text("browser-export.json", exact=True).wait_for(timeout=30_000)
+        wait_for_app_idle(page)
     page.get_by_role("heading", name="比較摘要", exact=True).wait_for(timeout=60_000)
     comparison = json.loads(download_payload(page, "下載比較 JSON", ".json"))
     if comparison != compare_snapshots(snapshot, snapshot):
