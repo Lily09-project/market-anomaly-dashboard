@@ -1,0 +1,85 @@
+name: Static Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install locked build and browser dependencies
+        run: python -m pip install -r requirements-e2e.txt -c requirements-dev.lock.txt
+      - name: Prepare verified public inputs
+        run: python run_all.py --mode sample
+      - name: Test static export security boundary
+        run: python -m pytest -q tests/test_pages_export.py tests/test_symbol_identity_pipeline.py
+      - name: Check JavaScript syntax
+        run: node --check web/app.js
+      - name: Build allowlisted static artifact
+        run: |
+          python scripts/build_pages.py
+          sha256sum pages-dist/data.json > first-build.sha256
+          python scripts/build_pages.py
+          sha256sum --check first-build.sha256
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+      - name: Start static project-path preview
+        shell: bash
+        run: |
+          nohup python -m http.server 8874 --bind 127.0.0.1 --directory . > pages-preview.log 2>&1 &
+          for attempt in {1..15}; do
+            if curl --fail --silent http://127.0.0.1:8874/pages-dist/integrity.json > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+      - name: Test every static page and real downloads
+        run: python tests/pages_browser_qa.py --url http://127.0.0.1:8874/pages-dist/
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: static-pages-browser-evidence
+          path: reports/pages-qa
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Upload only verified static release
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: pages-dist
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

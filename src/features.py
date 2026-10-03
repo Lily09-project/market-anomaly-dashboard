@@ -31,7 +31,7 @@ def build_features(config: dict | None = None) -> Path:
     cleaned_path = project_path(cfg["data"]["cleaned_path"])
     if not cleaned_path.exists():
         preprocess_data(cfg)
-    df = pd.read_csv(cleaned_path, parse_dates=["date"]).sort_values(["symbol", "date"])
+    df = pd.read_csv(cleaned_path, parse_dates=["date"], dtype={"symbol": "string"}).sort_values(["symbol", "date"])
 
     frames = []
     for _, group in df.groupby("symbol", sort=False):

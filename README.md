@@ -6,6 +6,10 @@
 
 > 本專案不是股價預測器、交易訊號或投資建議服務，不提供買賣建議。
 
+## 公開展示版
+
+互動式 GitHub Pages 版提供搜尋、篩選、圖表、明細比較與 CSV／JSON 下載，支援手機與深淺主題。Python／Streamlit 版本保留完整分析流程；展示版的資料模式與部署方式見 [GitHub Pages](docs/GITHUB_PAGES.md)。
+
 ## 介面預覽
 
 ![個股研究與技術證據](docs/screenshots/ui-stocks.png)

@@ -105,10 +105,27 @@ def layout_issues(page) -> list[str]:
     )
 
 
+def wait_for_app_idle(page) -> None:
+    """Synchronize with Streamlit reruns before judging rendered UI or uploading."""
+    # Widgets debounce before starting a rerun; wait for the actual completion
+    # state and removed skeletons, as Streamlit's own browser tests do.
+    page.wait_for_timeout(250)
+    page.locator(
+        '[data-testid="stApp"][data-test-connection-state="CONNECTED"]'
+        '[data-test-script-state="notRunning"]'
+    ).wait_for(state="attached", timeout=60_000)
+    page.wait_for_function(
+        "() => document.querySelectorAll('[data-testid=stSkeleton]').length === 0",
+        timeout=60_000,
+    )
+    page.wait_for_timeout(100)
+
+
 def focus_issues(page) -> list[str]:
     """Traverse real Tab order, validating visible controls and their focused proxies."""
     from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
+    wait_for_app_idle(page)
     issues: list[str] = []
     page.evaluate(
         """() => {
@@ -204,6 +221,10 @@ def focus_issues(page) -> list[str]:
                     visibility: style.visibility,
                     position: style.position,
                     transform: style.transform,
+                    occluder: (() => {
+                        const top = document.elementFromPoint(Math.max(1, Math.min(innerWidth - 1, rect.left + rect.width / 2)), Math.max(1, Math.min(innerHeight - 1, rect.top + rect.height / 2)));
+                        return top ? top.outerHTML.slice(0, 500) : null;
+                    })(),
                 });
                 const key = [
                     target.tagName, target.id || '', target.getAttribute('data-testid') || '',
@@ -381,11 +402,122 @@ def check_health(base_url: str) -> None:
         raise RuntimeError(f"Streamlit health check returned unexpected body: {body[:200]}")
 
 
+def apply_theme_mode(
+    page,
+    theme_mode: str | None,
+    *,
+    selector_label: str | None = None,
+    option_labels: dict[str, str] | None = None,
+) -> None:
+    if theme_mode is None:
+        return
+    if theme_mode not in {"light", "dark"}:
+        raise ValueError("theme_mode must be light or dark")
+    if selector_label is not None:
+        sidebar = page.locator('[data-testid="stSidebar"]')
+        if sidebar.get_attribute("aria-expanded") != "true":
+            expand_control = page.locator('[data-testid="stExpandSidebarButton"]')
+            expand_button = expand_control.locator("button")
+            if expand_button.count():
+                expand_button.click(timeout=15_000)
+            else:
+                expand_control.click(timeout=15_000)
+        option_label = (option_labels or {}).get(theme_mode)
+        if not option_label:
+            raise ValueError(f"missing app theme label for {theme_mode}")
+        page.get_by_role("combobox", name=selector_label).click(timeout=15_000)
+        page.get_by_role("option", name=option_label, exact=True).click(timeout=15_000)
+        collapse_button = page.locator('[data-testid="stSidebarCollapseButton"] button')
+        if sidebar.get_attribute("aria-expanded") == "true" and collapse_button.count():
+            collapse_button.click(timeout=15_000)
+    page.wait_for_function(
+        "expected => getComputedStyle(document.documentElement).colorScheme === expected",
+        arg=theme_mode,
+        timeout=15_000,
+    )
+
+
+def download_payload(page, label: str, suffix: str) -> bytes:
+    """Read the real browser download, not the button's presence or URL."""
+    wait_for_app_idle(page)
+    with page.expect_download(timeout=30_000) as pending:
+        page.get_by_role("button", name=label).click(timeout=30_000)
+    download = pending.value
+    failure = download.failure()
+    if failure or not download.suggested_filename.endswith(suffix):
+        raise RuntimeError(f"download failed or unexpected filename: {label}: {failure}")
+    path = download.path()
+    if path is None:
+        raise RuntimeError(f"download has no readable payload: {label}")
+    payload = Path(path).read_bytes()
+    if not payload:
+        raise RuntimeError(f"download is empty: {label}")
+    return payload
+
+
+def open_sidebar(page) -> None:
+    sidebar = page.locator('[data-testid="stSidebar"]')
+    if sidebar.get_attribute("aria-expanded") != "true":
+        control = page.locator('[data-testid="stExpandSidebarButton"]')
+        button = control.locator("button")
+        (button if button.count() else control).click(timeout=15_000)
+    page.wait_for_function(
+        "() => document.querySelector('[data-testid=stSidebar]')?.getAttribute('aria-expanded') === 'true'",
+        timeout=15_000,
+    )
+
+
+def choose_option(page, label: str, value: str) -> None:
+    selector = page.get_by_role("combobox", name=label)
+    selector.scroll_into_view_if_needed()
+    selector.click()
+    page.get_by_role("option", name=value, exact=True).click()
+    page.keyboard.press("Escape")
+    wait_for_app_idle(page)
+
+
+def functional_download_smoke(page, base_url: str, theme_mode: str | None) -> None:
+    # QA scripts may be executed directly, with only scripts/ on sys.path.
+    root = str(Path(__file__).resolve().parents[1])
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from src.snapshot_compare import compare_snapshots, parse_snapshot_bytes
+
+    page.goto(f"{base_url.rstrip('/')}/?page=stocks", wait_until=PAGE_LOAD_STATE, timeout=60_000)
+    page.get_by_role("heading", name="股票研究工作台", exact=True).wait_for(timeout=60_000)
+    apply_theme_mode(page, theme_mode)
+    payload = download_payload(page, "下載 JSON", ".json")
+    snapshot = parse_snapshot_bytes(payload)
+    navigation = page.locator(".st-key-active_page")
+    navigation.locator("label").filter(has_text="快照比較").first.click()
+    page.get_by_role("heading", name="研究快照比較", exact=True).wait_for(timeout=60_000)
+    wait_for_app_idle(page)
+    for key in ("baseline_snapshot_upload", "current_snapshot_upload"):
+        page.locator(f".st-key-{key} input[type=file]").set_input_files(
+            {"name": "browser-export.json", "mimeType": "application/json", "buffer": payload}
+        )
+        page.locator(f".st-key-{key}").get_by_text("browser-export.json", exact=True).wait_for(timeout=30_000)
+        wait_for_app_idle(page)
+    page.get_by_role("heading", name="比較摘要", exact=True).wait_for(timeout=60_000)
+    comparison = json.loads(download_payload(page, "下載比較 JSON", ".json"))
+    if comparison != compare_snapshots(snapshot, snapshot):
+        raise RuntimeError("browser snapshot roundtrip changed the comparison contract")
+    tampered = dict(snapshot)
+    tampered["asset"] = {**snapshot["asset"], "symbol": "TAMPER"}
+    page.locator(".st-key-current_snapshot_upload input[type=file]").set_input_files(
+        {"name": "tampered.json", "mimeType": "application/json", "buffer": json.dumps(tampered).encode("utf-8")}
+    )
+    page.get_by_text("目前快照：快照完整性驗證失敗；內容可能已被修改。", exact=True).wait_for(timeout=30_000)
+    if page.get_by_role("button", name="下載比較 JSON", exact=True).count():
+        raise RuntimeError("tampered snapshot still permits a comparison download")
+
+
 def run_browser_checks(
     base_url: str,
     screenshot_dir: Path,
     extended: bool = False,
     text_scale: bool = False,
+    theme_mode: str | None = None,
 ) -> str:
     try:
         from playwright.sync_api import Error as PlaywrightError
@@ -411,7 +543,10 @@ def run_browser_checks(
                 )
                 page.on("pageerror", lambda error, errors=console_errors: errors.append(str(error)))
                 try:
-                    page.emulate_media(reduced_motion="reduce")
+                    if theme_mode is None:
+                        page.emulate_media(reduced_motion="reduce")
+                    else:
+                        page.emulate_media(reduced_motion="reduce", color_scheme=theme_mode)
                     page.goto(
                         f"{base_url.rstrip('/')}/?page={route}",
                         wait_until=PAGE_LOAD_STATE,
@@ -427,6 +562,7 @@ def run_browser_checks(
                     missing = missing_page_contracts(route, body_text)
                     if missing:
                         failures.append(f"{name}/{route}: missing content {missing}")
+                    apply_theme_mode(page, theme_mode)
                     if text_scale:
                         page.add_style_tag(content=TEXT_SCALE_CSS)
                         page.wait_for_timeout(250)
@@ -499,6 +635,26 @@ def run_browser_checks(
             failures.append(f"interaction flow browser error: {exc}")
         finally:
             interaction_page.close()
+
+        for flow_name, flow_width, flow_height in (
+            ("desktop", 1440, 1000),
+            ("mobile", 320 if extended else 375, 812),
+        ):
+            flow_page = browser.new_page(viewport={"width": flow_width, "height": flow_height}, accept_downloads=True)
+            try:
+                if theme_mode is None:
+                    flow_page.emulate_media(reduced_motion="reduce")
+                else:
+                    flow_page.emulate_media(reduced_motion="reduce", color_scheme=theme_mode)
+                functional_download_smoke(flow_page, base_url, theme_mode)
+                if flow_page.locator(STREAMLIT_EXCEPTION_SELECTOR).count():
+                    failures.append(f"{flow_name}/downloads: Streamlit runtime exception")
+            except (PlaywrightError, RuntimeError, ValueError, OSError) as exc:
+                failures.append(f"{flow_name}/downloads: {exc}")
+                print(f"DOWNLOAD FAILURE DOM ({flow_name}): {flow_page.locator('body').inner_text()[-8000:]}")
+                flow_page.screenshot(path=str(screenshot_dir / f"failure-downloads-{flow_name}.png"), full_page=True)
+            finally:
+                flow_page.close()
         browser.close()
     if failures:
         raise RuntimeError("; ".join(failures[:12]))
@@ -520,6 +676,7 @@ def main() -> int:
         action="store_true",
         help="apply 200% root text scaling and rerun reflow checks",
     )
+    parser.add_argument("--theme-mode", choices=("light", "dark"))
     args = parser.parse_args()
     screenshot_dir = Path(args.screenshots)
     (screenshot_dir / "failure-evidence.json").unlink(missing_ok=True)
@@ -532,6 +689,7 @@ def main() -> int:
             screenshot_dir,
             extended=args.extended,
             text_scale=args.text_scale,
+            theme_mode=args.theme_mode,
         )
     except (OSError, urllib.error.URLError, RuntimeError) as exc:
         evidence = write_failure_evidence(args.url, screenshot_dir, str(exc))

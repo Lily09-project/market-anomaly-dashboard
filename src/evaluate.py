@@ -102,7 +102,7 @@ def evaluate_model(config: dict | None = None) -> Path:
     results_path = project_path(cfg["data"]["results_path"])
     if not results_path.exists():
         train_anomaly_model(cfg)
-    df = pd.read_csv(results_path, parse_dates=["date"])
+    df = pd.read_csv(results_path, parse_dates=["date"], dtype={"symbol": "string"})
     y_true = df["pseudo_anomaly"]
     y_model = df["model_anomaly"]
     y_baseline = df["zscore_baseline_anomaly"]
