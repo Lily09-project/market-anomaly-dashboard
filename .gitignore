@@ -31,3 +31,8 @@ reports/acceptance/
 reports/performance/
 docs/screenshots/ui-qa/
 docs/screenshots/ui-qa-review/
+
+# Static releases and browser evidence are generated in CI only.
+pages-dist/
+reports/pages-qa/
+first-build.sha256

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="description" content="可搜尋、篩選與下載的公開資料分析展示。">
+<title>資料分析</title>
+<link rel="stylesheet" href="./styles.css">
+<script type="module" src="./app.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">跳到主要內容</a>
+<header class="shell header">
+  <div><p class="eyebrow" id="brand">DATA DESK</p><h1 id="title">資料分析</h1></div>
+  <div class="header-actions"><a id="repository" href="https://github.com/Lily09-project">原始碼</a><button id="theme" type="button" aria-pressed="false">深色模式</button></div>
+</header>
+<main id="main" class="shell" tabindex="-1">
+  <div id="provenance" class="provenance"><span id="mode" class="badge">載入中</span><p id="source-date"></p></div>
+  <p id="notice" class="notice"></p>
+  <nav id="views" aria-label="分析頁面"></nav>
+  <section class="panel" aria-label="篩選條件">
+    <div class="filters">
+      <label>搜尋<input id="search" type="search" autocomplete="off" placeholder="搜尋名稱或代碼"></label>
+      <label id="group-label">分類<select id="group"></select></label>
+      <label id="start-label">開始日期<input id="start" type="date"></label>
+      <label id="end-label">結束日期<input id="end" type="date"></label>
+      <label id="minimum-label" hidden>最低樣本<input id="minimum" type="number" min="0" max="100000" step="1"></label>
+      <button id="reset" type="button">重設篩選</button>
+    </div>
+    <p id="filter-error" class="error" role="alert" hidden></p>
+  </section>
+  <p id="status" role="status" aria-live="polite" aria-atomic="true">正在載入資料…</p>
+  <section id="metrics" class="metrics" aria-label="篩選結果摘要"></section>
+  <section id="chart-panel" class="panel">
+    <h2 id="chart-title">趨勢</h2>
+    <div id="chart" class="chart"></div>
+    <div id="legend" class="legend"></div>
+  </section>
+  <section class="panel" aria-labelledby="table-title">
+    <div class="section-head"><h2 id="table-title">資料明細</h2><div class="actions"><button id="csv" type="button">下載 CSV</button><button id="json" class="primary" type="button">下載 JSON</button></div></div>
+    <div class="sort"><label>排序<select id="sort"></select></label><button id="direction" type="button" aria-label="切換排序方向">遞減</button></div>
+    <div id="table" class="table-wrap"></div>
+    <div class="pagination"><button id="previous" type="button">上一頁</button><span id="page-count"></span><button id="next" type="button">下一頁</button></div>
+  </section>
+  <section class="panel" aria-labelledby="compare-title">
+    <div class="section-head"><h2 id="compare-title">比較清單</h2><div class="actions"><button id="clear-selection" type="button">清除清單</button><button id="selection-download" type="button">下載比較報告</button></div></div>
+    <p id="selection-status" role="status" aria-live="polite">選取最多三筆資料進行比較。</p>
+    <div id="comparison" class="comparison"></div>
+  </section>
+  <section id="detail-panel" class="panel" hidden aria-labelledby="detail-title"><h2 id="detail-title" tabindex="-1">詳細資料</h2><div id="detail"></div><button id="close-detail" type="button">關閉詳細資料</button></section>
+  <section id="snapshot-panel" class="panel" hidden aria-labelledby="snapshot-title">
+    <h2 id="snapshot-title">快照比較</h2>
+    <div class="filters"><label>第一份 JSON 快照<input id="snapshot-a" type="file" accept=".json,application/json"></label>
+    <label>第二份 JSON 快照<input id="snapshot-b" type="file" accept=".json,application/json"></label></div>
+    <p>檔案僅在此瀏覽器處理，不會上傳。請使用本網站下載的 JSON。</p>
+    <p id="snapshot-status" role="status" aria-live="polite"></p>
+    <div id="snapshot-result"></div><button id="snapshot-download" type="button" disabled>下載快照比較</button>
+  </section>
+  <details class="panel"><summary>資料來源與使用限制</summary><dl id="quality"></dl></details>
+  <div id="fatal" class="panel error" role="alert" hidden><h2>資料暫時無法載入</h2><p>請重新整理。若問題持續，請稍後再試。</p><button id="retry" type="button">重新載入</button></div>
+  <noscript><p class="panel">請啟用 JavaScript，以使用篩選、圖表與下載功能。</p></noscript>
+</main>
+<footer class="shell"><p id="disclaimer"></p><p>GitHub Pages · 公開資料展示</p></footer>
+</body>
+</html>
