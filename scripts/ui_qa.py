@@ -415,6 +415,77 @@ def apply_theme_mode(
         timeout=15_000,
     )
 
+
+def download_payload(page, label: str, suffix: str) -> bytes:
+    """Read the real browser download, not the button's presence or URL."""
+    with page.expect_download(timeout=30_000) as pending:
+        page.get_by_role("button", name=label, exact=True).click(timeout=30_000)
+    download = pending.value
+    failure = download.failure()
+    if failure or not download.suggested_filename.endswith(suffix):
+        raise RuntimeError(f"download failed or unexpected filename: {label}: {failure}")
+    path = download.path()
+    if path is None:
+        raise RuntimeError(f"download has no readable payload: {label}")
+    payload = Path(path).read_bytes()
+    if not payload:
+        raise RuntimeError(f"download is empty: {label}")
+    return payload
+
+
+def open_sidebar(page) -> None:
+    sidebar = page.locator('[data-testid="stSidebar"]')
+    if sidebar.get_attribute("aria-expanded") != "true":
+        control = page.locator('[data-testid="stExpandSidebarButton"]')
+        button = control.locator("button")
+        (button if button.count() else control).click(timeout=15_000)
+    page.wait_for_function(
+        "() => document.querySelector('[data-testid=stSidebar]')?.getAttribute('aria-expanded') === 'true'",
+        timeout=15_000,
+    )
+
+
+def choose_option(page, label: str, value: str) -> None:
+    selector = page.get_by_role("combobox", name=label, exact=True)
+    selector.scroll_into_view_if_needed()
+    selector.click()
+    page.get_by_role("option", name=value, exact=True).click()
+    page.keyboard.press("Escape")
+
+
+def functional_download_smoke(page, base_url: str, theme_mode: str | None) -> None:
+    # QA scripts may be executed directly, with only scripts/ on sys.path.
+    root = str(Path(__file__).resolve().parents[1])
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from src.snapshot_compare import compare_snapshots, parse_snapshot_bytes
+
+    page.goto(f"{base_url.rstrip('/')}/?page=stocks", wait_until=PAGE_LOAD_STATE, timeout=60_000)
+    page.get_by_role("heading", name="股票研究工作台", exact=True).wait_for(timeout=60_000)
+    apply_theme_mode(page, theme_mode)
+    payload = download_payload(page, "下載 JSON", ".json")
+    snapshot = parse_snapshot_bytes(payload)
+    navigation = page.locator(".st-key-active_page")
+    navigation.locator("label").filter(has_text="快照比較").first.click()
+    page.get_by_role("heading", name="研究快照比較", exact=True).wait_for(timeout=60_000)
+    for key in ("baseline_snapshot_upload", "current_snapshot_upload"):
+        page.locator(f".st-key-{key} input[type=file]").set_input_files(
+            {"name": "browser-export.json", "mimeType": "application/json", "buffer": payload}
+        )
+    page.get_by_role("heading", name="比較摘要", exact=True).wait_for(timeout=60_000)
+    comparison = json.loads(download_payload(page, "下載比較 JSON", ".json"))
+    if comparison != compare_snapshots(snapshot, snapshot):
+        raise RuntimeError("browser snapshot roundtrip changed the comparison contract")
+    tampered = dict(snapshot)
+    tampered["asset"] = {**snapshot["asset"], "symbol": "TAMPER"}
+    page.locator(".st-key-current_snapshot_upload input[type=file]").set_input_files(
+        {"name": "tampered.json", "mimeType": "application/json", "buffer": json.dumps(tampered).encode("utf-8")}
+    )
+    page.get_by_text("目前快照：快照完整性驗證失敗；內容可能已被修改。", exact=True).wait_for(timeout=30_000)
+    if page.get_by_role("button", name="下載比較 JSON", exact=True).count():
+        raise RuntimeError("tampered snapshot still permits a comparison download")
+
+
 def run_browser_checks(
     base_url: str,
     screenshot_dir: Path,
@@ -538,6 +609,25 @@ def run_browser_checks(
             failures.append(f"interaction flow browser error: {exc}")
         finally:
             interaction_page.close()
+
+        for flow_name, flow_width, flow_height in (
+            ("desktop", 1440, 1000),
+            ("mobile", 320 if extended else 375, 812),
+        ):
+            flow_page = browser.new_page(viewport={"width": flow_width, "height": flow_height}, accept_downloads=True)
+            try:
+                if theme_mode is None:
+                    flow_page.emulate_media(reduced_motion="reduce")
+                else:
+                    flow_page.emulate_media(reduced_motion="reduce", color_scheme=theme_mode)
+                functional_download_smoke(flow_page, base_url, theme_mode)
+                if flow_page.locator(STREAMLIT_EXCEPTION_SELECTOR).count():
+                    failures.append(f"{flow_name}/downloads: Streamlit runtime exception")
+            except (PlaywrightError, RuntimeError, ValueError, OSError) as exc:
+                failures.append(f"{flow_name}/downloads: {exc}")
+                flow_page.screenshot(path=str(screenshot_dir / f"failure-downloads-{flow_name}.png"), full_page=True)
+            finally:
+                flow_page.close()
         browser.close()
     if failures:
         raise RuntimeError("; ".join(failures[:12]))
