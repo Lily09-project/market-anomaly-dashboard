@@ -337,7 +337,7 @@ def main():
                             if width == 1440 and scale == 1 and bundle["kind"] == "market" and view["id"] != "metrics":
                                 for key in ("date", "volume"):
                                     cell = page.locator('td[data-field="' + key + '"]').first
-                                    assert cell.evaluate("(node) => node.clientHeight <= parseFloat(getComputedStyle(node).lineHeight) + 2*parseFloat(getComputedStyle(node).paddingTop) + 2"), key
+                                    assert cell.evaluate("(node) => { const range = document.createRange(); range.selectNodeContents(node); return range.getClientRects().length === 1; }"), key
                         except AssertionError:
                             page.screenshot(path=str(evidence / f"failure-{theme}-{width}-{scale}-{view['id']}.png"), full_page=True)
                             raise
