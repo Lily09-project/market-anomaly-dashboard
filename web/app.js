@@ -649,6 +649,7 @@ function readProductState() {
     research:["history","forecast","anomaly","price","volatility"].includes(q.get("research")) ? q.get("research") : bundle.kind==="market" ? "price":"history",
     datum:(q.get("datum") || "").slice(0,500), entities:[]
   };
+  if(productState.screen==="board"&&!q.has("sort")&&["batters","pitchers"].includes(dataset.id)){state.sort=dataset.id==="pitchers"?"era":"ops";state.descending=dataset.id!=="pitchers";}
   try {const ids=JSON.parse(q.get("entities")||"[]");if(Array.isArray(ids))productState.entities=[...new Set(ids.filter(x=>typeof x==="string"&&x.length<=500))].slice(0,3);} catch {}
 }
 function productQuery(query) {
@@ -667,8 +668,11 @@ function productLink(text, screen, params={}) {
   return a;
 }
 function routeProduct(screen, params={}) {
-  const next=bundle.datasets.find(x=>x.id===params.view);
+  const primary=["home","report","research"].includes(screen)&&bundle.kind!=="cpbl";
+  const next=bundle.datasets.find(x=>x.id===(params.view||(primary||screen==="tools"&&bundle.kind==="market"?"overview":"")));
+  const priorPeriod={start:state.start,end:state.end};
   if(next&&next!==dataset){dataset=next;state={view:next.id,search:"",group:"",start:"",end:"",minimum:next.minimum?.value||0,sort:next.sort,descending:true,onlyAnomaly:false,detail:""};selected.clear();currentPage=0;}
+  if(next?.date){state.start=priorPeriod.start;state.end=priorPeriod.end;}
   productState={...productState,screen,...Object.fromEntries(Object.entries(params).filter(([key])=>key!=="view"))};
   if(bundle.kind==="cpbl"&&screen==="board"&&!params.sort){state.sort=dataset.id==="pitchers"?"era":dataset.id==="batters"?"ops":dataset.sort;state.descending=dataset.id!=="pitchers";}
   if(params.group!==undefined)state.group=params.group;if(params.detail!==undefined)state.detail=params.detail;
@@ -801,7 +805,7 @@ function renderMarketProduct(root) {
   if(!eventRows.length)center.append(el("p","這段期間沒有符合條件的紀錄；模型未標記不代表沒有風險。"));
   const dates=el("div",undefined,{class:"event-list"});
   for(const r of eventRows.slice(0,7)){const b=productButton(r.date+" · "+fieldValue(overview,r,"close"),()=>{productState.datum=r.date;saveState();renderProduct();$("datum-"+r.date)?.focus({preventScroll:true});$("product-feedback").textContent="已選 "+symbol+" "+r.date+" 的紀錄";},"clock");b.id="datum-"+r.date;b.setAttribute("aria-pressed",String(productState.datum===r.date));dates.append(b);}
-  center.append(dates,productLink("完整歷史紀錄與下載","records",{view:productState.research==="volatility"?"volatility":productState.research==="anomaly"?"anomaly":"overview",entity:symbol}),productLink("資料工具","tools"));
+  center.append(dates,productLink("完整歷史紀錄與下載","records",{view:productState.research==="volatility"?"volatility":productState.research==="anomaly"?"anomaly":"overview",entity:symbol}),productLink("資料工具","tools",{view:"overview",group:productState.entity}));
   const chosen=rows.find(r=>r.date===productState.datum)||latestRow(rows,"date");
   side.append(el("p","所選日期",{class:"kicker"}));
   if(chosen)side.append(el("h2",chosen.date),productValues(overview,chosen));else side.append(el("p","此範圍沒有資料。"));
@@ -847,7 +851,7 @@ function renderProduct() {
   $("record-browser").hidden=!record;$("product-root").hidden=record;
   $("snapshot-panel").hidden=!(bundle.kind==="market"&&(screen==="tools"||screen==="records"));
   $("product-nav").replaceChildren(...(bundle.kind==="aqi"?[productLink("查測站","home"),productLink("測站比較","stations"),productLink("資料與方法","methods",{view:"metrics"})]:
-    bundle.kind==="market"?[productLink("標的研究","research"),productLink("資料與方法","methods",{view:"metrics"}),productLink("資料工具","tools")]:
+    bundle.kind==="market"?[productLink("標的研究","research"),productLink("資料與方法","methods",{view:"metrics"}),productLink("資料工具","tools",{view:"overview",group:productState.entity})]:
     [productLink("球隊戰績","home"),productLink("打者榜","board",{view:"batters"}),productLink("投手榜","board",{view:"pitchers"}),productLink("球員搜尋","records",{view:"roster"}),productLink("資料版本","methods",{view:"history"})]));
   const root=$("product-root");root.replaceChildren();
   if(!record){

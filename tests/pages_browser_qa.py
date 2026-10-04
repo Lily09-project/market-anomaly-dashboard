@@ -855,6 +855,10 @@ def native_product_check(browser, url, bundle, evidence):
                 page.get_by_role("button", name="加入比較", exact=True).click()
                 page.get_by_role("link", name="比較已選紀錄", exact=True).click()
                 assert page.locator("#comparison article").count() == 1
+                page.goto(url + "?screen=board&view=pitchers")
+                page.locator("#record-browser").wait_for()
+                assert page.locator("#sort").input_value() == "era"
+                assert "遞增" in page.locator("#direction").inner_text()
             assert not errors, errors
             if width in (320, 1440):
                 page.goto(url)
