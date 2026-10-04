@@ -44,7 +44,11 @@ def layout_check(page):
 
 def keyboard_check(page):
     page.locator("#search").focus()
-    for _ in range(16):
+    expected = page.evaluate("""() => [...document.querySelectorAll('a[href],button,input,select,textarea,summary,[tabindex]')]
+      .filter(node => node.tabIndex >= 0 && !node.disabled && node.checkVisibility()).length""")
+    returned_to_start = False
+    visited = []
+    for _ in range(max(20, expected + 3)):
         page.keyboard.press("Tab")
         result = page.evaluate("""() => {
           const node = document.activeElement;
@@ -57,8 +61,13 @@ def keyboard_check(page):
             outline:style.outlineStyle !== "none" && parseFloat(style.outlineWidth)>=2,
             occluded:!(hit && (node.contains(hit) || hit.contains(node)))};
         }""")
-        if result:
-            assert result["visible"] and result["outline"] and not result["occluded"], result
+        assert result and result["visible"] and result["outline"] and not result["occluded"], result
+        if result["id"] == "search":
+            returned_to_start = True
+            break
+        visited.append((result["tag"], result["id"], result["type"]))
+    assert returned_to_start, "Keyboard focus did not complete a full tab cycle."
+    assert len(visited) >= max(8, expected - 3), (len(visited), expected)
 
 
 def contrast_check(page):
@@ -157,6 +166,62 @@ def functional_check(page, url, bundle):
         page.locator("#snapshot-status").filter(has_text="核對通過").wait_for()
         compared = downloaded_json(page, "#snapshot-download")
         assert compared["added"] == compared["removed"] == compared["changed"] == []
+        view = next(item for item in bundle["datasets"] if item["id"] == original["dataset"])
+        original_rows = copy.deepcopy(original["rows"])
+        assert len(original_rows) >= 2, "Market overview needs at least two rows for a meaningful snapshot diff."
+        diff_report = copy.deepcopy(original)
+        rows = copy.deepcopy(original_rows[:-1])
+        numeric_field = next((field for field in view["fields"] if field["key"] not in view["identity"] and
+                              any(isinstance(row.get(field["key"]), (int, float)) and not isinstance(row.get(field["key"]), bool) for row in rows)), None)
+        assert numeric_field, "Market snapshot fixture needs a non-identity numeric field."
+        changed_index = next(index for index, row in enumerate(rows)
+                             if isinstance(row.get(numeric_field["key"]), (int, float)) and not isinstance(row.get(numeric_field["key"]), bool))
+        rows[changed_index][numeric_field["key"]] += 1
+        added = copy.deepcopy(original_rows[-1])
+        identity_key = view["identity"][0]
+        identity_value = added[identity_key]
+        added[identity_key] = identity_value + 1000000000 if isinstance(identity_value, (int, float)) and not isinstance(identity_value, bool) else f"__qa_added__{identity_value}"
+        rows.append(added)
+        diff_report["rows"] = rows
+        diff_report["sha256"] = report_hash(diff_report, page)
+        diff_payload = {"name": "changed-snapshot.json", "mimeType": "application/json",
+                        "buffer": page.evaluate("(report) => JSON.stringify(report)", diff_report).encode("utf-8")}
+        page.locator("#snapshot-a").set_input_files(payload)
+        page.locator("#snapshot-b").set_input_files(diff_payload)
+        page.locator("#snapshot-status").filter(has_text="核對通過").wait_for()
+        changed = downloaded_json(page, "#snapshot-download")
+        assert len(changed["added"]) == len(changed["removed"]) == len(changed["changed"]) == 1
+
+        # Hold one older parse, finish a newer upload first, and prove the stale result cannot replace it.
+        page.locator("#snapshot-b").set_input_files(payload)
+        page.locator("#snapshot-status").filter(has_text="核對通過").wait_for()
+        page.evaluate("""() => {
+          const nativeText = File.prototype.text;
+          window.__qaNativeFileText = nativeText;
+          window.__qaSlowReleased = false;
+          window.__qaReleaseSlowSnapshot = null;
+          File.prototype.text = function() {
+            if (this.name !== "slow-A.json") return nativeText.call(this);
+            const file = this;
+            return new Promise(resolve => {
+              window.__qaReleaseSlowSnapshot = () => nativeText.call(file).then(value => {
+                window.__qaSlowReleased = true;
+                resolve(value);
+              });
+            });
+          };
+        }""")
+        page.locator("#snapshot-a").set_input_files({"name": "slow-A.json", "mimeType": "application/json", "buffer": good})
+        page.wait_for_function("typeof window.__qaReleaseSlowSnapshot === 'function'")
+        page.locator("#snapshot-a").set_input_files(diff_payload)
+        page.locator("#snapshot-status").filter(has_text="核對通過").wait_for()
+        latest = downloaded_json(page, "#snapshot-download")
+        assert len(latest["added"]) == len(latest["removed"]) == len(latest["changed"]) == 1
+        page.evaluate("window.__qaReleaseSlowSnapshot()")
+        page.wait_for_function("window.__qaSlowReleased === true")
+        page.wait_for_timeout(50)
+        assert downloaded_json(page, "#snapshot-download") == latest
+        page.evaluate("File.prototype.text = window.__qaNativeFileText")
         tampered = {**original, "project": "tampered"}
         page.locator("#snapshot-b").set_input_files({"name": "tampered.json", "mimeType": "application/json",
                                                    "buffer": page.evaluate("(report) => JSON.stringify(report)", tampered).encode("utf-8")})
@@ -641,6 +706,11 @@ def main():
             assert failed_page.locator("#json").is_disabled()
             assert failed_page.locator("#table tbody tr").count() == 0
             assert failed_page.locator("#retry").is_enabled() and failed_page.locator("#theme").is_enabled()
+            failed_page.unroute(missing_path)
+            failed_page.locator("#retry").click()
+            failed_page.locator("#status").filter(has_text="筆符合條件").wait_for(timeout=15000)
+            assert not failed_page.locator("#fatal").is_visible()
+            assert failed_page.locator("#json").is_enabled() and failed_page.locator("#table tbody tr").count() > 0
             failed_context.close()
         synthetic_chart_check(browser, args.url, bundle)
         if bundle["kind"] == "cpbl":
