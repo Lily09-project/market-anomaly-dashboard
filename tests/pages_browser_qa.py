@@ -268,7 +268,7 @@ def visual_polish_check(page, url, bundle):
             page.locator("#clear-selection").click()
         if view["date"]:
             assert page.locator("#chart .y-scale span").count() == 3
-            assert "NaN" not in page.locator("#chart svg").get_attribute("outerHTML")
+            assert "NaN" not in page.locator("#chart svg").evaluate("(node) => node.outerHTML")
         if view["date"] or view.get("minimum"):
             page.locator("#advanced-filters").evaluate("(node) => node.open = true")
             if view["date"]:
