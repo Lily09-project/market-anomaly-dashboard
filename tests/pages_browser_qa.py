@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import csv
 import hashlib
 import io
 import json
+from datetime import date, timedelta
+from urllib.parse import quote
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
@@ -101,10 +104,16 @@ def functional_check(page, url, bundle):
         page.locator("#start").fill(dates[-1]); page.locator("#start").press("Tab")
         page.locator("#end").fill("2000-01-01"); page.locator("#end").press("Tab")
         assert page.locator("#filter-error").is_visible()
+        for control in ("start", "end"):
+            field = page.locator("#" + control)
+            assert field.get_attribute("aria-describedby") == "filter-error"
+            assert field.get_attribute("aria-invalid") == "true"
         assert page.locator("#theme").is_enabled()
         page.locator("#theme").click()
         assert page.locator("#json").is_disabled()
     page.locator("#reset").click()
+    for control in ("start", "end"):
+        assert page.locator("#" + control).get_attribute("aria-invalid") is None
     page.locator("#search").fill("NO_MATCH_7f9f123456")
     assert page.locator("#json").is_disabled() and page.locator("#csv").is_disabled()
     page.locator("#reset").click()
@@ -163,6 +172,14 @@ def functional_check(page, url, bundle):
         page.locator("#snapshot-b").set_input_files({"name": "duplicate.json", "mimeType": "application/json", "buffer": duplicate.encode("utf-8")})
         page.locator("#snapshot-status").filter(has_text="重複欄位").wait_for()
         assert page.locator("#snapshot-download").is_disabled()
+        page.locator("#snapshot-b").set_input_files({"name": "oversized.json", "mimeType": "application/json",
+                                                    "buffer": b" " * (2 * 1024 * 1024 + 1)})
+        page.locator("#snapshot-status").filter(has_text="2 MiB").wait_for()
+        assert page.locator("#snapshot-download").is_disabled()
+        nested = b"[" * 65 + b"0" + b"]" * 65
+        page.locator("#snapshot-b").set_input_files({"name": "deep.json", "mimeType": "application/json", "buffer": nested})
+        page.locator("#snapshot-status").filter(has_text="巢狀過深").wait_for()
+        assert page.locator("#snapshot-download").is_disabled()
 
 
 
@@ -183,12 +200,39 @@ def ux_regression_check(page, url, bundle):
         assert chart_signature() == signature, field
         assert page.locator("th[aria-sort]").count() == 1
     page.locator("#reset").click()
-    # Keyboard route changes must focus a persistent, visible content target.
+    # Back restores the prior view's query, group and scroll position; Forward returns to the new view.
     if len(bundle["datasets"]) > 1:
+        page.locator('#views a[href="?view=' + first["id"] + '"]').click()
+        row = first["rows"][0]
+        query = str(row.get(first["name"]) or row[first["identity"][0]])
+        group = str(row[first["group"]])
+        page.locator("#group").select_option(group)
+        page.locator("#search").fill(query)
+        page.evaluate("scrollTo(0, Math.max(0, document.documentElement.scrollHeight - innerHeight - 24))")
+        expected_scroll = page.evaluate("scrollY")
+        target = bundle["datasets"][1]
+        page.locator('#views a[href="?view=' + target["id"] + '"]').click()
+        assert page.locator("#status").inner_text().startswith(target["label"])
+        page.evaluate("history.back()")
+        page.wait_for_function("(view) => new URLSearchParams(location.search).get('view') === view", first["id"])
+        expect(page.locator("#search")).to_have_value(query)
+        expect(page.locator("#group")).to_have_value(group)
+        assert abs(page.evaluate("scrollY") - expected_scroll) <= 2
+        page.evaluate("history.forward()")
+        page.wait_for_function("(view) => new URLSearchParams(location.search).get('view') === view", target["id"])
+        assert page.locator("#search").input_value() == ""
+        page.locator('#views a[href="?view=' + first["id"] + '"]').click()
+        page.locator("#reset").click()
+    # Route changes clear prior-view selections and focus a persistent content target.
+    if len(bundle["datasets"]) > 1:
+        page.locator('#views a[href="?view=' + first["id"] + '"]').click()
+        page.locator('#table input[type="checkbox"]').first.check()
         target = bundle["datasets"][1]
         page.locator('#views a[href="?view=' + target["id"] + '"]').focus()
         page.keyboard.press("Enter")
         assert page.locator("#main").evaluate("(node) => node === document.activeElement")
+        assert page.locator('#table input[type="checkbox"]:checked').count() == 0
+        assert page.locator("#selection-download").is_disabled()
     page.locator('#views a[href="?view=' + first["id"] + '"]').click()
     page.locator('#table input[type="checkbox"]').first.check()
     page.locator("#comparison button").first.click()
@@ -295,10 +339,222 @@ def visual_polish_check(page, url, bundle):
             page.locator("#reset").click()
         if bundle["kind"] == "market" and view["id"] == "anomaly":
             assert page.locator("#chart polyline").count() == 0
-            assert page.locator("#chart circle").count() > 0
+            for index, shape in enumerate(("circle", "square", "triangle")):
+                assert page.locator('#chart .event-point.series-' + str(index) + '[data-shape="' + shape + '"]').count() > 0
+                assert page.locator('#legend .legend-marker .series-' + str(index) + '[data-shape="' + shape + '"]').count() == 1
         if bundle["kind"] == "aqi" and view["id"] == "anomaly":
             assert page.locator("#chart .anomaly-point").count() > 0
             assert "三角形" in page.locator("#legend").inner_text()
+
+
+def synthetic_chart_check(browser, url, template):
+    """Deterministically cover dense extrema, degenerate values and event marker semantics."""
+    bundle = copy.deepcopy(template)
+    bundle.update({"kind": "market", "project": "synthetic-chart-qa", "title": "Chart regression fixture",
+                   "brand": "Chart QA", "notice": "測試資料", "disclaimer": "測試用途",
+                   "source": {"mode": "synthetic", "range": "deterministic fixture"}, "quality": {"fixture": "synthetic"}})
+    fields = [{"key": "id", "label": "識別碼", "kind": "text"},
+              {"key": "group", "label": "分組", "kind": "text"},
+              {"key": "date", "label": "日期", "kind": "date"},
+              {"key": "value", "label": "數值", "kind": "number"}]
+
+    def view(view_id, label, rows):
+        return {"id": view_id, "label": label, "fields": fields, "identity": ["id"], "group": "group",
+                "groupLabel": "分組", "value": "value", "date": "date", "chartLabel": label,
+                "sort": "date", "name": "id", "rows": rows}
+
+    start = date(2020, 1, 1)
+    dense = []
+    for index in range(2405):
+        value = 10 + index / 1000
+        if index == 11:
+            value = 1000
+        elif index == 16:
+            value = -1000
+        day_offset = index + (8 if index >= 12 else 0)
+        dense.append({"id": "dense-" + str(index), "group": "dense",
+                      "date": (start + timedelta(days=day_offset)).isoformat(), "value": value})
+    single = [{"id": "one", "group": "one", "date": "2024-01-01", "value": 7}]
+    constant = [{"id": "flat-" + str(index), "group": "flat",
+                 "date": "2024-02-0" + str(index + 1), "value": 7} for index in range(3)]
+    empty = [{"id": "missing-" + str(index), "group": "missing",
+              "date": "2024-03-0" + str(index + 1), "value": None} for index in range(2)]
+    events = [{"id": name + "-" + str(index), "group": name, "date": "2024-04-0" + str(index + 1),
+               "value": (group_index + 1) * (index + 1)}
+              for group_index, name in enumerate(("Alpha", "Bravo", "Charlie")) for index in range(2)]
+    bundle["datasets"] = [view("dense", "密集趨勢", dense), view("single", "單點", single),
+                          view("constant", "常數", constant), view("empty", "缺值", empty),
+                          view("anomaly", "離散事件", events)]
+    data_text = json.dumps(bundle, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+    integrity = json.dumps({"data_sha256": hashlib.sha256(data_text.encode("utf-8")).hexdigest()},
+                           separators=(",", ":"))
+    page = browser.new_page(viewport={"width": 390, "height": 844})
+    page.route("**/integrity.json", lambda route: route.fulfill(body=integrity, content_type="application/json"))
+    page.route("**/data.json", lambda route: route.fulfill(body=data_text, content_type="application/json"))
+    page.goto(url)
+    page.locator("#status").filter(has_text="筆符合條件").wait_for()
+    coordinates = [tuple(map(float, point.split(","))) for point in
+                   page.locator("#chart polyline").first.get_attribute("points").split()]
+    assert 2 <= len(coordinates) <= 1200, len(coordinates)
+    for index, expected_y in ((11, 10.0), (16, 210.0)):
+        day_offset = index + (8 if index >= 12 else 0)
+        expected_x = 5 + 890 * day_offset / (2404 + 8)
+        assert any(abs(x - expected_x) < 1e-6 and abs(y - expected_y) < 1e-6 for x, y in coordinates), index
+    assert "NaN" not in page.locator("#chart svg").evaluate("(node) => node.outerHTML")
+    page.locator('#views a[href="?view=single"]').click()
+    assert page.locator("#chart polyline").count() == 1 and page.locator("#chart circle.event-point").count() == 1
+    page.locator('#views a[href="?view=constant"]').click()
+    assert page.locator("#chart polyline").count() == 1
+    page.locator('#views a[href="?view=empty"]').click()
+    assert page.locator("#chart svg").count() == 0
+    page.locator("#chart").filter(has_text="沒有可繪製").wait_for()
+    page.locator('#views a[href="?view=anomaly"]').click()
+    assert page.locator("#chart polyline").count() == 0
+    for index, shape in enumerate(("circle", "square", "triangle")):
+        assert page.locator('#chart .event-point.series-' + str(index) + '[data-shape="' + shape + '"]').count() == 2
+        assert page.locator('#legend .legend-marker .series-' + str(index) + '[data-shape="' + shape + '"]').count() == 1
+    page.close()
+
+
+def synthetic_cpbl_innings_check(browser, url, template):
+    """Verify thirds formatting boundaries without changing published rows or exports."""
+    bundle = copy.deepcopy(template)
+    bundle.update({"kind": "cpbl", "project": "synthetic-cpbl-qa", "title": "Innings display fixture",
+                   "brand": "CPBL QA", "notice": "測試資料", "disclaimer": "測試用途",
+                   "source": {"mode": "synthetic", "range": "deterministic fixture"}, "quality": {"fixture": "synthetic"}})
+    fields = [{"key": "player_id", "label": "球員代碼", "kind": "text"},
+              {"key": "player_name", "label": "球員", "kind": "text"},
+              {"key": "team", "label": "球隊", "kind": "text"},
+              {"key": "innings_pitched", "label": "投球局數", "kind": "number"}]
+    values = [(0, "0"), (7, "7"), (10.333, "10⅓"), (10.667, "10⅔"),
+              (10 + 1 / 3 + 1e-10, "10⅓"), (10.1, "10.1"), (10.334, "10.334"), (None, "—")]
+    rows = [{"player_id": str(index + 1).zfill(10), "player_name": "測試投手" + str(index + 1),
+             "team": "測試隊", "innings_pitched": value} for index, (value, _) in enumerate(values)]
+    bundle["datasets"] = [{"id": "pitchers", "label": "投手", "fields": fields, "identity": ["player_id"],
+                          "group": "team", "groupLabel": "球隊", "value": "innings_pitched", "date": None,
+                          "chartLabel": "投球局數", "sort": "player_id", "name": "player_name", "rows": rows}]
+    data_text = json.dumps(bundle, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+    integrity = json.dumps({"data_sha256": hashlib.sha256(data_text.encode("utf-8")).hexdigest()},
+                           separators=(",", ":"))
+    page = browser.new_page(viewport={"width": 390, "height": 844}, accept_downloads=True)
+    page.route("**/integrity.json", lambda route: route.fulfill(body=integrity, content_type="application/json"))
+    page.route("**/data.json", lambda route: route.fulfill(body=data_text, content_type="application/json"))
+    page.goto(url + "?view=pitchers")
+    page.locator("#status").filter(has_text="筆符合條件").wait_for()
+    for index, (value, expected) in enumerate(values):
+        identity = rows[index]["player_id"]
+        page.locator("#reset").click()
+        page.locator("#search").fill(identity)
+        page.locator("#status").filter(has_text="1 筆符合條件").wait_for()
+        assert page.locator('td[data-field="innings_pitched"]').first.inner_text() == expected, (value, expected)
+        report = downloaded_json(page, "#json")
+        assert report["rows"][0]["innings_pitched"] == value
+        with page.expect_download() as event:
+            page.locator("#csv").click()
+        csv_rows = list(csv.DictReader(io.StringIO(Path(event.value.path()).read_text(encoding="utf-8-sig"))))
+        exported = csv_rows[0]["innings_pitched"]
+        assert (exported == "" if value is None else float(exported) == value), (value, exported)
+        if expected.endswith(("⅓", "⅔")):
+            page.locator('#table tbody tr input[type="checkbox"]').first.check()
+            label = "投球局數"
+            compared = page.locator("#comparison article").first.locator("dt").evaluate_all(
+                "(nodes, label) => { const node = nodes.find(item => item.textContent === label); return node?.nextElementSibling?.textContent ?? null; }",
+                label)
+            assert compared == expected
+            page.locator("#table tbody tr").first.locator("button").click()
+            detail = page.locator("#detail").locator("dt").evaluate_all(
+                "(nodes, label) => { const node = nodes.find(item => item.textContent === label); return node?.nextElementSibling?.textContent ?? null; }",
+                label)
+            assert detail == expected
+            page.locator("#close-detail").click()
+            page.locator("#clear-selection").click()
+    page.close()
+
+
+def cpbl_innings_display_check(page, url, bundle):
+    dataset = next(item for item in bundle["datasets"] if item["id"] == "pitchers")
+    field = next(item for item in dataset["fields"] if item["key"] == "innings_pitched")
+    samples = {}
+    for row in dataset["rows"]:
+        value = row["innings_pitched"]
+        if not isinstance(value, (int, float)):
+            continue
+        fraction = value - int(value)
+        for expected, target in ((1 / 3, "⅓"), (2 / 3, "⅔")):
+            if target not in samples and abs(fraction - expected) <= 0.0005:
+                samples[target] = row
+    assert set(samples) == {"⅓", "⅔"}, "published pitcher fixture must include both outs-based thirds"
+    for symbol, row in samples.items():
+        identity = json.dumps([row[key] for key in dataset["identity"]], ensure_ascii=False, separators=(",", ":"))
+        selected = quote(json.dumps([identity], ensure_ascii=False, separators=(",", ":")), safe="")
+        detail_query = quote(identity, safe="")
+        page.goto(url + "?view=pitchers&selected=" + selected + "&detail=" + detail_query)
+        page.locator("#status").filter(has_text="筆符合條件").wait_for()
+        label = field["label"]
+        compared = page.locator("#comparison article").first.locator("dt").evaluate_all(
+            "(nodes, label) => { const node = nodes.find(item => item.textContent === label); return node?.nextElementSibling?.textContent ?? null; }",
+            label)
+        detail = page.locator("#detail").locator("dt").evaluate_all(
+            "(nodes, label) => { const node = nodes.find(item => item.textContent === label); return node?.nextElementSibling?.textContent ?? null; }",
+            label)
+        assert compared.endswith(symbol), (row["innings_pitched"], compared)
+        assert detail.endswith(symbol), (row["innings_pitched"], detail)
+
+
+def cross_browser_smoke(browser_type, url, bundle):
+    """Firefox/WebKit smoke; Chromium retains the exhaustive 280-state matrix."""
+    browser = browser_type.launch()
+    try:
+        for theme in ("light", "dark"):
+            for width in (390, 1440):
+                context = browser.new_context(viewport={"width": width, "height": 900}, color_scheme=theme,
+                                              reduced_motion="reduce", accept_downloads=True)
+                page = context.new_page()
+                first = bundle["datasets"][0]
+                page.goto(url + "?view=" + first["id"])
+                page.locator("#status").filter(has_text="筆符合條件").wait_for()
+                assert page.locator("html").get_attribute("data-theme") == theme
+                contrast_check(page)
+                for view in bundle["datasets"]:
+                    page.locator('#views a[href="?view=' + view["id"] + '"]').click()
+                    assert page.locator("#status").inner_text().startswith(view["label"])
+                    layout_check(page)
+                    if bundle["kind"] == "market" and view["id"] == "anomaly":
+                        for index, shape in enumerate(("circle", "square", "triangle")):
+                            assert page.locator('#chart .event-point.series-' + str(index) + '[data-shape="' + shape + '"]').count() > 0
+                if theme == "light" and width == 390:
+                    first = bundle["datasets"][0]
+                    page.locator('#views a[href="?view=' + first["id"] + '"]').click()
+                    page.locator("#theme").click()
+                    assert page.locator("html").get_attribute("data-theme") == "dark"
+                    contrast_check(page)
+                    page.locator("#theme").click()
+                    assert page.locator("html").get_attribute("data-theme") == "light"
+                    report = downloaded_json(page, "#json")
+                    assert report["project"] == bundle["project"] and report["dataset"] == first["id"]
+                    assert report["sha256"] == report_hash(report, page)
+                    if first["date"]:
+                        page.locator("#advanced-filters").evaluate("(node) => node.open = true")
+                        day = min(row[first["date"]][:10] for row in first["rows"])
+                        page.locator("#start").fill(day)
+                        page.locator("#end").fill("2000-01-01")
+                        assert page.locator("#filter-error").is_visible()
+                        for control in ("start", "end"):
+                            assert page.locator("#" + control).get_attribute("aria-describedby") == "filter-error"
+                            assert page.locator("#" + control).get_attribute("aria-invalid") == "true"
+                    if bundle["kind"] == "market":
+                        page.locator('#views a[href="?view=overview"]').click()
+                        original = downloaded_json(page, "#json")
+                        payload = {"name": "snapshot.json", "mimeType": "application/json",
+                                   "buffer": page.evaluate("(report) => JSON.stringify(report)", original).encode("utf-8")}
+                        page.locator("#snapshot-a").set_input_files(payload)
+                        page.locator("#snapshot-b").set_input_files(payload)
+                        page.locator("#snapshot-status").filter(has_text="核對通過").wait_for()
+                        comparison = downloaded_json(page, "#snapshot-download")
+                        assert comparison["added"] == comparison["removed"] == comparison["changed"] == []
+                context.close()
+    finally:
+        browser.close()
 
 
 def main():
@@ -363,8 +619,26 @@ def main():
         page.locator("#fatal").wait_for()
         assert page.locator("#json").is_disabled() and page.locator("#table tbody tr").count() == 0
         context.close()
+        for missing_path in ("**/integrity.json", "**/data.json"):
+            failed_context = browser.new_context()
+            failed_page = failed_context.new_page()
+            failed_page.route(missing_path, lambda route: route.fulfill(status=404, body="missing"))
+            failed_page.goto(args.url)
+            failed_page.locator("#fatal").wait_for()
+            assert failed_page.locator("#json").is_disabled()
+            assert failed_page.locator("#table tbody tr").count() == 0
+            assert failed_page.locator("#retry").is_enabled() and failed_page.locator("#theme").is_enabled()
+            failed_context.close()
+        synthetic_chart_check(browser, args.url, bundle)
+        if bundle["kind"] == "cpbl":
+            synthetic_cpbl_innings_check(browser, args.url, bundle)
+            page = browser.new_page(viewport={"width": 390, "height": 844}, accept_downloads=True)
+            cpbl_innings_display_check(page, args.url, bundle)
+            page.close()
         browser.close()
-    print("PASS: 2 themes x 5 viewports x 2 text scales x every page; keyboard, contrast, filters, real downloads, comparisons, deep links, integrity failure")
+        for browser_type in (engine.firefox, engine.webkit):
+            cross_browser_smoke(browser_type, args.url, bundle)
+    print("PASS: Chromium 2 themes x 5 viewports x 2 text scales x every page; history, invalid filters, snapshot limits, dense extrema, degenerate charts, marker shapes, raw innings exports; Firefox/WebKit responsive, theme, route, download, snapshot and date smoke")
 
 
 if __name__ == "__main__":

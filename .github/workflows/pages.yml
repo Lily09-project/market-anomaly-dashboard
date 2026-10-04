@@ -39,8 +39,8 @@ jobs:
           sha256sum pages-dist/data.json > first-build.sha256
           python scripts/build_pages.py
           sha256sum --check first-build.sha256
-      - name: Install Chromium
-        run: python -m playwright install --with-deps chromium
+      - name: Install Chromium, Firefox and WebKit
+        run: python -m playwright install --with-deps chromium firefox webkit
       - name: Start static project-path preview
         shell: bash
         run: |

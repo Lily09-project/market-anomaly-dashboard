@@ -13,6 +13,11 @@ function formatField(field, value) {
   if (["is_anomaly", "model_anomaly"].includes(field.key)) return value === 1 ? "異常" : value === 0 ? "正常" : "—";
   if (!number(value)) return format(value);
   const key = field.key;
+  if (bundle?.kind === "cpbl" && key === "innings_pitched" && value >= 0) {
+    const innings = Math.floor(value), fraction = value - innings;
+    if (Math.abs(fraction - 1 / 3) <= 0.0005) return innings + "⅓";
+    if (Math.abs(fraction - 2 / 3) <= 0.0005) return innings + "⅔";
+  }
   if (key === "season") return String(Math.trunc(value));
   if (["daily_return", "volatility_20"].includes(key)) return new Intl.NumberFormat("zh-TW", {style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2}).format(value);
   const digits = ["batting_average", "ops", "win_pct", "whip"].includes(key) ? 3 : ["close", "era"].includes(key) ? 2 : null;
@@ -192,10 +197,39 @@ function svgEl(tag, attrs) {
   for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
   return node;
 }
+function sampleTrendRows(rows, key, maxPoints = 1200) {
+  if (rows.length <= maxPoints) return rows;
+  const bucketCount = Math.max(1, Math.floor((maxPoints - 2) / 2));
+  const bucketSize = Math.ceil(rows.length / bucketCount);
+  const selected = new Set([0, rows.length - 1]);
+  for (let start = 0; start < rows.length; start += bucketSize) {
+    const end = Math.min(rows.length, start + bucketSize);
+    let minimum = start, maximum = start;
+    for (let index = start + 1; index < end; index++) {
+      if (rows[index][key] < rows[minimum][key]) minimum = index;
+      if (rows[index][key] > rows[maximum][key]) maximum = index;
+    }
+    selected.add(minimum); selected.add(maximum);
+  }
+  return [...selected].sort((a, b) => a - b).map(index => rows[index]);
+}
+function appendEventMarker(parent, index, cx, cy, seriesClass) {
+  const shape = ["circle", "square", "triangle"][index % 3];
+  const common = {class: "event-point " + seriesClass, "data-shape": shape};
+  const marker = shape === "circle" ? svgEl("circle", {...common, cx, cy, r: 3.5}) :
+    shape === "square" ? svgEl("rect", {...common, x: cx - 3.5, y: cy - 3.5, width: 7, height: 7}) :
+      svgEl("path", {...common, d: "M " + cx + " " + (cy - 4.5) + " l 4.5 8 h -9 Z"});
+  parent.append(marker);
+}
+function eventLegendMarker(index, seriesClass) {
+  const marker = svgEl("svg", {class: "legend-marker", viewBox: "0 0 12 12", "aria-hidden": "true", focusable: "false"});
+  appendEventMarker(marker, index, 6, 6, seriesClass);
+  return marker;
+}
 function renderChart() {
   $("chart-panel").hidden = dataset.id === "metrics";
   if (dataset.id === "metrics") return;
-  $("chart").replaceChildren(); $("legend").replaceChildren();
+  $("chart").replaceChildren(); $("legend").replaceChildren(); $("legend").classList.remove("events");
   $("chart-title").textContent = dataset.chartLabel;
   $("chart").className = "chart";
   if (!displayed.length) { $("chart").append(el("p", "沒有符合條件的資料。", {class: "empty"})); return; }
@@ -227,6 +261,7 @@ function renderChart() {
   let lowY = Math.min(...ys), highY = Math.max(...ys);
   if (lowY === highY) { const padding = Math.max(1, Math.abs(lowY) * .05); lowY -= padding; highY += padding; }
   const eventChart = bundle.kind === "market" && dataset.id === "anomaly";
+  if (eventChart) $("legend").classList.add("events");
   const point = row => [5 + 890 * (chartTime(row[dataset.date]) - lowX) / (highX - lowX || 1), 210 - 200 * (row[dataset.value] - lowY) / (highY - lowY)];
   const svg = svgEl("svg", {viewBox: "0 0 900 220", role: "img", "aria-label": dataset.chartLabel + "；完整數值見資料明細", preserveAspectRatio: "none"});
   for (let y = 10; y <= 210; y += 50) svg.append(svgEl("line", {x1: 5, x2: 895, y1: y, y2: y, class: "grid"}));
@@ -239,15 +274,16 @@ function renderChart() {
     }
     const rows = [...buckets].map(([time, bucket]) => ({[dataset.date]: time, [item.key]: bucket.sum / bucket.count}))
       .sort((a, b) => String(a[dataset.date]).localeCompare(String(b[dataset.date])));
-    const step = Math.max(1, Math.ceil(rows.length / 1200));
-    const points = rows.filter((_, idx) => idx % step === 0 || idx === rows.length - 1).map(row =>
+    const lineRows = sampleTrendRows(rows, item.key);
+    const points = lineRows.map(row =>
       (5 + 890 * (chartTime(row[dataset.date]) - lowX) / (highX - lowX || 1)) + "," +
       (210 - 200 * (row[item.key] - lowY) / (highY - lowY || 1))).join(" ");
-    const seriesClass = "series-" + (dataset.secondary ? index : groupOrder.indexOf(item.group) % 3);
+    const seriesIndex = dataset.secondary ? index : groupOrder.indexOf(item.group) % 3;
+    const seriesClass = "series-" + seriesIndex;
     if (eventChart) {
       for (const row of rows) {
         const [cx, cy] = point(row);
-        svg.append(svgEl("circle", {cx, cy, r: 4, class: "event-point " + seriesClass}));
+        appendEventMarker(svg, seriesIndex, cx, cy, seriesClass);
       }
     } else {
       svg.append(svgEl("polyline", {points, class: "line " + seriesClass}));
@@ -262,7 +298,11 @@ function renderChart() {
         svg.append(svgEl("path", {d: "M " + cx + " " + (cy - 5) + " l 5 10 h -10 Z", class: "anomaly-point"}));
       }
     }
-    $("legend").append(el("span", item.label, {class: "series-" + (dataset.secondary ? index : groupOrder.indexOf(item.group) % 3)}));
+    if (eventChart) {
+      const entry = el("span", undefined, {class: "event-legend " + seriesClass});
+      entry.append(eventLegendMarker(seriesIndex, seriesClass), document.createTextNode(item.label));
+      $("legend").append(entry);
+    } else $("legend").append(el("span", item.label, {class: seriesClass}));
   });
   const axis = el("div", undefined, {class: "axis"});
   axis.append(el("span", chartDate(lowX)), el("span", dataset.fields.find(field => field.key === dataset.value).label + " " + formatField(dataset.fields.find(field => field.key === dataset.value), lowY) + "–" + formatField(dataset.fields.find(field => field.key === dataset.value), highY)),
@@ -361,6 +401,12 @@ function render() {
   const invalid = dataset.date && state.start && state.end && state.start > state.end;
   $("filter-error").hidden = !invalid;
   $("filter-error").textContent = invalid ? "結束日期不能早於開始日期，請修正日期或重設篩選。" : "";
+  for (const id of ["start", "end"]) {
+    if (dataset.date) $(id).setAttribute("aria-describedby", "filter-error");
+    else $(id).removeAttribute("aria-describedby");
+    if (invalid) $(id).setAttribute("aria-invalid", "true");
+    else $(id).removeAttribute("aria-invalid");
+  }
   syncAdvancedFilters();
   displayed = filteredRows();
   $("status").textContent = dataset.label + " · " + displayed.length + " 筆符合條件";
