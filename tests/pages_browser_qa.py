@@ -37,6 +37,16 @@ def layout_check(page):
         if (r.width < 24 || r.height < 24) issues.push("small target: " + node.tagName + " " + node.id + " " + r.width + "x" + r.height);
         if (r.left < -1 || r.right > innerWidth + 1) issues.push("control overflow: " + node.tagName + " " + node.id + " " + r.left + ".." + r.right);
       }
+      for (const selector of ["#views", ".header-actions", ".actions", ".sort", ".pagination"]) {
+        for (const parent of document.querySelectorAll(selector)) {
+          const nodes = [...parent.querySelectorAll("a,button,input,select")].filter(node => node.checkVisibility());
+          for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+            const a = nodes[i].getBoundingClientRect(), b = nodes[j].getBoundingClientRect();
+            if (Math.min(a.right,b.right)-Math.max(a.left,b.left)>1 && Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1)
+              issues.push("overlapping controls: " + selector + " " + nodes[i].id + "/" + nodes[j].id);
+          }
+        }
+      }
       return issues;
     }""")
     assert not problems, problems
@@ -70,7 +80,7 @@ def keyboard_check(page):
             break
     assert reached_boundary, "Keyboard traversal did not reach the end of the focus sequence."
     assert len(visited) >= 20, (len(visited), visited)
-    assert {"theme", "search", "group", "reset"}.issubset(set(visited)), visited
+    assert {"search", "group", "reset"}.issubset(set(visited)), visited
 
 
 def contrast_check(page):
@@ -93,7 +103,10 @@ def contrast_check(page):
 
 
 def product_composition_check(page, bundle, view):
-    """Verify distinct task flows, concise domain labels and numeric alignment."""
+    """Verify the market task architecture, fixed palette and concise domain labels."""
+    assert page.locator("#theme").count() == 0
+    assert page.locator("html").get_attribute("data-theme") == "dark"
+    assert page.locator("html").evaluate("(node) => getComputedStyle(node).colorScheme") == "dark"
     assert page.locator("#search").get_attribute("placeholder") == (
         "搜尋模型或評估指標" if view["id"] == "metrics" else {
             "aqi": "搜尋測站、縣市或關鍵字",
@@ -107,17 +120,14 @@ def product_composition_check(page, bundle, view):
         assert labels[1] == view["groupLabel"] + "數"
         has_anomalies = any(field["key"] in ("is_anomaly", "model_anomaly") for field in view["fields"])
         assert labels[-1] == ("異常紀錄" if has_anomalies else "缺值數")
+    assert page.locator(".market-navigation #views").count() == 1
+    assert page.locator(".market-workspace .results-panel").count() == 1
+    if view["id"] != "metrics":
+        assert page.locator(".results-panel").bounding_box()["y"] < page.locator("#chart-panel").bounding_box()["y"]
     if page.viewport_size["width"] >= 1440:
-        if bundle["kind"] == "aqi":
-            rail = page.locator(".observation-rail").bounding_box()
-            canvas = page.locator(".observation-canvas").bounding_box()
-            assert rail["x"] + rail["width"] <= canvas["x"] + 1
-        if bundle["kind"] == "market" and view["id"] != "metrics":
-            summary = page.locator("#metrics").bounding_box()
-            chart = page.locator("#chart-panel").bounding_box()
-            assert summary["x"] + summary["width"] <= chart["x"] + 1
-        if bundle["kind"] == "cpbl" and view["id"] != "metrics":
-            assert page.locator(".results-panel").bounding_box()["y"] < page.locator("#chart-panel").bounding_box()["y"]
+        rail = page.locator(".market-navigation").bounding_box()
+        workspace = page.locator(".market-workspace").bounding_box()
+        assert rail["x"] + rail["width"] <= workspace["x"] + 1
     assert page.locator(".compare-panel .actions").is_visible() == (
         page.locator("#comparison article").count() > 0)
 
@@ -160,8 +170,8 @@ def functional_check(page, url, bundle):
             field = page.locator("#" + control)
             assert field.get_attribute("aria-describedby") == "filter-error"
             assert field.get_attribute("aria-invalid") == "true"
-        assert page.locator("#theme").is_enabled()
-        page.locator("#theme").click()
+        assert page.locator("#theme").count() == 0
+        layout_check(page)
         assert page.locator("#json").is_disabled()
     page.locator("#reset").click()
     for control in ("start", "end"):
@@ -730,7 +740,7 @@ def cross_browser_smoke(browser_type, url, bundle):
                 first = bundle["datasets"][0]
                 page.goto(url + "?view=" + first["id"])
                 page.locator("#status").filter(has_text="筆符合條件").wait_for()
-                assert page.locator("html").get_attribute("data-theme") == theme
+                assert page.locator("html").get_attribute("data-theme") == "dark"
                 contrast_check(page)
                 for view in bundle["datasets"]:
                     page.locator('#views a[href="?view=' + view["id"] + '"]').click()
@@ -742,11 +752,8 @@ def cross_browser_smoke(browser_type, url, bundle):
                 if theme == "light" and width == 390:
                     first = bundle["datasets"][0]
                     page.locator('#views a[href="?view=' + first["id"] + '"]').click()
-                    page.locator("#theme").click()
-                    assert page.locator("html").get_attribute("data-theme") == "dark"
+                    assert page.locator("#theme").count() == 0
                     contrast_check(page)
-                    page.locator("#theme").click()
-                    assert page.locator("html").get_attribute("data-theme") == "light"
                     report = downloaded_json(page, "#json")
                     assert report["project"] == bundle["project"] and report["dataset"] == first["id"]
                     assert report["sha256"] == report_hash(report, page)
@@ -789,12 +796,13 @@ def main():
                     context = browser.new_context(viewport={"width": width, "height": 1000}, color_scheme=theme,
                                                   reduced_motion="reduce", accept_downloads=True)
                     page = context.new_page()
+                    page.add_init_script("localStorage.setItem('pages-theme', 'light')")
                     errors = []
                     page.on("pageerror", lambda error: errors.append(str(error)))
                     page.on("console", lambda message: errors.append(message.text) if message.type == "error" else None)
                     page.goto(args.url)
                     page.locator("#status").filter(has_text="筆符合條件").wait_for()
-                    assert page.locator("html").get_attribute("data-theme") == theme
+                    assert page.locator("html").get_attribute("data-theme") == "dark"
                     page.evaluate("(scale) => document.documentElement.style.fontSize = (16*scale)+'px'", scale)
                     contrast_check(page)
                     for view in bundle["datasets"]:
@@ -846,7 +854,7 @@ def main():
             failed_page.locator("#fatal").wait_for()
             assert failed_page.locator("#json").is_disabled()
             assert failed_page.locator("#table tbody tr").count() == 0
-            assert failed_page.locator("#retry").is_enabled() and failed_page.locator("#theme").is_enabled()
+            assert failed_page.locator("#retry").is_enabled() and failed_page.locator("#theme").count() == 0
             failed_page.unroute(missing_path)
             failed_page.locator("#retry").click()
             failed_page.locator("#status").filter(has_text="筆符合條件").wait_for(timeout=15000)
@@ -862,7 +870,7 @@ def main():
         browser.close()
         for browser_type in (engine.firefox, engine.webkit):
             cross_browser_smoke(browser_type, args.url, bundle)
-    print("PASS: Chromium 2 themes x 5 viewports x 2 text scales x every page; history, invalid filters, snapshot limits, dense extrema, degenerate charts, marker shapes, raw innings exports; Firefox/WebKit responsive, theme, route, download, snapshot and date smoke")
+    print("PASS: Chromium fixed palette x 2 OS preferences x 5 viewports x 2 text scales x every page; history, invalid filters, snapshot limits, dense extrema, degenerate charts, marker shapes, raw innings exports; Firefox/WebKit responsive, fixed-palette, route, download, snapshot and date smoke")
 
 
 if __name__ == "__main__":

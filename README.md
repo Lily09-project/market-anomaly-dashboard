@@ -2,7 +2,7 @@
 
 [![Quality & Security](https://github.com/Lily09-project/market-anomaly-dashboard/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/Lily09-project/market-anomaly-dashboard/actions/workflows/security.yml)
 
-面向台股與美股的可解釋研究工作台：把行情來源、資料品質、技術證據與可驗證研究快照放在同一個流程。支援桌面／行動版與深色／淺色主題。
+面向台股與美股的可解釋研究工作台：把行情來源、資料品質、技術證據與可驗證研究快照放在同一個流程。Python／Streamlit 版本支援桌面／行動版與深色／淺色主題。
 
 > 本專案不是股價預測器、交易訊號或投資建議服務，不提供買賣建議。
 
@@ -10,7 +10,7 @@
 
 [開啟互動展示網站](https://lily09-project.github.io/market-anomaly-dashboard/) · 不需登入，也不需作者的裝置開機。
 
-搜尋、篩選、圖表、最多三筆比較與 CSV／JSON 下載，支援手機與深淺主題。使用可重現 DEMO 合成資料，不代表即時行情或投資建議。Python／Streamlit 版本保留完整分析流程；功能邊界與部署方式見 [GitHub Pages](docs/GITHUB_PAGES.md)。
+搜尋、篩選、圖表、最多三筆比較與 CSV／JSON 下載，支援手機並採用固定配色。使用可重現 DEMO 合成資料，不代表即時行情或投資建議。Python／Streamlit 版本保留完整分析流程；功能邊界與部署方式見 [GitHub Pages](docs/GITHUB_PAGES.md)。
 
 ![GitHub Pages 互動展示版](docs/screenshots/ui-pages.jpg)
 

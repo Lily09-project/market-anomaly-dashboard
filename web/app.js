@@ -39,7 +39,7 @@ function compactFields() {
   return new Set([dataset.name === "snapshot_id" ? null : dataset.name, dataset.group, dataset.date, dataset.value, ...extra].filter(Boolean));
 }
 function tablePageSize() {
-  return $("table").clientWidth <= 70 * parseFloat(getComputedStyle($("table")).fontSize) ? 8 : 20;
+  return $("table").clientWidth <= 56 * parseFloat(getComputedStyle($("table")).fontSize) ? 8 : 20;
 }
 function focusView() {
   $("main").focus({preventScroll: true});
@@ -76,12 +76,6 @@ const rowId = row => JSON.stringify(dataset.identity.map(key => row[key]));
 const rowName = row => [...new Set([dataset.name, ...dataset.identity].filter(Boolean))]
   .map(key => formatField(dataset.fields.find(field => field.key === key) || {key}, row[key])).join(" · ");
 const selectedRows = () => [...selected].map(id => dataset.rows.find(row => rowId(row) === id)).filter(Boolean);
-function setTheme(theme) {
-  document.documentElement.dataset.theme = theme;
-  $("theme").textContent = theme === "dark" ? "淺色模式" : "深色模式";
-  $("theme").setAttribute("aria-pressed", String(theme === "dark"));
-  try {localStorage.setItem("pages-theme", theme);} catch { /* Storage may be disabled. */ }
-}
 function readState() {
   const query = new URLSearchParams(location.search);
   const view = bundle.datasets.find(item => item.id === query.get("view")) || bundle.datasets[0];
@@ -580,11 +574,6 @@ async function initialize() {
   $("close-detail").addEventListener("click", () => {state.detail = ""; saveState(); renderDetail(); if (lastDetailButton?.isConnected) lastDetailButton.focus(); else $("reset").focus();});
   addEventListener("popstate", event => {readState(); fillControls(); render(); if (state.detail) renderDetail(true); else { $("main").focus({preventScroll: true}); scrollTo({top: event.state?.scrollY ?? 0, behavior: "auto"}); }});
 }
-let initialTheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  try { initialTheme = localStorage.getItem("pages-theme") || initialTheme; } catch { /* No persistence needed. */ }
-  setTheme(initialTheme === "dark" ? "dark" : "light");
-
-$("theme").addEventListener("click", () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
 $("retry").addEventListener("click", () => location.reload());
 initialize().catch(() => {
   $("mode").textContent = "載入失敗"; $("status").textContent = "未顯示未驗證資料。";
