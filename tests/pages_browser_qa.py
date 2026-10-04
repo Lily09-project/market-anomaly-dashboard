@@ -73,7 +73,7 @@ def keyboard_check(page):
         if result is None:
             reached_boundary = True
             break
-        assert result["motionStable"] and result["visible"] and result["outline"] and not result["occluded"], result
+        assert result["visible"] and result["outline"] and not result["occluded"], result
         visited.append(result["id"])
         if result["isSkip"]:
             reached_boundary = True
@@ -810,7 +810,7 @@ def native_keyboard_check(page):
             if result["boundary"]:
                 reached_boundary = True
                 break
-            assert result["visible"] and result["outline"] and not result["occluded"], result
+            assert result["motionStable"] and result["visible"] and result["outline"] and not result["occluded"], result
             visited.append(result)
         assert reached_boundary, (page.context.browser.browser_type.name, visited)
         assert len(visited) >= 3, visited
