@@ -179,7 +179,9 @@ def functional_check(page, url, bundle):
         assert numeric_field, "Market snapshot fixture needs a non-identity numeric field."
         changed_index = next(index for index, row in enumerate(rows)
                              if isinstance(row.get(numeric_field["key"]), (int, float)) and not isinstance(row.get(numeric_field["key"]), bool))
+        changed_before = copy.deepcopy(rows[changed_index])
         rows[changed_index][numeric_field["key"]] += 1
+        changed_after = copy.deepcopy(rows[changed_index])
         added = copy.deepcopy(original_rows[-1])
         identity_key = next((key for key in view["identity"] if next(field for field in view["fields"] if field["key"] == key)["kind"] != "date"), view["identity"][0])
         identity_value = added[identity_key]
@@ -193,7 +195,37 @@ def functional_check(page, url, bundle):
         page.locator("#snapshot-b").set_input_files(diff_payload)
         page.locator("#snapshot-status").filter(has_text="核對通過").wait_for()
         changed = downloaded_json(page, "#snapshot-download")
-        assert len(changed["added"]) == len(changed["removed"]) == len(changed["changed"]) == 1
+        def identity_tuple(row):
+            return tuple(row[key] for key in view["identity"])
+        expected_added = identity_tuple(added)
+        expected_removed = identity_tuple(original_rows[-1])
+        expected_changed = identity_tuple(changed_before)
+        assert [identity_tuple(row) for row in changed["added"]] == [expected_added]
+        assert [identity_tuple(row) for row in changed["removed"]] == [expected_removed]
+        assert len(changed["changed"]) == 1
+        changed_item = changed["changed"][0]
+        assert json.loads(changed_item["identity"]) == list(expected_changed)
+        assert changed_item["before"] == changed_before
+        assert changed_item["after"] == changed_after
+
+        # Reversing the inputs must reverse only the added/removed direction and changed values.
+        page.locator("#snapshot-a").set_input_files(diff_payload)
+        page.locator("#snapshot-b").set_input_files(payload)
+        page.locator("#snapshot-status").filter(has_text="核對通過").wait_for()
+        reversed_report = downloaded_json(page, "#snapshot-download")
+        assert [identity_tuple(row) for row in reversed_report["added"]] == [expected_removed]
+        assert [identity_tuple(row) for row in reversed_report["removed"]] == [expected_added]
+        reversed_change = reversed_report["changed"][0]
+        assert json.loads(reversed_change["identity"]) == list(expected_changed)
+        assert reversed_change["before"] == changed_after
+        assert reversed_change["after"] == changed_before
+        assert reversed_report["first_sha256"] == diff_report["sha256"]
+        assert reversed_report["second_sha256"] == original["sha256"]
+
+        # Reset to a known valid pair before the asynchronous race cases.
+        page.locator("#snapshot-a").set_input_files(payload)
+        page.locator("#snapshot-b").set_input_files(payload)
+        page.locator("#snapshot-status").filter(has_text="核對通過").wait_for()
 
         # Hold one older parse, finish a newer upload first, and prove the stale result cannot replace it.
         page.locator("#snapshot-b").set_input_files(payload)
@@ -206,11 +238,18 @@ def functional_check(page, url, bundle):
           File.prototype.text = function() {
             if (!this.name.startsWith("slow-")) return nativeText.call(this);
             const file = this;
-            return new Promise(resolve => {
-              window.__qaReleaseSlowSnapshot = () => nativeText.call(file).then(value => {
-                window.__qaSlowReleased = true;
-                resolve(value);
-              });
+            return new Promise((resolve, reject) => {
+              window.__qaReleaseSlowSnapshot = () => {
+                if (file.name.startsWith("slow-fail-")) {
+                  window.__qaSlowReleased = true;
+                  reject(new Error("delayed snapshot parse failure"));
+                  return;
+                }
+                nativeText.call(file).then(value => {
+                  window.__qaSlowReleased = true;
+                  resolve(value);
+                }, reject);
+              };
             });
           };
         }""")
@@ -224,8 +263,20 @@ def functional_check(page, url, bundle):
         page.wait_for_function("window.__qaSlowReleased === true")
         page.wait_for_timeout(50)
         assert downloaded_json(page, "#snapshot-download") == latest
-        # Clearing one side invalidates an older in-flight parse and keeps download disabled.
+        # A stale rejection must not replace a newer successful comparison.
         page.evaluate("() => { window.__qaSlowReleased = false; window.__qaReleaseSlowSnapshot = null; }")
+        page.locator("#snapshot-a").set_input_files({"name": "slow-fail-A.json", "mimeType": "application/json", "buffer": good})
+        page.wait_for_function("typeof window.__qaReleaseSlowSnapshot === 'function'")
+        page.locator("#snapshot-a").set_input_files(payload)
+        page.locator("#snapshot-status").filter(has_text="核對通過").wait_for()
+        latest_after_failure = downloaded_json(page, "#snapshot-download")
+        page.evaluate("window.__qaReleaseSlowSnapshot()")
+        page.wait_for_function("window.__qaSlowReleased === true")
+        page.wait_for_timeout(50)
+        assert downloaded_json(page, "#snapshot-download") == latest_after_failure
+
+        # Clearing one side invalidates an older in-flight parse and keeps download disabled.
+        page.evaluate("() => { window.__qaSlowReleased = false; window.__qaReleaseSlowSnapshot = null; }"
         page.locator("#snapshot-a").set_input_files({"name": "slow-clear-A.json", "mimeType": "application/json", "buffer": good})
         page.wait_for_function("typeof window.__qaReleaseSlowSnapshot === 'function'")
         page.locator("#snapshot-a").set_input_files([])
@@ -236,6 +287,10 @@ def functional_check(page, url, bundle):
         page.wait_for_timeout(50)
         assert page.locator("#snapshot-download").is_disabled()
         assert "請選擇兩份快照" in page.locator("#snapshot-status").inner_text()
+        # Restore a valid pair so the following invalid-file tests actually parse B.
+        page.locator("#snapshot-a").set_input_files(payload)
+        page.locator("#snapshot-b").set_input_files(payload)
+        page.locator("#snapshot-status").filter(has_text="核對通過").wait_for()
         page.evaluate("() => { File.prototype.text = window.__qaNativeFileText; }")
         tampered = {**original, "project": "tampered"}
         page.locator("#snapshot-b").set_input_files({"name": "tampered.json", "mimeType": "application/json",
