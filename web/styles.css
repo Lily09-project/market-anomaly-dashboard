@@ -112,7 +112,7 @@ body{font-size:1rem}
 #main>details.panel{margin-top:1.5rem}
 #notice:empty{display:none}
 #status{margin-block:0 1rem}
-.metrics{grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr))}
+.metrics{grid-template-columns:repeat(auto-fit,minmax(min(100%,8rem),1fr))}
 .metric strong{overflow-wrap:anywhere}
 .results-panel,.compare-panel,#detail-panel,#snapshot-panel{margin-top:1.5rem}
 .header-actions a{border:1px solid var(--divider);text-decoration:none}
@@ -120,7 +120,7 @@ body{font-size:1rem}
 .observation-layout,.observation-rail,.observation-canvas,.research-overview,.research-results,.scouting-secondary{min-width:0}
 button,a,input,select,summary{transition:background-color .15s ease,border-color .15s ease}
 @media(prefers-reduced-motion:reduce){button,a,input,select,summary{transition:none}}
-@media(max-width:760px){.metrics{grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr))}}
+@media(max-width:760px){.metrics{grid-template-columns:repeat(auto-fit,minmax(min(100%,8rem),1fr))}}
 
 /* Market research: broad terminal-like workspace with ruled tabs and flat surfaces. */
 .shell{width:min(1560px,100%)}
