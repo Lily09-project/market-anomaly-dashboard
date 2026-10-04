@@ -235,6 +235,8 @@ def functional_check(page, url, bundle):
           window.__qaNativeFileText = nativeText;
           window.__qaSlowReleased = false;
           window.__qaReleaseSlowSnapshot = null;
+          delete document.documentElement.dataset.qaSlowReady;
+          delete document.documentElement.dataset.qaSlowReleased;
           File.prototype.text = function() {
             if (!this.name.startsWith("slow-")) return nativeText.call(this);
             const file = this;
@@ -242,48 +244,51 @@ def functional_check(page, url, bundle):
               window.__qaReleaseSlowSnapshot = () => {
                 if (file.name.startsWith("slow-fail-")) {
                   window.__qaSlowReleased = true;
+                  document.documentElement.dataset.qaSlowReleased = "true";
                   reject(new Error("delayed snapshot parse failure"));
                   return;
                 }
                 nativeText.call(file).then(value => {
                   window.__qaSlowReleased = true;
+                  document.documentElement.dataset.qaSlowReleased = "true";
                   resolve(value);
                 }, reject);
               };
+              document.documentElement.dataset.qaSlowReady = "true";
             });
           };
         }""")
         page.locator("#snapshot-a").set_input_files({"name": "slow-A.json", "mimeType": "application/json", "buffer": good})
-        page.wait_for_function("typeof window.__qaReleaseSlowSnapshot === 'function'")
+        expect(page.locator("html")).to_have_attribute("data-qa-slow-ready", "true")
         page.locator("#snapshot-a").set_input_files(diff_payload)
         page.locator("#snapshot-status").filter(has_text="核對通過").wait_for()
         latest = downloaded_json(page, "#snapshot-download")
         assert len(latest["added"]) == len(latest["removed"]) == len(latest["changed"]) == 1
         page.evaluate("window.__qaReleaseSlowSnapshot()")
-        page.wait_for_function("window.__qaSlowReleased === true")
+        expect(page.locator("html")).to_have_attribute("data-qa-slow-released", "true")
         page.wait_for_timeout(50)
         assert downloaded_json(page, "#snapshot-download") == latest
         # A stale rejection must not replace a newer successful comparison.
-        page.evaluate("() => { window.__qaSlowReleased = false; window.__qaReleaseSlowSnapshot = null; }")
+        page.evaluate("() => { window.__qaSlowReleased = false; window.__qaReleaseSlowSnapshot = null; delete document.documentElement.dataset.qaSlowReady; delete document.documentElement.dataset.qaSlowReleased; }")
         page.locator("#snapshot-a").set_input_files({"name": "slow-fail-A.json", "mimeType": "application/json", "buffer": good})
-        page.wait_for_function("typeof window.__qaReleaseSlowSnapshot === 'function'")
+        expect(page.locator("html")).to_have_attribute("data-qa-slow-ready", "true")
         page.locator("#snapshot-a").set_input_files(payload)
         page.locator("#snapshot-status").filter(has_text="核對通過").wait_for()
         latest_after_failure = downloaded_json(page, "#snapshot-download")
         page.evaluate("window.__qaReleaseSlowSnapshot()")
-        page.wait_for_function("window.__qaSlowReleased === true")
+        expect(page.locator("html")).to_have_attribute("data-qa-slow-released", "true")
         page.wait_for_timeout(50)
         assert downloaded_json(page, "#snapshot-download") == latest_after_failure
 
         # Clearing one side invalidates an older in-flight parse and keeps download disabled.
-        page.evaluate("() => { window.__qaSlowReleased = false; window.__qaReleaseSlowSnapshot = null; }")
+        page.evaluate("() => { window.__qaSlowReleased = false; window.__qaReleaseSlowSnapshot = null; delete document.documentElement.dataset.qaSlowReady; delete document.documentElement.dataset.qaSlowReleased; }")
         page.locator("#snapshot-a").set_input_files({"name": "slow-clear-A.json", "mimeType": "application/json", "buffer": good})
-        page.wait_for_function("typeof window.__qaReleaseSlowSnapshot === 'function'")
+        expect(page.locator("html")).to_have_attribute("data-qa-slow-ready", "true")
         page.locator("#snapshot-a").set_input_files([])
         page.locator("#snapshot-status").filter(has_text="請選擇兩份快照").wait_for()
         assert page.locator("#snapshot-download").is_disabled()
         page.evaluate("window.__qaReleaseSlowSnapshot()")
-        page.wait_for_function("window.__qaSlowReleased === true")
+        expect(page.locator("html")).to_have_attribute("data-qa-slow-released", "true")
         page.wait_for_timeout(50)
         assert page.locator("#snapshot-download").is_disabled()
         assert "請選擇兩份快照" in page.locator("#snapshot-status").inner_text()
