@@ -43,12 +43,10 @@ def layout_check(page):
 
 
 def keyboard_check(page):
-    page.locator("#search").focus()
-    expected = page.evaluate("""() => [...document.querySelectorAll('a[href],button,input,select,textarea,summary,[tabindex]')]
-      .filter(node => node.tabIndex >= 0 && !node.disabled && node.checkVisibility()).length""")
-    completed = False
+    page.locator("a.skip").focus()
     visited = []
-    for _ in range(max(20, expected + 3)):
+    reached_boundary = False
+    for _ in range(80):
         page.keyboard.press("Tab")
         result = page.evaluate("""() => {
           const node = document.activeElement;
@@ -57,22 +55,22 @@ def keyboard_check(page):
           const x = Math.max(1, Math.min(innerWidth-1, r.left+r.width/2));
           const y = Math.max(1, Math.min(innerHeight-1, r.top+r.height/2));
           const hit = document.elementFromPoint(x,y);
-          return {tag:node.tagName, id:node.id, type:node.type, focusVisible:node.matches(":focus-visible"), visible:r.width>0 && r.height>0,
-            outline:style.outlineStyle !== "none" && parseFloat(style.outlineWidth)>=2,
+          return {tag:node.tagName, id:node.id, type:node.type, isSkip:node.matches("a.skip"),
+            visible:r.width>0 && r.height>0, outline:style.outlineStyle !== "none" && parseFloat(style.outlineWidth)>=2,
             occluded:!(hit && (node.contains(hit) || hit.contains(node)))};
         }""")
-        # Chromium can report BODY at the end of sequential navigation; require a full
-        # traversal before accepting that boundary, and verify every reached target.
+        # Walk real sequential focus order from the skip link, validating every target.
         if result is None:
-            completed = True
+            reached_boundary = True
             break
         assert result["visible"] and result["outline"] and not result["occluded"], result
-        if result["id"] == "search":
-            completed = True
+        visited.append(result["id"])
+        if result["isSkip"]:
+            reached_boundary = True
             break
-        visited.append((result["tag"], result["id"], result["type"]))
-    assert completed, "Keyboard traversal exceeded the expected focusable controls."
-    assert len(visited) >= max(8, expected - 3), (len(visited), expected)
+    assert reached_boundary, "Keyboard traversal did not reach the end of the focus sequence."
+    assert len(visited) >= 20, (len(visited), visited)
+    assert {"theme", "search", "group", "reset"}.issubset(set(visited)), visited
 
 
 def contrast_check(page):
