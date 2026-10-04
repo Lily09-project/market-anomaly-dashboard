@@ -109,3 +109,87 @@ main.shell{container-type:inline-size}
  td label.pick{flex-direction:row}
  tr{padding:.75rem}
 }
+
+
+/* Product-specific visual system: market research workstation */
+:root[data-product="market"]{
+  color-scheme:light;
+  --bg:#F5F4F7;--surface:#FFFFFF;--text:#241F2B;--muted:#605B66;
+  --border:#897F91;--divider:#DCD8E0;--raised:#EDEAF2;--shadow:none;
+  --accent:#5B3A9F;--on-accent:#FFFFFF;--tint:#EEE8F8;--error:#A43D46;
+  --chart2:#176E68;--chart3:#AA5A2B;--ring:#5B3A9F
+}
+:root[data-product="market"][data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#14121A;--surface:#1E1A26;--text:#F5F0FA;--muted:#CAC1D3;
+  --border:#786F83;--divider:#423A4D;--raised:#292433;--shadow:none;
+  --accent:#BCA4F5;--on-accent:#211434;--tint:#302742;--error:#FF9A9A;
+  --chart2:#70C9BD;--chart3:#F0B563;--ring:#D1C1FF
+}
+:root[data-product="market"] body{background:var(--bg)}
+:root[data-product="market"] .shell{width:min(1440px,100%)}
+:root[data-product="market"] .header{
+  align-items:center;flex-direction:row;padding-block:1rem .75rem;
+  border-bottom:1px solid var(--border)
+}
+:root[data-product="market"] .eyebrow{color:var(--accent);font-weight:700;letter-spacing:.12em}
+:root[data-product="market"] h1{letter-spacing:-.035em}
+:root[data-product="market"] #main{
+  display:grid;grid-template-columns:minmax(0,1fr);row-gap:1rem;
+  padding-top:1rem
+}
+:root[data-product="market"] #main>.provenance,
+:root[data-product="market"] #main>.notice,
+:root[data-product="market"] #main>#views,
+:root[data-product="market"] #main>.panel[aria-label="篩選條件"],
+:root[data-product="market"] #main>#status,
+:root[data-product="market"] #main>#metrics,
+:root[data-product="market"] #main>#chart-panel,
+:root[data-product="market"] #main>.panel[aria-labelledby="table-title"],
+:root[data-product="market"] #main>.panel[aria-labelledby="compare-title"],
+:root[data-product="market"] #main>#detail-panel,
+:root[data-product="market"] #main>#snapshot-panel,
+:root[data-product="market"] #main>details.panel,
+:root[data-product="market"] #main>#fatal{grid-column:1/-1;margin-block:0}
+:root[data-product="market"] #views{display:flex;flex-wrap:wrap;gap:1.25rem;border-bottom:1px solid var(--divider)}
+:root[data-product="market"] #views a{
+  display:inline-flex;align-items:center;min-height:44px;padding:.55rem .15rem;
+  border:0;border-bottom:3px solid transparent;border-radius:0;background:transparent;
+  color:var(--muted);text-decoration:none
+}
+:root[data-product="market"] #views a[aria-current="page"]{border-bottom-color:var(--accent);color:var(--text);font-weight:700}
+:root[data-product="market"] #main>.panel[aria-label="篩選條件"]{
+  border:0;border-left:3px solid var(--accent);border-radius:.25rem;background:var(--raised);
+  padding:1rem 1.15rem
+}
+:root[data-product="market"] #metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;border-block:1px solid var(--divider)}
+:root[data-product="market"] #metrics>.metric{
+  border:0;border-left:1px solid var(--divider);border-radius:0;background:transparent;
+  box-shadow:none;padding:1rem 1.1rem;min-width:0
+}
+:root[data-product="market"] #metrics>.metric:first-child{border-left:0}
+:root[data-product="market"] #metrics>.metric p{font-size:.875rem;letter-spacing:.025em}
+:root[data-product="market"] #metrics>.metric strong{font-size:clamp(1.35rem,2vw,1.8rem);font-variant-numeric:tabular-nums}
+:root[data-product="market"] .panel{
+  border:1px solid var(--divider);border-top:2px solid var(--accent);border-radius:.25rem;
+  background:var(--surface);box-shadow:none;padding:clamp(1rem,2vw,1.5rem);margin-block:0
+}
+:root[data-product="market"] #chart-panel{border-top-width:3px}
+:root[data-product="market"] .chart .grid{stroke:var(--divider);opacity:1}
+:root[data-product="market"] .chart .line{stroke-width:2.25}
+:root[data-product="market"] .table-wrap table{font-variant-numeric:tabular-nums}
+:root[data-product="market"] .comparison article{border:1px solid var(--divider);border-radius:.25rem;background:var(--raised)}
+:root[data-product="market"] .badge{border-radius:.2rem;background:var(--tint);border-color:var(--divider)}
+:root[data-product="market"] button,
+:root[data-product="market"] input,
+:root[data-product="market"] select{border-radius:.25rem}
+@media(min-width:980px){
+  :root[data-product="market"] #metrics{grid-template-columns:repeat(4,minmax(0,1fr))}
+  :root[data-product="market"] .sort{display:grid;grid-template-columns:minmax(220px,1fr) auto auto;align-items:end}
+}
+@media(max-width:760px){
+  :root[data-product="market"] .header{align-items:flex-start;flex-direction:column;gap:.75rem}
+  :root[data-product="market"] .header-actions{width:100%;justify-content:space-between}
+  :root[data-product="market"] #metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  :root[data-product="market"] #metrics>.metric:nth-child(odd){border-left:0}
+}
