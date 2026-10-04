@@ -179,3 +179,6 @@ col.action-column{width:8rem}
 /* Text zoom may make a mobile two-column menu too narrow; reflow without hiding labels. */
 @container(max-width:14rem){#views{display:grid;grid-template-columns:minmax(0,1fr)}#views a{justify-content:flex-start;text-align:left;padding-inline:.5rem;gap:.4rem}}
 @container(max-width:12rem){#metrics .metric strong{font-size:1.5rem}}
+
+/* Avoid nested padding consuming the reading width under extreme text zoom. */
+@container(max-width:12rem){.results-panel{padding-inline:0}.results-panel tbody tr{padding-inline:.5rem}}
