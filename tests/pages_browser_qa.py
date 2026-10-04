@@ -73,7 +73,7 @@ def keyboard_check(page):
         if result is None:
             reached_boundary = True
             break
-        assert result["visible"] and result["outline"] and not result["occluded"], result
+        assert result["motionStable"] and result["visible"] and result["outline"] and not result["occluded"], result
         visited.append(result["id"])
         if result["isSkip"]:
             reached_boundary = True
@@ -802,9 +802,10 @@ def native_keyboard_check(page):
             result = page.evaluate("""() => {
               const n=document.activeElement;
               if(n.id==="qa-focus-boundary")return {boundary:true};
+              const motionStable=!n.closest("#product-root")||document.getElementById("product-root").getAnimations().every(a=>a.playState!=="running");
               const r=n.getBoundingClientRect(),s=getComputedStyle(n);
               const hit=document.elementFromPoint(Math.max(1,Math.min(innerWidth-1,r.x+r.width/2)),Math.max(1,Math.min(innerHeight-1,r.y+r.height/2)));
-              return {boundary:false,tag:n.tagName,id:n.id,text:n.textContent.slice(0,40),visible:r.width>0&&r.height>0,outline:s.outlineStyle!=="none"&&parseFloat(s.outlineWidth)>=2,occluded:!(hit&&(n.contains(hit)||hit.contains(n)))};
+              return {boundary:false,motionStable,tag:n.tagName,id:n.id,text:n.textContent.slice(0,40),visible:r.width>0&&r.height>0,outline:s.outlineStyle!=="none"&&parseFloat(s.outlineWidth)>=2,occluded:!(hit&&(n.contains(hit)||hit.contains(n)))};
             }""")
             if result["boundary"]:
                 reached_boundary = True
