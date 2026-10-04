@@ -330,6 +330,14 @@ def main():
                         assert page.locator("#main").evaluate("(node) => node === document.activeElement")
                         try:
                             layout_check(page); keyboard_check(page)
+                            if width == 320 and scale == 2:
+                                assert page.locator("#metrics").evaluate("(node) => getComputedStyle(node).gridTemplateColumns.split(' ').length") == 1
+                                if page.locator("#table tbody td").count():
+                                    assert page.locator("#table tbody td").first.evaluate("(node) => getComputedStyle(node).display") == "flex"
+                            if width == 1440 and scale == 1 and bundle["kind"] == "market" and view["id"] != "metrics":
+                                for key in ("date", "volume"):
+                                    cell = page.locator('td[data-field="' + key + '"]').first
+                                    assert cell.evaluate("(node) => node.clientHeight <= parseFloat(getComputedStyle(node).lineHeight) + 2*parseFloat(getComputedStyle(node).paddingTop) + 2"), key
                         except AssertionError:
                             page.screenshot(path=str(evidence / f"failure-{theme}-{width}-{scale}-{view['id']}.png"), full_page=True)
                             raise

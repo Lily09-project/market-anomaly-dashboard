@@ -97,3 +97,15 @@ tbody tr:has(input:checked){background:var(--tint)}
  .comparison article{padding:1rem}
 }
 @container(max-width:70em){tr{border-color:var(--divider);padding:1rem;border-radius:.85rem}td{gap:.75rem}}
+
+/* Preserve atomic dates and large counts without forcing horizontal overflow. */
+col.date-column{width:7.5rem}col.timestamp-column{width:13rem}col.volume-column{width:8.5rem}
+main.shell{container-type:inline-size}
+@container(max-width:16rem){.metrics{grid-template-columns:minmax(0,1fr)}}
+@container(max-width:12rem){
+ td{display:flex;flex-direction:column;align-items:stretch;gap:.25rem;padding-block:.5rem}
+ td:before{font-weight:550}
+ td.secondary-field{display:none}
+ td label.pick{flex-direction:row}
+ tr{padding:.75rem}
+}

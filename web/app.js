@@ -285,7 +285,7 @@ function renderTable() {
   const table = el("table", undefined, {role: "table"});
   const columns = el("colgroup");
   columns.append(el("col", undefined, {class: "action-column"}));
-  for (const field of dataset.fields) columns.append(el("col", undefined, {class: field.key === "player_id" ? "identifier-column" : ""}));
+  for (const field of dataset.fields) columns.append(el("col", undefined, {class: field.key === "player_id" ? "identifier-column" : field.kind === "date" ? (field.key === "date" ? "date-column" : "timestamp-column") : field.key === "volume" ? "volume-column" : ""}));
   columns.append(el("col", undefined, {class: "action-column"}));
   table.append(columns);
   const head = el("thead"), hrow = el("tr");
