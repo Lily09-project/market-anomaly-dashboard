@@ -91,6 +91,37 @@ def contrast_check(page):
         assert (b + .05) / (a + .05) >= 4.5, (foreground, background)
 
 
+
+def product_composition_check(page, bundle, view):
+    """Verify distinct task flows, concise domain labels and numeric alignment."""
+    assert page.locator("#search").get_attribute("placeholder") == (
+        "搜尋模型或評估指標" if view["id"] == "metrics" else {
+            "aqi": "搜尋測站、縣市或關鍵字",
+            "market": "搜尋股票代碼或關鍵字",
+            "cpbl": "搜尋球員、球隊或關鍵字",
+        }[bundle["kind"]])
+    assert page.locator('#group option[value=""]').inner_text() == "全部" + view["groupLabel"]
+    if view["id"] != "metrics":
+        labels = page.locator("#metrics .metric p").all_text_contents()
+        assert labels[0] == "符合條件筆數"
+        assert labels[1] == view["groupLabel"] + "數"
+        has_anomalies = any(field["key"] in ("is_anomaly", "model_anomaly") for field in view["fields"])
+        assert labels[-1] == ("異常紀錄" if has_anomalies else "缺值數")
+    if page.viewport_size["width"] >= 1440:
+        if bundle["kind"] == "aqi":
+            rail = page.locator(".observation-rail").bounding_box()
+            canvas = page.locator(".observation-canvas").bounding_box()
+            assert rail["x"] + rail["width"] <= canvas["x"] + 1
+        if bundle["kind"] == "market" and view["id"] != "metrics":
+            summary = page.locator("#metrics").bounding_box()
+            chart = page.locator("#chart-panel").bounding_box()
+            assert summary["x"] + summary["width"] <= chart["x"] + 1
+        if bundle["kind"] == "cpbl" and view["id"] != "metrics":
+            assert page.locator(".results-panel").bounding_box()["y"] < page.locator("#chart-panel").bounding_box()["y"]
+    assert page.locator(".compare-panel .actions").is_visible() == (
+        page.locator("#comparison article").count() > 0)
+
+
 def functional_check(page, url, bundle):
     page.goto(url)
     page.locator("#status").filter(has_text="筆符合條件").wait_for()
@@ -763,6 +794,7 @@ def main():
                         assert page.locator("#main").evaluate("(node) => node === document.activeElement")
                         try:
                             layout_check(page); keyboard_check(page)
+                            product_composition_check(page, bundle, view)
                             if width == 320 and scale == 2:
                                 assert page.locator("#metrics").evaluate("(node) => getComputedStyle(node).gridTemplateColumns.split(' ').length") == 1
                                 if page.locator("#table tbody td").count():
