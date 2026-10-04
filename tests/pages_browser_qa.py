@@ -430,11 +430,19 @@ def visual_polish_check(page, url, bundle):
 
 
 def text_spacing_check(page, url, bundle):
+    spacing_rules = """* { letter-spacing: .12em !important; word-spacing: .16em !important; line-height: 1.5 !important; }
+      p { margin-block-end: 2em !important; }"""
+
+    def serve_test_spacing(route):
+        response = route.fetch()
+        route.fulfill(response=response, body=response.text() + "\\n" + spacing_rules)
+
+    # Keep the site's strict style-src 'self' CSP intact: serve the test override
+    # from the existing same-origin stylesheet request instead of injecting inline CSS.
+    page.route("**/styles.css", serve_test_spacing)
     page.goto(url)
     page.locator("#status").filter(has_text="筆符合條件").wait_for()
     page.set_viewport_size({"width": 320, "height": 844})
-    page.add_style_tag(content="""* { letter-spacing: .12em !important; word-spacing: .16em !important; line-height: 1.5 !important; }
-      p { margin-block-end: 2em !important; }""")
     for view in bundle["datasets"]:
         page.locator('#views a[href="?view=' + view["id"] + '"]').click()
         layout_check(page)
