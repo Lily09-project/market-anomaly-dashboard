@@ -105,6 +105,12 @@ def contrast_check(page):
 def product_composition_check(page, bundle, view):
     """Verify the market task architecture, fixed palette and concise domain labels."""
     assert page.locator("#theme").count() == 0
+    assert page.locator("button svg.control-icon").count() > 0
+    assert page.locator('#views a svg[aria-hidden="true"][focusable="false"]').count() == len(bundle["datasets"])
+    assert page.locator('button svg:not([aria-hidden="true"])').count() == 0
+    motion = page.evaluate("window.__pagesMotionCalls")
+    assert motion and all(0 < call["duration"] <= 220 for call in motion)
+    assert all(call["keyframes"][-1]["transform"] == "translateY(0)" for call in motion)
     assert page.locator("html").get_attribute("data-theme") == "dark"
     assert page.locator("html").evaluate("(node) => getComputedStyle(node).colorScheme") == "dark"
     assert page.locator("#search").get_attribute("placeholder") == (
@@ -797,6 +803,14 @@ def main():
                                                   reduced_motion="reduce", accept_downloads=True)
                     page = context.new_page()
                     page.add_init_script("localStorage.setItem('pages-theme', 'light')")
+                    page.add_init_script("""(() => {
+                      window.__pagesMotionCalls = [];
+                      const original = Element.prototype.animate;
+                      Element.prototype.animate = function(keyframes, options) {
+                        window.__pagesMotionCalls.push({keyframes, duration: options.duration});
+                        return original.call(this, keyframes, options);
+                      };
+                    })()""")
                     errors = []
                     page.on("pageerror", lambda error: errors.append(str(error)))
                     page.on("console", lambda message: errors.append(message.text) if message.type == "error" else None)

@@ -1,8 +1,59 @@
 const $ = id => document.getElementById(id);
+
+const controlPaths = {
+  download: ["M12 3v12", "m7 10 5 5 5-5", "M4 16v4h16v-4"],
+  reset: ["M3 10a9 9 0 1 1 2 8", "M3 4v6h6"],
+  left: ["m14 5-7 7 7 7"], right: ["m10 5 7 7-7 7"],
+  sort: ["M8 3v18", "m4 7 4-4 4 4", "M16 21V3", "m12 17 4 4 4-4"],
+  compare: ["m12 3 9 5-9 5-9-5 9-5", "m3 12 9 5 9-5", "m3 16 9 5 9-5"],
+  close: ["m6 6 12 12", "m6 18 12-12"],
+  trash: ["M3 6h18", "M8 6V3h8v3", "M5 6l1 15h12l1-15", "M10 10v7", "M14 10v7"],
+  chart: ["M4 3v18h17", "m7 14 4-4 4 3 5-7"],
+  alert: ["m12 3 10 18H2L12 3", "M12 9v5", "M12 17h.01"],
+  wind: ["M3 8h13a3 3 0 1 0-3-3", "M3 12h17", "M3 16h10a3 3 0 1 1-3 3"],
+  team: ["m12 3 8 3v6c0 5-8 9-8 9S4 17 4 12V6l8-3", "M8 11h8", "M12 7v9"],
+  ball: ["M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18", "M7 5c5 4 5 10 0 14", "M17 5c-5 4-5 10 0 14"],
+  code: ["m8 5-6 7 6 7", "m16 5 6 7-6 7"],
+};
+function controlIcon(name) {
+  const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  for (const [key, value] of Object.entries({viewBox: "0 0 24 24", class: "control-icon", "aria-hidden": "true", focusable: "false", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round"})) icon.setAttribute(key, value);
+  for (const d of controlPaths[name] || controlPaths.right) {
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d); icon.append(path);
+  }
+  return icon;
+}
+function buttonIcon(id, text) {
+  return ({csv: "download", json: "download", "selection-download": "download", "snapshot-download": "download",
+    reset: "reset", retry: "reset", previous: "left", next: "right", direction: "sort",
+    "compare-jump": "compare", "clear-selection": "trash", "close-detail": "close"})[id] ||
+    (text === "移除" ? "close" : "right");
+}
+function setButtonText(node, text) {
+  node.replaceChildren(controlIcon(buttonIcon(node.id, text)), el("span", text, {class: "control-label"}));
+}
+function decorateControls() {
+  for (const node of document.querySelectorAll("button")) setButtonText(node, node.textContent);
+  const repository = $("repository");
+  repository.replaceChildren(controlIcon("code"), el("span", repository.textContent, {class: "control-label"}));
+}
+let lastAnimatedView, viewAnimation;
+function animateView() {
+  if (lastAnimatedView === dataset.id) return;
+  lastAnimatedView = dataset.id;
+  viewAnimation?.cancel();
+  const primary = bundle.kind === "aqi" && !$("chart-panel").hidden ? $("chart-panel") : $("table-title").closest("section");
+  if (!primary.animate) return;
+  viewAnimation = primary.animate([{transform: "translateY(6px)"}, {transform: "translateY(0)"}],
+    {duration: bundle.kind === "market" ? 140 : 200, easing: "cubic-bezier(.2,.7,.2,1)"});
+}
+
 const el = (tag, text, attrs = {}) => {
   const node = document.createElement(tag);
   if (text !== undefined) node.textContent = text;
   for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
+  if (tag === "button" && text !== undefined) setButtonText(node, text);
   return node;
 };
 const number = value => typeof value === "number" && Number.isFinite(value);
@@ -136,10 +187,12 @@ function fillControls() {
   }
   $("sort").replaceChildren(...dataset.fields.map(field => el("option", field.label, {value: field.key})));
   $("sort").value = state.sort;
-  $("direction").textContent = state.descending ? "遞減" : "遞增";
+  setButtonText($("direction"), state.descending ? "遞減" : "遞增");
   syncAdvancedFilters();
   $("views").replaceChildren(...bundle.datasets.map(item => {
-    const link = el("a", item.label, {href: "?view=" + encodeURIComponent(item.id)});
+    const link = el("a", undefined, {href: "?view=" + encodeURIComponent(item.id)});
+    const name = ({overview: bundle.kind === "aqi" ? "wind" : "chart", anomaly: "alert", comparison: "compare", teams: "team", batters: "ball", pitchers: "ball", roster: "team", refresh: "reset", history: "reset"})[item.id] || "chart";
+    link.append(controlIcon(name), el("span", item.label, {class: "control-label"}));
     if (item.id === dataset.id) link.setAttribute("aria-current", "page");
     link.addEventListener("click", event => {
       if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
@@ -370,7 +423,7 @@ function valuesDl(row) {
 function renderComparison() {
   const rows = selectedRows();
   $("compare-jump").disabled = !rows.length;
-  $("compare-jump").textContent = "查看比較 · " + rows.length + "/3";
+  setButtonText($("compare-jump"), "查看比較 · " + rows.length + "/3");
   $("comparison").replaceChildren(...rows.map(row => {
     const card = el("article"); card.append(el("h3", rowName(row)), valuesDl(row));
     const remove = el("button", "移除", {type: "button", "aria-label": "移除 " + rowName(row)});
@@ -407,7 +460,7 @@ function render() {
   syncAdvancedFilters();
   displayed = filteredRows();
   $("status").textContent = dataset.label + " · " + displayed.length + " 筆符合條件";
-  renderMetrics(); renderChart(); renderTable(); renderComparison(); renderDetail();
+  renderMetrics(); renderChart(); renderTable(); renderComparison(); renderDetail(); animateView();
 }
 async function exportReport(rows) {
   const payload = {schema_version: "pages-report/1", project: bundle.project, dataset: dataset.id,
@@ -539,7 +592,7 @@ async function initialize() {
   }
   $("only-anomaly").addEventListener("change", () => {state.onlyAnomaly = $("only-anomaly").checked; currentPage = 0; saveState(); render();});
   $("compare-jump").addEventListener("click", () => {$("compare-title").focus({preventScroll: true}); $("compare-title").scrollIntoView({block: "start"});});
-  $("direction").addEventListener("click", () => {state.descending = !state.descending; $("direction").textContent = state.descending ? "遞減" : "遞增"; saveState(); render();});
+  $("direction").addEventListener("click", () => {state.descending = !state.descending; setButtonText($("direction"), state.descending ? "遞減" : "遞增"); saveState(); render();});
   $("reset").addEventListener("click", () => {
     Object.assign(state, {onlyAnomaly: false, search: "", group: "", start: "", end: "", detail: "", minimum: dataset.minimum?.value || 0});
     currentPage = 0; fillControls(); saveState(); render();
@@ -575,6 +628,7 @@ async function initialize() {
   addEventListener("popstate", event => {readState(); fillControls(); render(); if (state.detail) renderDetail(true); else { $("main").focus({preventScroll: true}); scrollTo({top: event.state?.scrollY ?? 0, behavior: "auto"}); }});
 }
 $("retry").addEventListener("click", () => location.reload());
+decorateControls();
 initialize().catch(() => {
   $("mode").textContent = "載入失敗"; $("status").textContent = "未顯示未驗證資料。";
   $("fatal").hidden = false;
