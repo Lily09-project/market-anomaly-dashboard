@@ -46,7 +46,7 @@ def keyboard_check(page):
     page.locator("#search").focus()
     expected = page.evaluate("""() => [...document.querySelectorAll('a[href],button,input,select,textarea,summary,[tabindex]')]
       .filter(node => node.tabIndex >= 0 && !node.disabled && node.checkVisibility()).length""")
-    returned_to_start = False
+    completed = False
     visited = []
     for _ in range(max(20, expected + 3)):
         page.keyboard.press("Tab")
@@ -61,12 +61,17 @@ def keyboard_check(page):
             outline:style.outlineStyle !== "none" && parseFloat(style.outlineWidth)>=2,
             occluded:!(hit && (node.contains(hit) || hit.contains(node)))};
         }""")
-        assert result and result["visible"] and result["outline"] and not result["occluded"], result
+        # Chromium can report BODY at the end of sequential navigation; require a full
+        # traversal before accepting that boundary, and verify every reached target.
+        if result is None:
+            completed = True
+            break
+        assert result["visible"] and result["outline"] and not result["occluded"], result
         if result["id"] == "search":
-            returned_to_start = True
+            completed = True
             break
         visited.append((result["tag"], result["id"], result["type"]))
-    assert returned_to_start, "Keyboard focus did not complete a full tab cycle."
+    assert completed, "Keyboard traversal exceeded the expected focusable controls."
     assert len(visited) >= max(8, expected - 3), (len(visited), expected)
 
 
