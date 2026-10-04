@@ -158,3 +158,12 @@ col.action-column{width:8rem}
 
 .compare-panel:has(#comparison:empty) .actions{display:none}
 @container(max-width:14rem){#views{display:grid;grid-template-columns:minmax(0,1fr)}#views a{justify-content:flex-start;padding-inline:.5rem}}
+
+html:not([data-screen=records]) #status,html:not([data-screen=records]) #notice{display:none}
+button,input,select{border-radius:var(--radius)}
+#season{max-width:12rem}.header{padding-bottom:.5rem}#main{padding-top:.5rem}
+.native-trend .anomaly-point{fill:var(--error);stroke:var(--surface);stroke-width:1}
+
+.market-frame section>a{display:flex;gap:.4rem;align-items:center;min-height:44px;margin:.75rem 0;width:fit-content;max-width:100%}
+@container(max-width:24rem){.market-side dl{grid-template-columns:minmax(0,1fr);gap:.25rem}.market-side dd{margin-bottom:.75rem}.market-side dt{font-weight:600}}
+@container(max-width:16rem){.surface{padding:.5rem}.surface a{margin-right:0}}

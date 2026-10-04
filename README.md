@@ -1,36 +1,27 @@
-# Research Trust Workbench
+# Market Research — 標的研究工作台
 
-[![Quality & Security](https://github.com/Lily09-project/market-anomaly-dashboard/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/Lily09-project/market-anomaly-dashboard/actions/workflows/security.yml)
+[![CI](https://github.com/Lily09-project/market-anomaly-dashboard/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/Lily09-project/market-anomaly-dashboard/actions/workflows/security.yml)
 
-面向台股與美股的可解釋研究工作台：把行情來源、資料品質、技術證據與可驗證研究快照放在同一個流程。Python／Streamlit 版本支援桌面／行動版與深色／淺色主題。
-
-> 本專案不是股價預測器、交易訊號或投資建議服務，不提供買賣建議。
-
-## 公開展示版
+以 Python 建立市場資料與可解釋異常分析；公開展示版以單一股票代碼的歷史研究為核心。
 
 [開啟互動展示網站](https://lily09-project.github.io/market-anomaly-dashboard/) · 不需登入，也不需作者的裝置開機。
 
-搜尋、篩選、圖表、最多三筆比較與 CSV／JSON 下載，支援手機並採用固定配色。使用可重現 DEMO 合成資料，不代表即時行情或投資建議。Python／Streamlit 版本保留完整分析流程；功能邊界與部署方式見 [GitHub Pages](docs/GITHUB_PAGES.md)。
+## 展示版重點
 
-![GitHub Pages 互動展示版](docs/screenshots/ui-pages.jpg)
+- 選擇標的與期間，查看收盤價、原始 20 日波動率及模型標記日期。
+- 日期紀錄與明細連動，保留成交量、日報酬及原始模型分數。
+- 完整紀錄可篩選、排序、比較和下載；兩份 JSON 快照在瀏覽器本地驗證與比較。
 
-## Python／Streamlit 介面預覽
+GitHub Pages 使用可重現的合成行情，不是即時行情、交易訊號或投資建議。模型分數不是機率或投資勝率。Python／Streamlit 另提供完整研究流程。
 
-![個股研究與技術證據](docs/screenshots/ui-stocks.png)
-![市場雷達與研究排序](docs/screenshots/ui-radar.png)
-![Research Snapshot 比較](docs/screenshots/ui-compare.png)
+## 介面
 
-## Highlights
+![標的研究：桌面](docs/screenshots/pages-desktop.png)
+![標的研究：手機](docs/screenshots/pages-mobile.png)
 
-- 台股／美股代號正規化、OHLCV、均線、RSI、成交量與波動率。
-- Research Readiness 與 Evidence Coherence，直接呈現來源、時效與樣本深度。
-- 可解釋市場雷達：產業篩選、透明配置、最低證據門檻與穩定排序。
-- `src/market_screener.py` 提供可重現的雷達排序與證據門檻。
-- Z-score、Isolation Forest、價格波動與 pseudo-label 評估。
-- Research Snapshot JSON、可列印 HTML 與 Snapshot Comparison，包含 `snapshot_id`、fingerprint 與 SHA-256。
-- API 失敗時清楚標示 DEMO／cache／offline，不把示範資料偽裝成即時行情。
+## 本機啟動
 
-## Quick start
+需求：Python 3.12；Windows 可使用專案啟動器。
 
 ```powershell
 git clone https://github.com/Lily09-project/market-anomaly-dashboard.git
@@ -38,22 +29,12 @@ cd market-anomaly-dashboard
 .\run_project.bat
 ```
 
-手動啟動與驗收：
+## 測試與安全
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe run_all.py --mode sample
-.\.venv\Scripts\python.exe -m streamlit run app.py --server.port 8765
-.\run_project.bat --validate
+python -m pytest -q
 ```
 
-## Validation
+CI 執行品質、安全與 Pages 瀏覽器驗收。公開展示只發布經允許的靜態檔案與欄位；金鑰、個人資料和本機暫存不應提交。SHA-256 用於內容完整性核對，不代表來源身分認證。
 
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\python.exe quality\run_acceptance.py release
-```
-
-## 資料來源與降級
-
-LIVE 仍需檢查交易日與完整度；DEMO／offline 只用於可重現驗證。API secrets、`.env`、使用者研究資料、cache 與本機產物不提交到 repository。研究工作流見 [docs/research-workflow.md](docs/research-workflow.md) 與 [docs/user-guide.md](docs/user-guide.md)，部署見 [docs/deployment.md](docs/deployment.md)，安全政策見 [SECURITY.md](SECURITY.md)。
+部署與功能邊界見 [GitHub Pages 指南](docs/GITHUB_PAGES.md)，安全通報見 [SECURITY.md](SECURITY.md)。

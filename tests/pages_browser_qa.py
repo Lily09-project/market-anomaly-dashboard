@@ -793,11 +793,12 @@ def native_product_check(browser, url, bundle, evidence):
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.goto(url)
-            page.locator("#product-root").filter(has=page.locator("h2")).wait_for()
+            page.locator("#product-root h2").first.wait_for()
             page.evaluate("(scale) => document.documentElement.style.fontSize = (16*scale)+'px'", scale)
             assert not page.locator("#record-browser").is_visible()
             assert page.locator("#product-nav a").count() >= 3
             layout_check(page); contrast_check(page)
+            assert page.locator("#product-root svg").evaluate_all("(nodes) => nodes.every(node => !node.outerHTML.includes(\"NaN\"))")
             assert page.locator("h1").count() == 1
             assert page.locator("body").inner_text().find("設計樣稿") == -1
             if bundle["kind"] == "aqi":
@@ -961,6 +962,11 @@ def main():
         browser.close()
         for browser_type in (engine.firefox, engine.webkit):
             cross_browser_smoke(browser_type, args.url, bundle)
+            native_browser = browser_type.launch()
+            try:
+                native_product_check(native_browser, args.url, bundle, evidence)
+            finally:
+                native_browser.close()
     print("PASS: Chromium fixed palette x 2 OS preferences x 5 viewports x 2 text scales x every page; history, invalid filters, snapshot limits, dense extrema, degenerate charts, marker shapes, raw innings exports; Firefox/WebKit responsive, fixed-palette, route, download, snapshot and date smoke")
 
 

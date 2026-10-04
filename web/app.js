@@ -377,7 +377,7 @@ function renderChart() {
 }
 function renderTable() {
   pageSize = tablePageSize();
-  $("table-title").textContent = dataset.label;
+  $("table-title").textContent = productState.screen==="board" ? (dataset.id==="batters"?"打者成績榜":dataset.id==="pitchers"?"投手成績榜":dataset.label) : dataset.label;
   const pages = Math.max(1, Math.ceil(displayed.length / pageSize));
   currentPage = Math.min(currentPage, pages - 1);
   const table = el("table", undefined, {role: "table"});
@@ -699,10 +699,15 @@ function nativeTrend(rows,view,key,secondary=null) {
       d+=(continues?"L":"M")+x+" "+y+" ";continues=true;
     }
     svg.append(svgEl("path",{d,class:"line series-"+index}));
-    if(sorted.length===1)svg.append(svgEl("circle",{cx:10,cy:220-200*(sorted[0][k]-lo)/(hi-lo),r:4,class:"event-point series-"+index}));
+    if(sorted.length===1&&number(sorted[0][k]))svg.append(svgEl("circle",{cx:10,cy:220-200*(sorted[0][k]-lo)/(hi-lo),r:4,class:"event-point series-"+index}));
   });
+  if(productState.research==="anomaly")for(const row of sorted.filter(r=>(r.model_anomaly===1||r.is_anomaly===1)&&number(r[key]))){
+    const x=10+880*(chartTime(row[view.date])-first)/(last-first||1),y=220-200*(row[key]-lo)/(hi-lo);
+    svg.append(svgEl("path",{d:"M"+x+" "+(y-5)+"l5 9h-10Z",class:"anomaly-point"}));
+  }
   const legend=el("div",undefined,{class:"legend"});keys.forEach((k,i)=>legend.append(el("span",view.fields.find(f=>f.key===k)?.label||k,{class:"series-"+i})));
   const axis=el("div",undefined,{class:"axis"});axis.append(el("span",String(sorted[0][view.date])),el("span",fieldValue(view,{[key]:lo},key)+"–"+fieldValue(view,{[key]:hi},key)),el("span",String(sorted.at(-1)[view.date])));
+  if(productState.research==="anomaly")legend.append(el("span","三角形：模型標記",{class:"anomaly-legend"}));
   root.append(svg,axis,legend);return root;
 }
 function productSelect(label, options, value, onChange, id) {
@@ -711,14 +716,14 @@ function productSelect(label, options, value, onChange, id) {
   select.addEventListener("change",()=>onChange(select.value));wrap.append(select);return wrap;
 }
 function scopedRows(view,entity,key) {
-  const entityRows=view.rows.filter(r=>String(r[key])===entity);const last=view.date?latestRow(entityRows,view.date):null;const cutoff=last?chartTime(last[view.date])-(bundle.kind==="aqi"?24:90)*86400000/(bundle.kind==="aqi"?24:1):null;
+  const entityRows=view.rows.filter(r=>String(r[key])===entity);const last=view.date?latestRow(entityRows,view.date):null;const cutoff=last?chartTime(last[view.date])-(bundle.kind==="aqi"?86400000:90*86400000):null;
   return entityRows.filter(r=>(state.start||state.end||cutoff===null||chartTime(r[view.date])>=cutoff)&&(!view.date||!state.start||String(r[view.date]).slice(0,10)>=state.start)&&(!view.date||!state.end||String(r[view.date]).slice(0,10)<=state.end));
 }
 function productPeriod(root){
   const form=el("div",undefined,{class:"product-period"});
   for(const [key,label] of [["start","開始日期"],["end","結束日期"]]){
-    const wrap=el("label",label),input=el("input",undefined,{type:"date",value:state[key],"aria-label":"研究"+label});
-    input.addEventListener("change",()=>{state[key]=input.value;saveState();renderProduct();});
+    const wrap=el("label",label),input=el("input",undefined,{id:"period-"+key,type:"date",value:state[key],"aria-label":"研究"+label});
+    input.addEventListener("change",()=>{state[key]=input.value;saveState();renderProduct();$("period-"+key)?.focus({preventScroll:true});});
     wrap.append(input);form.append(wrap);
   }
   form.append(productButton("清除日期",()=>{state.start="";state.end="";saveState();renderProduct();},"reset"));
@@ -770,8 +775,8 @@ function renderAirProduct(root) {
   const chosen=productState.entities.filter(s=>sites.includes(s));
   const form=el("div",undefined,{class:"station-options"});
   for(const site of sites){const selectedSite=chosen.includes(site);const b=productButton((selectedSite?"移除 ":"加入 ")+site,()=>{
-    productState.entities=selectedSite?chosen.filter(s=>s!==site):chosen.length<3?[...chosen,site]:chosen;saveState();renderProduct();
-  },selectedSite?"close":"compare");b.disabled=!selectedSite&&chosen.length>=3;form.append(b);}root.append(form);
+    productState.entities=selectedSite?chosen.filter(s=>s!==site):chosen.length<3?[...chosen,site]:chosen;saveState();renderProduct();$("station-pick-"+site)?.focus({preventScroll:true});
+  },selectedSite?"close":"compare");b.id="station-pick-"+site;b.disabled=!selectedSite&&chosen.length>=3;form.append(b);}root.append(form);
   const grid=el("div",undefined,{class:"comparison"});
   for(const site of chosen){const row=view.rows.find(r=>r.site_name===site);if(row){const card=el("article");card.append(el("h3",site),productValues(view,row));grid.append(card);}}
   root.append(grid);if(!chosen.length)root.append(el("p","請選取要比較的測站。"));
@@ -795,7 +800,7 @@ function renderMarketProduct(root) {
   center.append(sectionTitle(productState.research==="anomaly"?"模型標記日期":"日期紀錄"));
   if(!eventRows.length)center.append(el("p","這段期間沒有符合條件的紀錄；模型未標記不代表沒有風險。"));
   const dates=el("div",undefined,{class:"event-list"});
-  for(const r of eventRows.slice(0,30)){const b=productButton(r.date+" · "+fieldValue(overview,r,"close"),()=>{productState.datum=r.date;saveState();renderProduct();$("product-feedback").textContent="已選 "+symbol+" "+r.date+" 的紀錄";},"clock");b.setAttribute("aria-pressed",String(productState.datum===r.date));dates.append(b);}
+  for(const r of eventRows.slice(0,7)){const b=productButton(r.date+" · "+fieldValue(overview,r,"close"),()=>{productState.datum=r.date;saveState();renderProduct();$("datum-"+r.date)?.focus({preventScroll:true});$("product-feedback").textContent="已選 "+symbol+" "+r.date+" 的紀錄";},"clock");b.id="datum-"+r.date;b.setAttribute("aria-pressed",String(productState.datum===r.date));dates.append(b);}
   center.append(dates,productLink("完整歷史紀錄與下載","records",{view:productState.research==="volatility"?"volatility":productState.research==="anomaly"?"anomaly":"overview",entity:symbol}),productLink("資料工具","tools"));
   const chosen=rows.find(r=>r.date===productState.datum)||latestRow(rows,"date");
   side.append(el("p","所選日期",{class:"kicker"}));
@@ -837,6 +842,7 @@ function renderCPBLProduct(root){
 }
 function renderProduct() {
   if(!bundle)return;
+  document.documentElement.dataset.screen=productState.screen;
   const screen=productState.screen,record=screen==="records"||screen==="board"||screen==="methods"||screen==="tools";
   $("record-browser").hidden=!record;$("product-root").hidden=record;
   $("snapshot-panel").hidden=!(bundle.kind==="market"&&(screen==="tools"||screen==="records"));
