@@ -214,12 +214,12 @@ def ux_regression_check(page, url, bundle):
         page.locator('#views a[href="?view=' + target["id"] + '"]').click()
         assert page.locator("#status").inner_text().startswith(target["label"])
         page.evaluate("history.back()")
-        page.wait_for_function("(view) => new URLSearchParams(location.search).get('view') === view", first["id"])
+        page.wait_for_function("(view) => new URLSearchParams(location.search).get('view') === view", arg=first["id"])
         expect(page.locator("#search")).to_have_value(query)
         expect(page.locator("#group")).to_have_value(group)
         assert abs(page.evaluate("scrollY") - expected_scroll) <= 2
         page.evaluate("history.forward()")
-        page.wait_for_function("(view) => new URLSearchParams(location.search).get('view') === view", target["id"])
+        page.wait_for_function("(view) => new URLSearchParams(location.search).get('view') === view", arg=target["id"])
         assert page.locator("#search").input_value() == ""
         page.locator('#views a[href="?view=' + first["id"] + '"]').click()
         page.locator("#reset").click()
