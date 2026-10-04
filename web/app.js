@@ -122,9 +122,10 @@ function saveState(push = false) {
 }
 function fillControls() {
   $("search").value = state.search;
+  $("search").placeholder = dataset.id === "metrics" ? "搜尋模型或評估指標" : "搜尋股票代碼或關鍵字";
   $("anomaly-label").hidden = !dataset.fields.some(field => ["is_anomaly", "model_anomaly"].includes(field.key));
   $("only-anomaly").checked = !!state.onlyAnomaly;
-  $("group").replaceChildren(el("option", "全部", {value: ""}));
+  $("group").replaceChildren(el("option", "全部" + dataset.groupLabel, {value: ""}));
   const groups = [...new Set(dataset.rows.map(row => row[dataset.group]).filter(value => value !== null))].sort();
   for (const value of groups) $("group").append(el("option", String(value), {value}));
   if (!groups.map(String).includes(state.group)) state.group = "";
@@ -183,11 +184,13 @@ function renderMetrics() {
   }
   const values = displayed.map(row => row[dataset.value]).filter(number);
   const missing = displayed.reduce((count, row) => count + dataset.fields.filter(field => row[field.key] === null).length, 0);
-  const cards = [["資料筆數", displayed.length], ["分類數", new Set(displayed.map(row => row[dataset.group])).size],
+  const hasAnomalies = dataset.fields.some(field => ["is_anomaly", "model_anomaly"].includes(field.key));
+  const anomalyCount = displayed.filter(row => row.is_anomaly === 1 || row.model_anomaly === 1).length;
+  const cards = [["符合條件筆數", displayed.length], [dataset.groupLabel + "數", new Set(displayed.map(row => row[dataset.group])).size],
     [dataset.fields.find(field => field.key === dataset.value).label + " 樣本平均", values.length ? values.reduce((a, b) => a + b, 0) / values.length : null],
-    ["缺值數", missing]];
+    [hasAnomalies ? "異常紀錄" : "缺值數", hasAnomalies ? anomalyCount : missing]];
   $("metrics").replaceChildren(...cards.map(([label, value]) => {
-    const card = el("article", undefined, {class: "metric"});
+    const card = el("article", undefined, {class: "metric", title: label === "缺值數" ? "符合條件資料中的空白儲存格數" : label === "異常紀錄" ? "任一已發布異常標記為異常的紀錄數；不是即時警報" : label.includes("樣本平均") ? "符合篩選條件的有效數值平均；不是最新一筆或預測信心" : label});
     card.append(el("p", label), el("strong", label.includes("樣本平均") ? formatField(dataset.fields.find(field => field.key === dataset.value), value) : format(value))); return card;
   }));
 }
@@ -332,7 +335,7 @@ function renderTable() {
   const compact = compactFields();
   hrow.append(el("th", "比較", {scope: "col"}));
   for (const field of dataset.fields) {
-    const th = el("th", field.label, {scope: "col", class: compact.has(field.key) ? "" : "secondary-field"});
+    const th = el("th", field.label, {scope: "col", "data-kind": field.kind, class: compact.has(field.key) ? "" : "secondary-field"});
     if (field.key === state.sort) th.setAttribute("aria-sort", state.descending ? "descending" : "ascending");
     hrow.append(th);
   }
@@ -352,7 +355,7 @@ function renderTable() {
     });
     label.append(check, el("span", "選取")); pick.append(label); tr.append(pick);
     for (const field of dataset.fields) tr.append(el("td", formatField(field, row[field.key]), {
-      "data-label": field.label, "data-field": field.key, class: compact.has(field.key) ? "" : "secondary-field"
+      "data-label": field.label, "data-field": field.key, "data-kind": field.kind, class: compact.has(field.key) ? "" : "secondary-field"
     }));
     const cell = el("td", undefined, {"data-label": "詳情"});
     const button = el("button", "查看", {type: "button", "aria-label": "查看 " + rowName(row)});
@@ -383,7 +386,7 @@ function renderComparison() {
     });
     card.append(remove); return card;
   }));
-  $("selection-status").textContent = rows.length ? "已選取 " + rows.length + " / 3 筆資料。" : "選取最多三筆資料進行比較。";
+  $("selection-status").textContent = rows.length ? "已選取 " + rows.length + " / 3 筆資料。" : "勾選表格的比較欄，最多可比較 3 筆資料。";
   $("clear-selection").disabled = !rows.length; $("selection-download").disabled = !rows.length;
 }
 function renderDetail(focus = false) {
