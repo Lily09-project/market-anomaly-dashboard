@@ -61,7 +61,7 @@ def keyboard_check(page):
 def contrast_check(page):
     pairs = page.evaluate("""() => {
       const style = getComputedStyle(document.documentElement);
-      return [["--text","--surface"],["--muted","--surface"],["--accent","--bg"],["--on-accent","--accent"]]
+      return [["--text","--surface"],["--muted","--surface"],["--accent","--bg"],["--on-accent","--accent"],["--error","--surface"],["--text","--tint"],["--muted","--raised"]]
         .map(pair=>pair.map(key=>style.getPropertyValue(key).trim()));
     }""")
     def luminance(color):
@@ -101,6 +101,8 @@ def functional_check(page, url, bundle):
         page.locator("#start").fill(dates[-1]); page.locator("#start").press("Tab")
         page.locator("#end").fill("2000-01-01"); page.locator("#end").press("Tab")
         assert page.locator("#filter-error").is_visible()
+        assert page.locator("#theme").is_enabled()
+        page.locator("#theme").click()
         assert page.locator("#json").is_disabled()
     page.locator("#reset").click()
     page.locator("#search").fill("NO_MATCH_7f9f123456")
@@ -186,7 +188,7 @@ def ux_regression_check(page, url, bundle):
         target = bundle["datasets"][1]
         page.locator('#views a[href="?view=' + target["id"] + '"]').focus()
         page.keyboard.press("Enter")
-        assert page.locator("#table-title").evaluate("(node) => node === document.activeElement")
+        assert page.locator("#main").evaluate("(node) => node === document.activeElement")
     page.locator('#views a[href="?view=' + first["id"] + '"]').click()
     page.locator('#table input[type="checkbox"]').first.check()
     page.locator("#comparison button").first.click()
@@ -242,6 +244,63 @@ def ux_regression_check(page, url, bundle):
     layout_check(page)
 
 
+def visual_polish_check(page, url, bundle):
+    page.goto(url)
+    page.locator("#status").filter(has_text="筆符合條件").wait_for()
+    page.set_viewport_size({"width": 390, "height": 844})
+    for view in bundle["datasets"]:
+        page.locator('#views a[href="?view=' + view["id"] + '"]').click()
+        assert page.locator("#main").evaluate("(node) => node === document.activeElement")
+        assert page.locator("#views").bounding_box()["y"] >= -1
+        layout_check(page)
+        contrast_check(page)
+        fields = {field["key"] for field in view["fields"]}
+        required = ({"pa", "innings_pitched", "player_type", "season", "is_anomaly", "model_anomaly", "actual_next_hour_aqi"} & fields)
+        if page.locator("#table tbody tr").count():
+            for key in required:
+                assert page.locator('td[data-field="' + key + '"]').first.is_visible(), (view["id"], key)
+            check = page.locator('#table input[type="checkbox"]').first
+            check.check()
+            assert check.evaluate("(node) => node === document.activeElement")
+            page.locator("#compare-jump").click()
+            assert page.locator("#compare-title").evaluate("(node) => node === document.activeElement")
+            assert 0 <= page.locator("#compare-title").bounding_box()["y"] < 844
+            page.locator("#clear-selection").click()
+        if view["date"]:
+            assert page.locator("#chart .y-scale span").count() == 3
+            assert "NaN" not in page.locator("#chart svg").get_attribute("outerHTML")
+        if view["date"] or view.get("minimum"):
+            page.locator("#advanced-filters").evaluate("(node) => node.open = true")
+            if view["date"]:
+                day = min(row[view["date"]][:10] for row in view["rows"])
+                page.locator("#start").fill(day)
+                page.locator("#start").press("Tab")
+            else:
+                page.locator("#minimum").fill(str(view["minimum"]["value"] + 1))
+                page.locator("#minimum").press("Tab")
+            page.locator("#advanced-filters").evaluate("(node) => node.open = false")
+            page.locator("#direction").click()
+            assert not page.locator("#advanced-filters").evaluate("(node) => node.open")
+            page.locator("#reset").click()
+        if "is_anomaly" in fields or "model_anomaly" in fields:
+            page.locator("#only-anomaly").check()
+            report = downloaded_json(page, "#json")
+            key = "is_anomaly" if "is_anomaly" in fields else "model_anomaly"
+            assert report["rows"] and all(row[key] == 1 for row in report["rows"])
+            assert report["filters"]["only_anomaly"] is True
+            assert report["sha256"] == report_hash(report, page)
+            page.reload()
+            page.locator("#status").filter(has_text="筆符合條件").wait_for()
+            assert page.locator("#only-anomaly").is_checked()
+            page.locator("#reset").click()
+        if bundle["kind"] == "market" and view["id"] == "anomaly":
+            assert page.locator("#chart polyline").count() == 0
+            assert page.locator("#chart circle").count() > 0
+        if bundle["kind"] == "aqi" and view["id"] == "anomaly":
+            assert page.locator("#chart .anomaly-point").count() > 0
+            assert "三角形" in page.locator("#legend").inner_text()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", required=True)
@@ -268,7 +327,7 @@ def main():
                     for view in bundle["datasets"]:
                         page.locator('#views a[href="?view=' + view["id"] + '"]').click()
                         assert page.locator("#status").inner_text().startswith(view["label"])
-                        assert page.locator("#table-title").evaluate("(node) => node === document.activeElement")
+                        assert page.locator("#main").evaluate("(node) => node === document.activeElement")
                         try:
                             layout_check(page); keyboard_check(page)
                         except AssertionError:
@@ -282,6 +341,7 @@ def main():
             page = context.new_page()
             functional_check(page, args.url, bundle)
             ux_regression_check(page, args.url, bundle)
+            visual_polish_check(page, args.url, bundle)
             context.close()
         for zone in ("UTC", "Asia/Taipei", "America/Los_Angeles"):
             context = browser.new_context(viewport={"width": 390, "height": 844}, timezone_id=zone, reduced_motion="reduce")

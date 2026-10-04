@@ -10,6 +10,7 @@ const format = value => value === null || value === undefined || value === "" ? 
   number(value) ? new Intl.NumberFormat("zh-TW", {maximumFractionDigits: 3}).format(value) : String(value);
 
 function formatField(field, value) {
+  if (["is_anomaly", "model_anomaly"].includes(field.key)) return value === 1 ? "異常" : value === 0 ? "正常" : "—";
   if (!number(value)) return format(value);
   const key = field.key;
   if (key === "season") return String(Math.trunc(value));
@@ -28,12 +29,16 @@ function chartDate(time) {
   return new Intl.DateTimeFormat("en-CA", {timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit"}).format(new Date(time));
 }
 function compactFields() {
-  const extra = bundle.kind === "market" ? ["daily_return"] : dataset.id === "batters" ? ["batting_average"] :
-    dataset.id === "pitchers" ? ["era"] : dataset.id === "roster" ? ["roster_status"] : dataset.id === "teams" ? ["wins", "losses"] : bundle.kind === "aqi" ? ["pm25"] : [];
+  const extra = bundle.kind === "market" ? ["daily_return", "model_anomaly"] : dataset.id === "batters" ? ["batting_average", "pa"] :
+    dataset.id === "pitchers" ? ["era", "innings_pitched"] : dataset.id === "roster" ? ["roster_status", "player_type"] : dataset.id === "teams" ? ["season", "wins", "losses"] : bundle.kind === "aqi" ? ["pm25", "is_anomaly", "actual_next_hour_aqi"] : [];
   return new Set([dataset.name === "snapshot_id" ? null : dataset.name, dataset.group, dataset.date, dataset.value, ...extra].filter(Boolean));
 }
 function tablePageSize() {
   return $("table").clientWidth <= 70 * parseFloat(getComputedStyle($("table")).fontSize) ? 8 : 20;
+}
+function focusView() {
+  $("main").focus({preventScroll: true});
+  $("views").scrollIntoView({block: "start", behavior: "auto"});
 }
 function focusResults() {
   $("table-title").focus({preventScroll: true});
@@ -44,7 +49,7 @@ function syncAdvancedFilters() {
   $("advanced-filters").hidden = !(dataset.date || dataset.minimum);
   $("advanced-summary").textContent = active ? "進階篩選 · 已套用" :
     dataset.minimum && state.minimum > 0 ? "進階篩選 · " + dataset.minimum.label + " " + state.minimum : "進階篩選";
-  if (active) $("advanced-filters").open = true;
+  // Keep the user’s disclosure choice when sorting or filtering re-renders results.
 }
 
 const hash = async text => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))))
@@ -79,6 +84,7 @@ function readState() {
     view: view.id, search: (query.get("q") || "").slice(0, 150), group: query.get("group") || "",
     start: /^\d{4}-\d{2}-\d{2}$/u.test(query.get("start") || "") ? query.get("start") : "",
     end: /^\d{4}-\d{2}-\d{2}$/u.test(query.get("end") || "") ? query.get("end") : "",
+    onlyAnomaly: query.get("anomaly") === "1" && view.fields.some(field => field.key === "is_anomaly" || field.key === "model_anomaly"),
     minimum: Number(query.get("min") ?? view.minimum?.value ?? 0),
     sort: query.get("sort") || view.sort, descending: query.get("direction") !== "asc",
     detail: (query.get("detail") || "").slice(0, 500)
@@ -101,15 +107,18 @@ function saveState(push = false) {
   query.set("view", state.view);
   for (const [key, value] of [["q", state.search], ["group", state.group], ["start", state.start],
     ["end", state.end], ["sort", state.sort], ["direction", state.descending ? "desc" : "asc"],
-    ["min", dataset.minimum ? String(state.minimum) : ""], ["detail", state.detail]]) {
+    ["min", dataset.minimum ? String(state.minimum) : ""], ["anomaly", state.onlyAnomaly ? "1" : ""], ["detail", state.detail]]) {
     if (value) query.set(key, value);
   }
   if (selected.size) query.set("selected", JSON.stringify([...selected]));
   if (currentPage) query.set("page", String(currentPage + 1));
-  history[push ? "pushState" : "replaceState"](null, "", location.pathname + "?" + query);
+  if (push) history.replaceState({...history.state, scrollY: scrollY}, "", location.href);
+  history[push ? "pushState" : "replaceState"](push ? {scrollY: 0} : history.state, "", location.pathname + "?" + query);
 }
 function fillControls() {
   $("search").value = state.search;
+  $("anomaly-label").hidden = !dataset.fields.some(field => ["is_anomaly", "model_anomaly"].includes(field.key));
+  $("only-anomaly").checked = !!state.onlyAnomaly;
   $("group").replaceChildren(el("option", "全部", {value: ""}));
   const groups = [...new Set(dataset.rows.map(row => row[dataset.group]).filter(value => value !== null))].sort();
   for (const value of groups) $("group").append(el("option", String(value), {value}));
@@ -136,9 +145,9 @@ function fillControls() {
       if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
       state = {view: item.id, search: "", group: "", start: "", end: "", minimum: item.minimum?.value || 0,
-        sort: item.sort, descending: true, detail: ""};
+        sort: item.sort, descending: true, onlyAnomaly: false, detail: ""};
       dataset = item; selected.clear(); currentPage = 0; fillControls(); saveState(true); render();
-      focusResults();
+      focusView();
     });
     return link;
   }));
@@ -148,6 +157,7 @@ function filteredRows() {
   if (dataset.date && state.start && state.end && state.start > state.end) return [];
   return dataset.rows.filter(row =>
     (!state.group || String(row[dataset.group]) === state.group) &&
+    (!state.onlyAnomaly || row.is_anomaly === 1 || row.model_anomaly === 1) &&
     (!query || dataset.fields.some(field => String(row[field.key] ?? "").toLocaleLowerCase("zh-TW").includes(query))) &&
     (!dataset.date || !state.start || String(row[dataset.date]).slice(0, 10) >= state.start) &&
     (!dataset.date || !state.end || String(row[dataset.date]).slice(0, 10) <= state.end) &&
@@ -214,7 +224,10 @@ function renderChart() {
   const xs = all.map(row => chartTime(row[dataset.date]));
   const lowX = Math.min(...xs), highX = Math.max(...xs);
   const ys = series.flatMap(item => all.filter(row => row[dataset.group] === item.group).map(row => row[item.key]).filter(number));
-  const lowY = Math.min(...ys), highY = Math.max(...ys);
+  let lowY = Math.min(...ys), highY = Math.max(...ys);
+  if (lowY === highY) { const padding = Math.max(1, Math.abs(lowY) * .05); lowY -= padding; highY += padding; }
+  const eventChart = bundle.kind === "market" && dataset.id === "anomaly";
+  const point = row => [5 + 890 * (chartTime(row[dataset.date]) - lowX) / (highX - lowX || 1), 210 - 200 * (row[dataset.value] - lowY) / (highY - lowY)];
   const svg = svgEl("svg", {viewBox: "0 0 900 220", role: "img", "aria-label": dataset.chartLabel + "；完整數值見資料明細", preserveAspectRatio: "none"});
   for (let y = 10; y <= 210; y += 50) svg.append(svgEl("line", {x1: 5, x2: 895, y1: y, y2: y, class: "grid"}));
   series.forEach((item, index) => {
@@ -230,14 +243,38 @@ function renderChart() {
     const points = rows.filter((_, idx) => idx % step === 0 || idx === rows.length - 1).map(row =>
       (5 + 890 * (chartTime(row[dataset.date]) - lowX) / (highX - lowX || 1)) + "," +
       (210 - 200 * (row[item.key] - lowY) / (highY - lowY || 1))).join(" ");
-    svg.append(svgEl("polyline", {points, class: "line series-" + (dataset.secondary ? index : groupOrder.indexOf(item.group) % 3)}));
+    const seriesClass = "series-" + (dataset.secondary ? index : groupOrder.indexOf(item.group) % 3);
+    if (eventChart) {
+      for (const row of rows) {
+        const [cx, cy] = point(row);
+        svg.append(svgEl("circle", {cx, cy, r: 4, class: "event-point " + seriesClass}));
+      }
+    } else {
+      svg.append(svgEl("polyline", {points, class: "line " + seriesClass}));
+      if (rows.length === 1) {
+        const row = rows[0], cx = 5, cy = 210 - 200 * (row[item.key] - lowY) / (highY - lowY);
+        svg.append(svgEl("circle", {cx, cy, r: 4, class: "event-point " + seriesClass}));
+      }
+    }
+    if (bundle.kind === "aqi" && dataset.id === "anomaly") {
+      for (const row of displayed.filter(row => row[dataset.group] === item.group && row.is_anomaly === 1 && number(row[item.key]))) {
+        const [cx, cy] = point(row);
+        svg.append(svgEl("path", {d: "M " + cx + " " + (cy - 5) + " l 5 10 h -10 Z", class: "anomaly-point"}));
+      }
+    }
     $("legend").append(el("span", item.label, {class: "series-" + (dataset.secondary ? index : groupOrder.indexOf(item.group) % 3)}));
   });
   const axis = el("div", undefined, {class: "axis"});
   axis.append(el("span", chartDate(lowX)), el("span", dataset.fields.find(field => field.key === dataset.value).label + " " + formatField(dataset.fields.find(field => field.key === dataset.value), lowY) + "–" + formatField(dataset.fields.find(field => field.key === dataset.value), highY)),
     el("span", chartDate(highX)));
-  $("chart").append(svg, axis);
-  if (new Set(displayed.map(row => row[dataset.group])).size > 3) $("legend").append(el("p", "圖表顯示前三組；完整資料見明細。"));
+  const plot = el("div", undefined, {class: "chart-plot"});
+  const scale = el("div", undefined, {class: "y-scale", "aria-hidden": "true"});
+  const field = dataset.fields.find(field => field.key === dataset.value);
+  for (const value of [highY, (highY + lowY) / 2, lowY]) scale.append(el("span", formatField(field, value)));
+  plot.append(scale, svg);
+  $("chart").append(plot, axis);
+  if (bundle.kind === "aqi" && dataset.id === "anomaly") $("legend").append(el("span", "三角形：模型標記異常", {class: "anomaly-legend"}));
+  if (!dataset.secondary && new Set(displayed.map(row => row[dataset.group])).size > 3) $("legend").append(el("p", "圖表顯示前三組；完整資料見明細。"));
   if (dataset.secondary) $("legend").append(el("p", "測站：" + String(groups[0])));
 }
 function renderTable() {
@@ -295,6 +332,8 @@ function valuesDl(row) {
 }
 function renderComparison() {
   const rows = selectedRows();
+  $("compare-jump").disabled = !rows.length;
+  $("compare-jump").textContent = "查看比較 · " + rows.length + "/3";
   $("comparison").replaceChildren(...rows.map(row => {
     const card = el("article"); card.append(el("h3", rowName(row)), valuesDl(row));
     const remove = el("button", "移除", {type: "button", "aria-label": "移除 " + rowName(row)});
@@ -329,7 +368,7 @@ function render() {
 }
 async function exportReport(rows) {
   const payload = {schema_version: "pages-report/1", project: bundle.project, dataset: dataset.id,
-    source: bundle.source, filters: {search: state.search, group: state.group, start: state.start, end: state.end, minimum: state.minimum},
+    source: bundle.source, filters: {search: state.search, group: state.group, start: state.start, end: state.end, minimum: state.minimum, only_anomaly: !!state.onlyAnomaly},
     columns: dataset.fields, rows};
   const canonical = JSON.stringify(payload);
   const report = {...payload, sha256: await hash(canonical)};
@@ -428,6 +467,7 @@ async function initialize() {
   if (await hash(text) !== integrity.data_sha256) throw new Error("Data integrity mismatch");
   bundle = JSON.parse(text);
   if (bundle.schema_version !== "pages-data/1" || !Array.isArray(bundle.datasets) || !bundle.datasets.length) throw new Error("Invalid schema");
+  document.documentElement.dataset.project = bundle.kind;
   $("title").textContent = bundle.title; document.title = bundle.title;
   $("brand").textContent = bundle.brand; $("repository").href = "https://github.com/Lily09-project/" + bundle.project;
   $("mode").textContent = bundle.source.mode;
@@ -439,14 +479,12 @@ async function initialize() {
   }
   $("disclaimer").textContent = bundle.disclaimer;
   for (const [key, value] of Object.entries(bundle.quality)) $("quality").append(el("dt", key), el("dd", format(value)));
-  let initialTheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  try { initialTheme = localStorage.getItem("pages-theme") || initialTheme; } catch { /* No persistence needed. */ }
-  setTheme(initialTheme === "dark" ? "dark" : "light");
+  for (const node of document.querySelectorAll("[data-loading-control]")) node.disabled = false;
+  $("chart-panel").hidden = false;
   readState(); fillControls(); render();
   $("snapshot-panel").hidden = bundle.kind !== "market";
   for (const id of ["snapshot-a", "snapshot-b"]) $(id).addEventListener("change", compareUploads);
   $("snapshot-download").addEventListener("click", () => { if (comparisonReport) download(JSON.stringify(comparisonReport, null, 2), "snapshot-comparison.json", "application/json;charset=utf-8"); });
-  $("theme").addEventListener("click", () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
   for (const [id, key] of [["search", "search"], ["group", "group"], ["start", "start"], ["end", "end"], ["sort", "sort"], ["minimum", "minimum"]]) {
     $(id).addEventListener(id === "search" ? "input" : "change", () => {
       state[key] = key === "minimum" ? Number($(id).value) : $(id).value;
@@ -456,9 +494,11 @@ async function initialize() {
       currentPage = 0; saveState(); render();
     });
   }
+  $("only-anomaly").addEventListener("change", () => {state.onlyAnomaly = $("only-anomaly").checked; currentPage = 0; saveState(); render();});
+  $("compare-jump").addEventListener("click", () => {$("compare-title").focus({preventScroll: true}); $("compare-title").scrollIntoView({block: "start"});});
   $("direction").addEventListener("click", () => {state.descending = !state.descending; $("direction").textContent = state.descending ? "遞減" : "遞增"; saveState(); render();});
   $("reset").addEventListener("click", () => {
-    Object.assign(state, {search: "", group: "", start: "", end: "", detail: "", minimum: dataset.minimum?.value || 0});
+    Object.assign(state, {onlyAnomaly: false, search: "", group: "", start: "", end: "", detail: "", minimum: dataset.minimum?.value || 0});
     currentPage = 0; fillControls(); saveState(); render();
   });
   for (const [id, delta] of [["previous", -1], ["next", 1]]) {
@@ -489,11 +529,16 @@ async function initialize() {
   $("selection-download").addEventListener("click", () => safeExport(selectedRows()));
   $("clear-selection").addEventListener("click", () => {selected.clear(); saveState(); renderTable(); renderComparison(); $("compare-title").focus();});
   $("close-detail").addEventListener("click", () => {state.detail = ""; saveState(); renderDetail(); if (lastDetailButton?.isConnected) lastDetailButton.focus(); else $("reset").focus();});
-  addEventListener("popstate", () => {readState(); fillControls(); render(); if (state.detail) renderDetail(true); else focusResults();});
+  addEventListener("popstate", event => {readState(); fillControls(); render(); if (state.detail) renderDetail(true); else { $("main").focus({preventScroll: true}); scrollTo({top: event.state?.scrollY ?? 0, behavior: "auto"}); }});
 }
+let initialTheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  try { initialTheme = localStorage.getItem("pages-theme") || initialTheme; } catch { /* No persistence needed. */ }
+  setTheme(initialTheme === "dark" ? "dark" : "light");
+
+$("theme").addEventListener("click", () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
 $("retry").addEventListener("click", () => location.reload());
 initialize().catch(() => {
   $("mode").textContent = "載入失敗"; $("status").textContent = "未顯示未驗證資料。";
   $("fatal").hidden = false;
-  for (const id of ["theme", "csv", "json", "selection-download", "clear-selection", "previous", "next", "search", "group", "start", "end", "minimum", "sort", "reset", "direction"]) $(id).disabled = true;
+  for (const id of ["only-anomaly", "compare-jump", "csv", "json", "selection-download", "clear-selection", "previous", "next", "search", "group", "start", "end", "minimum", "sort", "reset", "direction"]) $(id).disabled = true;
 });
