@@ -639,6 +639,11 @@ async function initialize() {
 /* Product routes sit on the verified data engine; legacy ?view links stay usable. */
 let productState = {screen:"home", entity:"", research:"history", datum:"", entities:[]};
 let productAnimation;
+// Stop positional entrance motion before a focused control is scrolled into view.
+$("product-root").addEventListener("focusin", () => {
+  productAnimation?.cancel();
+  productAnimation = null;
+});
 function readProductState() {
   const q = new URLSearchParams(location.search);
   const routes = ["home","report","stations","research","board","person","team","records","methods","tools"];
