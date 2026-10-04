@@ -175,3 +175,7 @@ input[type="checkbox"]{flex:0 0 28px;width:28px;min-height:28px;height:28px}
 
 /* Reserve room for the icon and a complete two-character desktop action label. */
 col.action-column{width:8rem}
+
+/* Text zoom may make a mobile two-column menu too narrow; reflow without hiding labels. */
+@container(max-width:14rem){#views{display:grid;grid-template-columns:minmax(0,1fr)}#views a{justify-content:flex-start;text-align:left;padding-inline:.5rem;gap:.4rem}}
+@container(max-width:12rem){#metrics .metric strong{font-size:1.5rem}}

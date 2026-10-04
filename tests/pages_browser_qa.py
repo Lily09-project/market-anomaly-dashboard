@@ -137,6 +137,9 @@ def product_composition_check(page, bundle, view):
     if page.viewport_size["width"] >= 1440 and page.locator("html").evaluate("(node) => parseFloat(getComputedStyle(node).fontSize)") == 16:
         for label in page.locator("#table button .control-label").all():
             assert label.evaluate("(node) => { const range = document.createRange(); range.selectNodeContents(node); return range.getClientRects().length === 1; }"), "desktop row action must not split its label"
+    if page.viewport_size["width"] == 320 and page.locator("html").evaluate("(node) => parseFloat(getComputedStyle(node).fontSize)") == 32:
+        for label in page.locator("#views .control-label").all():
+            assert label.evaluate("(node) => node.getBoundingClientRect().height <= 2 * parseFloat(getComputedStyle(node).lineHeight) + 1"), "zoomed navigation label must not become vertical lettering"
     assert page.locator(".compare-panel .actions").is_visible() == (
         page.locator("#comparison article").count() > 0)
 
