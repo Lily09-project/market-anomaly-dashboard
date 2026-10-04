@@ -209,9 +209,11 @@ def ux_regression_check(page, url, bundle):
         page.locator("#group").select_option(group)
         page.locator("#search").fill(query)
         page.evaluate("scrollTo(0, Math.max(0, document.documentElement.scrollHeight - innerHeight - 24))")
-        expected_scroll = page.evaluate("scrollY")
         target = bundle["datasets"][1]
-        page.locator('#views a[href="?view=' + target["id"] + '"]').click()
+        target_link = page.locator('#views a[href="?view=' + target["id"] + '"]')
+        target_link.scroll_into_view_if_needed()
+        expected_scroll = page.evaluate("scrollY")
+        target_link.click()
         assert page.locator("#status").inner_text().startswith(target["label"])
         page.evaluate("history.back()")
         page.wait_for_function("(view) => new URLSearchParams(location.search).get('view') === view", arg=first["id"])
