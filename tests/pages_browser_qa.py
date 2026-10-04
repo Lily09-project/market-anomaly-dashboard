@@ -181,7 +181,7 @@ def functional_check(page, url, bundle):
                              if isinstance(row.get(numeric_field["key"]), (int, float)) and not isinstance(row.get(numeric_field["key"]), bool))
         rows[changed_index][numeric_field["key"]] += 1
         added = copy.deepcopy(original_rows[-1])
-        identity_key = view["identity"][0]
+        identity_key = next((key for key in view["identity"] if next(field for field in view["fields"] if field["key"] == key)["kind"] != "date"), view["identity"][0])
         identity_value = added[identity_key]
         added[identity_key] = identity_value + 1000000000 if isinstance(identity_value, (int, float)) and not isinstance(identity_value, bool) else f"__qa_added__{identity_value}"
         rows.append(added)
