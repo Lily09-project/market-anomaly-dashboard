@@ -276,7 +276,7 @@ def functional_check(page, url, bundle):
         assert downloaded_json(page, "#snapshot-download") == latest_after_failure
 
         # Clearing one side invalidates an older in-flight parse and keeps download disabled.
-        page.evaluate("() => { window.__qaSlowReleased = false; window.__qaReleaseSlowSnapshot = null; }"
+        page.evaluate("() => { window.__qaSlowReleased = false; window.__qaReleaseSlowSnapshot = null; }")
         page.locator("#snapshot-a").set_input_files({"name": "slow-clear-A.json", "mimeType": "application/json", "buffer": good})
         page.wait_for_function("typeof window.__qaReleaseSlowSnapshot === 'function'")
         page.locator("#snapshot-a").set_input_files([])
