@@ -132,6 +132,15 @@ def functional_check(page, url, bundle):
     assert report["project"] == bundle["project"] and report["dataset"] == first["id"]
     assert report["rows"] and all(str(row[first["group"]]) == group for row in report["rows"])
     assert report["sha256"] == report_hash(report, page)
+
+    if first["id"] != "metrics":
+        summary = page.locator("#metrics .metric strong").all_text_contents()
+        assert int(summary[0].replace(",", "")) == len(report["rows"])
+        assert int(summary[1].replace(",", "")) == len({row[first["group"]] for row in report["rows"]})
+        flags = {field["key"] for field in first["fields"]} & {"is_anomaly", "model_anomaly"}
+        if flags:
+            assert int(summary[-1].replace(",", "")) == sum(
+                any(row.get(key) == 1 for key in flags) for row in report["rows"])
     with page.expect_download() as event:
         page.locator("#csv").click()
     rows = list(csv.DictReader(io.StringIO(Path(event.value.path()).read_text(encoding="utf-8-sig"))))
