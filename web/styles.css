@@ -35,7 +35,7 @@ col.action-column{width:6rem}col.identifier-column{width:9rem}
 :root[data-theme="dark"][data-project="market"]{--accent:#c0b5ff;--ring:#c0b5ff;--tint:#302b4d}
 :root[data-theme="dark"][data-project="cpbl"]{--accent:#a9caff;--ring:#a9caff;--tint:#243951}
 body{font-feature-settings:"tnum";-webkit-font-smoothing:antialiased}
-.shell{padding-inline:clamp(1rem,3vw,2rem)}
+.shell{width:min(1280px,100%);padding-inline:clamp(1rem,3vw,2rem)}
 .header{padding-block:2.5rem 1.25rem;align-items:flex-start}
 h1{font-weight:750;letter-spacing:-.015em}h2{font-weight:650}h3{font-weight:600}
 .eyebrow{letter-spacing:.08em;font-weight:600}
