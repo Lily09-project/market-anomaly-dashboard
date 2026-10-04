@@ -224,7 +224,7 @@ def functional_check(page, url, bundle):
         page.wait_for_function("window.__qaSlowReleased === true")
         page.wait_for_timeout(50)
         assert downloaded_json(page, "#snapshot-download") == latest
-        page.evaluate("File.prototype.text = window.__qaNativeFileText")
+        page.evaluate("() => { File.prototype.text = window.__qaNativeFileText; }")
         tampered = {**original, "project": "tampered"}
         page.locator("#snapshot-b").set_input_files({"name": "tampered.json", "mimeType": "application/json",
                                                    "buffer": page.evaluate("(report) => JSON.stringify(report)", tampered).encode("utf-8")})
