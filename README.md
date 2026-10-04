@@ -38,3 +38,9 @@ python -m pytest -q
 CI 執行品質、安全與 Pages 瀏覽器驗收。公開展示只發布經允許的靜態檔案與欄位；金鑰、個人資料和本機暫存不應提交。SHA-256 用於內容完整性核對，不代表來源身分認證。
 
 部署與功能邊界見 [GitHub Pages 指南](docs/GITHUB_PAGES.md)，安全通報見 [SECURITY.md](SECURITY.md)。
+
+## 研究工作流與資料來源與降級
+
+Python／Streamlit 是可解釋研究工作台，包含可解釋市場雷達（`src/market_screener.py`）、Research Snapshot（`snapshot_id` 與 SHA-256）及 Snapshot Comparison。不提供買賣建議；LIVE 需檢查交易日與完整度，DEMO／cache／offline 均明確標示。
+
+深入操作見 [研究工作流](docs/research-workflow.md)、[使用指南](docs/user-guide.md) 與 [部署指南](docs/deployment.md)。
