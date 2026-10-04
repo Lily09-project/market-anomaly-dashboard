@@ -12,15 +12,15 @@
 </head>
 <body>
 <a class="skip" href="#main">跳到主要內容</a>
-<header class="shell header">
-  <div><p class="eyebrow" id="brand">MARKET RESEARCH DESK</p><h1 id="title">市場研究工作台</h1></div>
-  <div class="header-actions"><a id="repository" href="https://github.com/Lily09-project/market-anomaly-dashboard">原始碼</a></div>
-</header>
+<header class="shell header "><div><p class="eyebrow" id="brand"></p><h1 id="title"></h1></div><div class="header-actions"><a id="repository" href="https://github.com/Lily09-project/market-anomaly-dashboard">原始碼</a></div></header>
 <main id="main" class="shell" tabindex="-1">
-<div class="market-layout"><aside class="market-navigation" aria-label="研究導覽"><nav id="views" aria-label="分析頁面"></nav></aside>
-<div class="market-workspace">
+<nav id="product-nav" aria-label="主要導覽"></nav>
 <div id="provenance" class="provenance"><span id="mode" class="badge">載入中</span><p id="source-date"></p></div>
 <p id="notice" class="notice"></p>
+<p id="status" role="status" aria-live="polite" aria-atomic="true">正在載入資料…</p>
+<div id="product-root"></div><p id="product-feedback" role="status" aria-live="polite"></p>
+<div id="record-browser" hidden>
+<nav id="views" aria-label="完整資料視圖"></nav>
 <section class="panel filter-panel" aria-label="篩選條件">
     <div class="filters">
       <label>搜尋<input id="search" type="search" autocomplete="off" placeholder="搜尋股票代碼或關鍵字" disabled data-loading-control></label>
@@ -35,8 +35,11 @@
     </div></details>
     <p id="filter-error" class="error" role="alert" hidden></p>
   </section>
-<section id="metrics" class="metrics" aria-label="篩選結果摘要"></section>
-<p id="status" role="status" aria-live="polite" aria-atomic="true">正在載入資料…</p>
+<div class="engine-summary"><section id="chart-panel" class="panel" hidden>
+    <h2 id="chart-title">趨勢</h2>
+    <div id="chart" class="chart"></div>
+    <div id="legend" class="legend"></div>
+  </section><section id="metrics" class="metrics" aria-label="篩選結果摘要"></section></div>
 <section class="panel results-panel" aria-labelledby="table-title">
     <div class="section-head"><h2 id="table-title" tabindex="-1">資料明細</h2><div class="actions"><button id="csv" type="button" disabled data-loading-control>下載 CSV</button><button id="json" type="button" disabled data-loading-control>下載 JSON</button></div></div>
     <div class="sort"><label>排序<select id="sort" disabled data-loading-control></select></label><button id="compare-jump" type="button" disabled>查看比較 · 0/3</button><button id="direction" type="button" aria-label="切換排序方向" disabled data-loading-control>遞減</button></div>
@@ -44,16 +47,11 @@
     <div class="pagination"><button id="previous" type="button" disabled data-loading-control>上一頁</button><span id="page-count" role="status" aria-live="polite" aria-atomic="true"></span><button id="next" type="button" disabled data-loading-control>下一頁</button></div>
   </section>
 <section id="detail-panel" class="panel" hidden aria-labelledby="detail-title"><h2 id="detail-title" tabindex="-1">詳細資料</h2><div id="detail"></div><button id="close-detail" type="button" disabled data-loading-control>關閉詳細資料</button></section>
-<div class="market-analysis"><section id="chart-panel" class="panel" hidden>
-    <h2 id="chart-title">趨勢</h2>
-    <div id="chart" class="chart"></div>
-    <div id="legend" class="legend"></div>
-  </section>
 <section class="panel compare-panel" aria-labelledby="compare-title">
     <div class="section-head"><h2 id="compare-title" tabindex="-1">比較清單</h2><div class="actions"><button id="clear-selection" type="button" disabled data-loading-control>清除清單</button><button id="selection-download" type="button" disabled data-loading-control>下載比較報告</button></div></div>
     <p id="selection-status" role="status" aria-live="polite">勾選表格的比較欄，最多可比較 3 筆資料。</p>
     <div id="comparison" class="comparison"></div>
-  </section></div>
+  </section>
 <section id="snapshot-panel" class="panel" hidden aria-labelledby="snapshot-title">
     <h2 id="snapshot-title">快照比較</h2>
     <div class="filters"><label>第一份 JSON 快照<input id="snapshot-a" type="file" accept=".json,application/json" disabled data-loading-control></label>
@@ -62,11 +60,9 @@
     <p id="snapshot-status" role="status" aria-live="polite"></p>
     <div id="snapshot-result"></div><button id="snapshot-download" type="button" disabled>下載快照比較</button>
   </section>
-</div></div>
 <details class="panel"><summary>資料來源與使用限制</summary><dl id="quality"></dl></details>
+</div>
 <div id="fatal" class="panel error" role="alert" hidden><h2>資料暫時無法載入</h2><p>請重新整理。若問題持續，請稍後再試。</p><button id="retry" type="button">重新載入</button></div>
 <noscript><p class="panel">請啟用 JavaScript，以使用篩選、圖表與下載功能。</p></noscript>
-</main>
-<footer class="shell"><p id="disclaimer"></p><p>GitHub Pages · 公開資料展示</p></footer>
-</body>
-</html>
+</main><footer class="shell"><p id="disclaimer"></p><p>GitHub Pages · 公開資料展示</p></footer>
+</body></html>

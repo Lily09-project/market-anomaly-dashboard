@@ -103,51 +103,40 @@ def contrast_check(page):
 
 
 def product_composition_check(page, bundle, view):
-    """Verify the market task architecture, fixed palette and concise domain labels."""
+    """Verified legacy records remain available behind product-native navigation."""
     assert page.locator("#theme").count() == 0
-    assert page.locator("button svg.control-icon").count() > 0
+    assert page.locator("#record-browser").is_visible()
     assert page.locator('#views a svg[aria-hidden="true"][focusable="false"]').count() == len(bundle["datasets"])
     assert page.locator('button svg:not([aria-hidden="true"])').count() == 0
     motion = page.evaluate("window.__pagesMotionCalls")
     assert motion and all(0 < call["duration"] <= 220 for call in motion)
     assert all(call["keyframes"][-1]["transform"] == "translateY(0)" for call in motion)
-    assert page.locator("html").get_attribute("data-theme") == "dark"
-    assert page.locator("html").evaluate("(node) => getComputedStyle(node).colorScheme") == "dark"
+    fixed = "dark" if bundle["kind"] == "market" else "light"
+    assert page.locator("html").get_attribute("data-theme") == fixed
+    assert page.locator("html").evaluate("(node) => getComputedStyle(node).colorScheme") == fixed
     assert page.locator("#search").get_attribute("placeholder") == (
         "搜尋模型或評估指標" if view["id"] == "metrics" else {
-            "aqi": "搜尋測站、縣市或關鍵字",
-            "market": "搜尋股票代碼或關鍵字",
-            "cpbl": "搜尋球員、球隊或關鍵字",
+            "aqi": "搜尋測站、縣市或關鍵字", "market": "搜尋股票代碼或關鍵字", "cpbl": "搜尋球員、球隊或關鍵字",
         }[bundle["kind"]])
     assert page.locator('#group option[value=""]').inner_text() == "全部" + view["groupLabel"]
     if view["id"] != "metrics":
         labels = page.locator("#metrics .metric p").all_text_contents()
         assert labels[0] == "符合條件筆數"
         assert labels[1] == view["groupLabel"] + "數"
-        has_anomalies = any(field["key"] in ("is_anomaly", "model_anomaly") for field in view["fields"])
-        assert labels[-1] == ("異常紀錄" if has_anomalies else "缺值數")
-    assert page.locator(".market-navigation #views").count() == 1
-    assert page.locator(".market-workspace .results-panel").count() == 1
-    if view["id"] != "metrics":
-        assert page.locator(".results-panel").bounding_box()["y"] < page.locator("#chart-panel").bounding_box()["y"]
-    if page.viewport_size["width"] >= 1440:
-        rail = page.locator(".market-navigation").bounding_box()
-        workspace = page.locator(".market-workspace").bounding_box()
-        assert rail["x"] + rail["width"] <= workspace["x"] + 1
+        flags = any(field["key"] in ("is_anomaly", "model_anomaly") for field in view["fields"])
+        assert labels[-1] == ("異常紀錄" if flags else "缺值數")
+        assert page.locator("#chart-panel").bounding_box()["y"] < page.locator(".results-panel").bounding_box()["y"]
     if page.viewport_size["width"] >= 1440 and page.locator("html").evaluate("(node) => parseFloat(getComputedStyle(node).fontSize)") == 16:
         for label in page.locator("#table button .control-label").all():
-            assert label.evaluate("(node) => { const range = document.createRange(); range.selectNodeContents(node); return range.getClientRects().length === 1; }"), "desktop row action must not split its label"
+            assert label.evaluate("(node) => { const range = document.createRange(); range.selectNodeContents(node); return range.getClientRects().length === 1; }")
     if page.viewport_size["width"] == 320 and page.locator("html").evaluate("(node) => parseFloat(getComputedStyle(node).fontSize)") == 32:
         for label in page.locator("#views .control-label").all():
-            assert label.evaluate("(node) => node.getBoundingClientRect().height <= 2 * parseFloat(getComputedStyle(node).lineHeight) + 1"), "zoomed navigation label must not become vertical lettering"
-    for label in page.locator("#table button .control-label").all():
-        assert label.evaluate("(node) => { const range = document.createRange(); range.selectNodeContents(node); return range.getClientRects().length === 1; }"), "short row action must remain legible at every text scale"
-    assert page.locator(".compare-panel .actions").is_visible() == (
-        page.locator("#comparison article").count() > 0)
+            assert label.evaluate("(node) => node.getBoundingClientRect().height <= 2 * parseFloat(getComputedStyle(node).lineHeight) + 1")
+    assert page.locator(".compare-panel .actions").is_visible() == (page.locator("#comparison article").count() > 0)
 
 
 def functional_check(page, url, bundle):
-    page.goto(url)
+    page.goto(url + "?screen=records")
     page.locator("#status").filter(has_text="筆符合條件").wait_for()
     first = bundle["datasets"][0]
     group = str(first["rows"][0][first["group"]])
@@ -389,7 +378,7 @@ def functional_check(page, url, bundle):
 
 def ux_regression_check(page, url, bundle):
     """Behavioral regressions which geometry-only checks cannot catch."""
-    page.goto(url)
+    page.goto(url + "?screen=records")
     page.locator("#status").filter(has_text="筆符合條件").wait_for()
     first = bundle["datasets"][0]
     # Table sorting must not silently change the chart's selected series or colors.
@@ -495,7 +484,7 @@ def ux_regression_check(page, url, bundle):
 
 
 def visual_polish_check(page, url, bundle):
-    page.goto(url)
+    page.goto(url + "?screen=records")
     page.locator("#status").filter(has_text="筆符合條件").wait_for()
     page.set_viewport_size({"width": 390, "height": 844})
     for view in bundle["datasets"]:
@@ -564,7 +553,7 @@ def text_spacing_check(page, url, bundle):
     # Keep the site's strict style-src 'self' CSP intact: serve the test override
     # from the existing same-origin stylesheet request instead of injecting inline CSS.
     page.route("**/styles.css", serve_test_spacing)
-    page.goto(url)
+    page.goto(url + "?screen=records")
     page.locator("#status").filter(has_text="筆符合條件").wait_for()
     page.set_viewport_size({"width": 320, "height": 844})
     for view in bundle["datasets"]:
@@ -621,7 +610,7 @@ def synthetic_chart_check(browser, url, template):
     page = browser.new_page(viewport={"width": 390, "height": 844})
     page.route("**/integrity.json", lambda route: route.fulfill(body=integrity, content_type="application/json"))
     page.route("**/data.json", lambda route: route.fulfill(body=data_text, content_type="application/json"))
-    page.goto(url)
+    page.goto(url + "?screen=records")
     page.locator("#status").filter(has_text="筆符合條件").wait_for()
     coordinates = [tuple(map(float, point.split(","))) for point in
                    page.locator("#chart polyline").first.get_attribute("points").split()]
@@ -795,6 +784,85 @@ def cross_browser_smoke(browser_type, url, bundle):
         browser.close()
 
 
+def native_product_check(browser, url, bundle, evidence):
+    """Real published bundle, task routes, scope, history and responsive composition."""
+    for width in (320, 390, 768, 1024, 1440):
+        for scale in (1, 2):
+            context = browser.new_context(viewport={"width": width, "height": 1000}, accept_downloads=True)
+            page = context.new_page()
+            errors = []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.goto(url)
+            page.locator("#product-root").filter(has=page.locator("h2")).wait_for()
+            page.evaluate("(scale) => document.documentElement.style.fontSize = (16*scale)+'px'", scale)
+            assert not page.locator("#record-browser").is_visible()
+            assert page.locator("#product-nav a").count() >= 3
+            layout_check(page); contrast_check(page)
+            assert page.locator("h1").count() == 1
+            assert page.locator("body").inner_text().find("設計樣稿") == -1
+            if bundle["kind"] == "aqi":
+                overview = bundle["datasets"][0]
+                site = sorted({row["site_name"] for row in overview["rows"]})[-1]
+                county = next(row["county"] for row in overview["rows"] if row["site_name"] == site)
+                page.get_by_label("縣市", exact=True).select_option(county)
+                page.get_by_label("測站", exact=True).select_option(site)
+                page.get_by_role("button", name="開啟報告", exact=True).click()
+                latest = max((row for row in overview["rows"] if row["site_name"] == site), key=lambda row: row["datetime"])
+                assert page.locator(".air-report").inner_text().find(latest["datetime"]) >= 0
+                page.get_by_role("button", name="異常紀錄", exact=True).click()
+                assert page.get_by_label("測站", exact=True).input_value() == site
+                layout_check(page)
+                page.get_by_role("button", name="歷史", exact=True).click()
+                page.get_by_role("link", name="完整紀錄與下載", exact=True).click()
+                report = downloaded_json(page, "#json")
+                assert report["rows"] and all(row["site_name"] == site for row in report["rows"])
+                page.go_back()
+                assert page.get_by_label("測站", exact=True).input_value() == site
+                page.get_by_role("link", name="測站比較", exact=True).click()
+                for name in sorted({row["site_name"] for row in overview["rows"]})[:3]:
+                    page.get_by_role("button", name="加入 " + name, exact=True).click()
+                assert page.locator("#product-root .comparison article").count() == 3
+                layout_check(page)
+            elif bundle["kind"] == "market":
+                overview = bundle["datasets"][0]
+                symbol = sorted({row["symbol"] for row in overview["rows"]})[0]
+                page.get_by_label("股票代碼", exact=True).select_option(symbol)
+                assert page.locator(".market-side").inner_text().find(symbol) >= 0
+                page.get_by_role("button", name="波動", exact=True).click()
+                assert page.get_by_label("股票代碼", exact=True).input_value() == symbol
+                page.get_by_role("button", name="異常", exact=True).click()
+                layout_check(page)
+                page.get_by_role("button", name="價格", exact=True).click()
+                page.get_by_role("link", name="完整歷史紀錄與下載", exact=True).click()
+                report = downloaded_json(page, "#json")
+                assert report["rows"] and all(row["symbol"] == symbol for row in report["rows"])
+                page.go_back()
+                assert page.get_by_label("股票代碼", exact=True).input_value() == symbol
+            else:
+                assert page.locator(".standings li").count() > 0
+                assert page.locator(".rank-preview").count() == 2
+                page.get_by_role("link", name="打者榜", exact=True).first.click()
+                assert page.locator("#sort").input_value() == "ops"
+                assert page.locator("#direction").inner_text().find("遞減") >= 0
+                page.get_by_role("link", name="投手榜", exact=True).first.click()
+                assert page.locator("#sort").input_value() == "era"
+                assert page.locator("#direction").inner_text().find("遞增") >= 0
+                layout_check(page)
+                page.get_by_role("link", name="球隊戰績", exact=True).click()
+                page.locator(".rank-preview a").first.click()
+                assert page.locator("#product-root dl").count() == 1
+                page.get_by_role("button", name="加入比較", exact=True).click()
+                page.get_by_role("link", name="比較已選紀錄", exact=True).click()
+                assert page.locator("#comparison article").count() == 1
+            assert not errors, errors
+            if width in (320, 1440):
+                page.goto(url)
+                page.locator("#product-root h2").first.wait_for()
+                page.evaluate("(scale) => document.documentElement.style.fontSize = (16*scale)+'px'", scale)
+                page.screenshot(path=str(evidence / f"product-{width}-{scale}.png"), full_page=True)
+            context.close()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", required=True)
@@ -822,7 +890,7 @@ def main():
                     errors = []
                     page.on("pageerror", lambda error: errors.append(str(error)))
                     page.on("console", lambda message: errors.append(message.text) if message.type == "error" else None)
-                    page.goto(args.url)
+                    page.goto(args.url + "?screen=records")
                     page.locator("#status").filter(has_text="筆符合條件").wait_for()
                     assert page.locator("html").get_attribute("data-theme") == "dark"
                     page.evaluate("(scale) => document.documentElement.style.fontSize = (16*scale)+'px'", scale)
@@ -864,7 +932,7 @@ def main():
         context = browser.new_context()
         page = context.new_page()
         page.route("**/data.json", lambda route: route.fulfill(body='{"schema_version":"tampered"}', content_type="application/json"))
-        page.goto(args.url)
+        page.goto(args.url + "?screen=records")
         page.locator("#fatal").wait_for()
         assert page.locator("#json").is_disabled() and page.locator("#table tbody tr").count() == 0
         context.close()
@@ -872,7 +940,7 @@ def main():
             failed_context = browser.new_context()
             failed_page = failed_context.new_page()
             failed_page.route(missing_path, lambda route: route.fulfill(status=404, body="missing"))
-            failed_page.goto(args.url)
+            failed_page.goto(args.url + "?screen=records")
             failed_page.locator("#fatal").wait_for()
             assert failed_page.locator("#json").is_disabled()
             assert failed_page.locator("#table tbody tr").count() == 0
@@ -889,6 +957,7 @@ def main():
             page = browser.new_page(viewport={"width": 390, "height": 844}, accept_downloads=True)
             cpbl_innings_display_check(page, args.url, bundle)
             page.close()
+        native_product_check(browser, args.url, bundle, evidence)
         browser.close()
         for browser_type in (engine.firefox, engine.webkit):
             cross_browser_smoke(browser_type, args.url, bundle)

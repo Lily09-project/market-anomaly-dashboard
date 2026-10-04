@@ -10,6 +10,10 @@ const controlPaths = {
   trash: ["M3 6h18", "M8 6V3h8v3", "M5 6l1 15h12l1-15", "M10 10v7", "M14 10v7"],
   chart: ["M4 3v18h17", "m7 14 4-4 4 3 5-7"],
   alert: ["m12 3 10 18H2L12 3", "M12 9v5", "M12 17h.01"],
+  pin:["M12 21s7-7 7-12a7 7 0 0 0-14 0c0 5 7 12 7 12Z","M12 6a3 3 0 1 0 0 6 3 3 0 0 0 0-6"],
+  book:["M3 4h6a3 3 0 0 1 3 3v14a3 3 0 0 0-3-3H3Z","M12 7a3 3 0 0 1 3-3h6v14h-6a3 3 0 0 0-3 3"],
+  clock:["M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20","M12 6v6l4 2"],bat:["m4 20 5-5","M9 15 18 3l3 3-12 9Z"],
+  wave:["M2 12h4l3-7 5 14 3-7h5"],check:["m5 12 4 4L19 6"],tools:["m14 6 4 4","M3 21l10-10"],search:["m21 21-5-5","M10 17a7 7 0 1 0 0-14 7 7 0 0 0 0 14"],
   wind: ["M3 8h13a3 3 0 1 0-3-3", "M3 12h17", "M3 16h10a3 3 0 1 1-3 3"],
   team: ["m12 3 8 3v6c0 5-8 9-8 9S4 17 4 12V6l8-3", "M8 11h8", "M12 7v9"],
   ball: ["M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18", "M7 5c5 4 5 10 0 14", "M17 5c-5 4-5 10 0 14"],
@@ -151,9 +155,11 @@ function readState() {
   currentPage = Number.isSafeInteger(page) && page > 0 && page <= 20000 ? page - 1 : 0;
   const valid = new Set(dataset.rows.map(rowId));
   selected = new Set([...selected].filter(id => valid.has(id)));
+  readProductState();
 }
 function saveState(push = false) {
   const query = new URLSearchParams();
+  productQuery(query);
   query.set("view", state.view);
   for (const [key, value] of [["q", state.search], ["group", state.group], ["start", state.start],
     ["end", state.end], ["sort", state.sort], ["direction", state.descending ? "desc" : "asc"],
@@ -197,6 +203,7 @@ function fillControls() {
     link.addEventListener("click", event => {
       if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
+      productState.screen="records";productState.entity="";
       state = {view: item.id, search: "", group: "", start: "", end: "", minimum: item.minimum?.value || 0,
         sort: item.sort, descending: true, onlyAnomaly: false, detail: ""};
       dataset = item; selected.clear(); currentPage = 0; fillControls(); saveState(true); render();
@@ -209,6 +216,7 @@ function filteredRows() {
   const query = state.search.trim().toLocaleLowerCase("zh-TW");
   if (dataset.date && state.start && state.end && state.start > state.end) return [];
   return dataset.rows.filter(row =>
+    (!(productState.entity && productState.screen==="records" && ["aqi","market"].includes(bundle.kind)) || String(row[bundle.kind==="aqi"?"site_name":"symbol"])===productState.entity) &&
     (!state.group || String(row[dataset.group]) === state.group) &&
     (!state.onlyAnomaly || row.is_anomaly === 1 || row.model_anomaly === 1) &&
     (!query || dataset.fields.some(field => String(row[field.key] ?? "").toLocaleLowerCase("zh-TW").includes(query))) &&
@@ -460,7 +468,7 @@ function render() {
   syncAdvancedFilters();
   displayed = filteredRows();
   $("status").textContent = dataset.label + " · " + displayed.length + " 筆符合條件";
-  renderMetrics(); renderChart(); renderTable(); renderComparison(); renderDetail(); animateView();
+  renderMetrics(); renderChart(); renderTable(); renderComparison(); renderDetail(); animateView(); renderProduct();
 }
 async function exportReport(rows) {
   const payload = {schema_version: "pages-report/1", project: bundle.project, dataset: dataset.id,
@@ -564,7 +572,7 @@ async function initialize() {
   bundle = JSON.parse(text);
   if (bundle.schema_version !== "pages-data/1" || !Array.isArray(bundle.datasets) || !bundle.datasets.length) throw new Error("Invalid schema");
   document.documentElement.dataset.project = bundle.kind;
-  $("title").textContent = bundle.title; document.title = bundle.title;
+  $("title").textContent = "MARKET / 標的研究"; document.title = $("title").textContent;
   $("brand").textContent = bundle.brand; $("repository").href = "https://github.com/Lily09-project/" + bundle.project;
   $("mode").textContent = bundle.source.mode;
   $("source-date").textContent = "資料期間 " + bundle.source.range;
@@ -578,7 +586,7 @@ async function initialize() {
   for (const node of document.querySelectorAll("[data-loading-control]")) node.disabled = false;
   $("chart-panel").hidden = false;
   readState(); fillControls(); render();
-  $("snapshot-panel").hidden = bundle.kind !== "market";
+  renderProduct();
   for (const id of ["snapshot-a", "snapshot-b"]) $(id).addEventListener("change", compareUploads);
   $("snapshot-download").addEventListener("click", () => { if (comparisonReport) download(JSON.stringify(comparisonReport, null, 2), "snapshot-comparison.json", "application/json;charset=utf-8"); });
   for (const [id, key] of [["search", "search"], ["group", "group"], ["start", "start"], ["end", "end"], ["sort", "sort"], ["minimum", "minimum"]]) {
@@ -627,6 +635,225 @@ async function initialize() {
   $("close-detail").addEventListener("click", () => {state.detail = ""; saveState(); renderDetail(); if (lastDetailButton?.isConnected) lastDetailButton.focus(); else $("reset").focus();});
   addEventListener("popstate", event => {readState(); fillControls(); render(); if (state.detail) renderDetail(true); else { $("main").focus({preventScroll: true}); scrollTo({top: event.state?.scrollY ?? 0, behavior: "auto"}); }});
 }
+
+/* Product routes sit on the verified data engine; legacy ?view links stay usable. */
+let productState = {screen:"home", entity:"", research:"history", datum:"", entities:[]};
+let productAnimation;
+function readProductState() {
+  const q = new URLSearchParams(location.search);
+  const routes = ["home","report","stations","research","board","person","team","records","methods","tools"];
+  const requested = q.get("screen");
+  productState = {
+    screen:routes.includes(requested) ? requested : q.has("view") ? "records" : "home",
+    entity:(q.get("entity") || "").slice(0,500),
+    research:["history","forecast","anomaly","price","volatility"].includes(q.get("research")) ? q.get("research") : bundle.kind==="market" ? "price":"history",
+    datum:(q.get("datum") || "").slice(0,500), entities:[]
+  };
+  try {const ids=JSON.parse(q.get("entities")||"[]");if(Array.isArray(ids))productState.entities=[...new Set(ids.filter(x=>typeof x==="string"&&x.length<=500))].slice(0,3);} catch {}
+}
+function productQuery(query) {
+  for(const [key,value] of [["screen",productState.screen],["entity",productState.entity],["research",productState.research],["datum",productState.datum]])if(value)query.set(key,value);
+  if(productState.entities.length)query.set("entities",JSON.stringify(productState.entities));
+}
+function productLink(text, screen, params={}) {
+  const q=new URLSearchParams({screen,...params});
+  const a=el("a",undefined,{href:"?"+q});
+  a.append(controlIcon(({home:bundle.kind==="aqi"?"pin":bundle.kind==="market"?"chart":"team",report:"pin",stations:"compare",research:"chart",board:params.view==="pitchers"?"ball":"bat",person:"team",records:"clock",methods:"book",tools:"tools",team:"team"})[screen]||"right"),el("span",text));
+  a.addEventListener("click",event=>{
+    if(event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+    event.preventDefault();routeProduct(screen,params);
+  });
+  if(productState.screen===screen&&(!params.view||params.view===dataset.id))a.setAttribute("aria-current","page");
+  return a;
+}
+function routeProduct(screen, params={}) {
+  const next=bundle.datasets.find(x=>x.id===params.view);
+  if(next&&next!==dataset){dataset=next;state={view:next.id,search:"",group:"",start:"",end:"",minimum:next.minimum?.value||0,sort:next.sort,descending:true,onlyAnomaly:false,detail:""};selected.clear();currentPage=0;}
+  productState={...productState,screen,...Object.fromEntries(Object.entries(params).filter(([key])=>key!=="view"))};
+  if(bundle.kind==="cpbl"&&screen==="board"&&!params.sort){state.sort=dataset.id==="pitchers"?"era":dataset.id==="batters"?"ops":dataset.sort;state.descending=dataset.id!=="pitchers";}
+  if(params.group!==undefined)state.group=params.group;if(params.detail!==undefined)state.detail=params.detail;
+  fillControls();saveState(true);render();$("main").focus({preventScroll:true});scrollTo({top:0,behavior:"auto"});
+}
+function fieldValue(view,row,key) {return formatField(view.fields.find(f=>f.key===key)||{key},row?.[key]);}
+function productValues(view,row) {const dl=el("dl");for(const f of view.fields)dl.append(el("dt",f.label),el("dd",fieldValue(view,row,f.key)));return dl;}
+function productButton(text, fn, name="right", cls="") {
+  const b=el("button",undefined,{type:"button",class:cls});
+  b.append(controlIcon(name),el("span",text));b.addEventListener("click",fn);return b;
+}
+function sectionTitle(title,subtitle="") {const head=el("div",undefined,{class:"product-heading"});head.append(el("h2",title));if(subtitle)head.append(el("p",subtitle,{class:"metadata"}));return head;}
+function latestRow(rows,key){return [...rows].filter(r=>Number.isFinite(chartTime(r[key]))).sort((a,b)=>chartTime(b[key])-chartTime(a[key]))[0];}
+function nativeTrend(rows,view,key,secondary=null) {
+  const root=el("div",undefined,{class:"native-trend"});
+  const sorted=[...rows].filter(r=>Number.isFinite(chartTime(r[view.date]))).sort((a,b)=>chartTime(a[view.date])-chartTime(b[view.date]));
+  const keys=[key,secondary].filter(Boolean), valid=sorted.flatMap(r=>keys.map(k=>r[k]).filter(number));
+  if(!sorted.length||!valid.length){root.append(el("p","此範圍沒有可繪製的數值。",{class:"empty"}));return root;}
+  let lo=Math.min(...valid),hi=Math.max(...valid);if(lo===hi){lo-=Math.max(1,Math.abs(lo)*.05);hi+=Math.max(1,Math.abs(hi)*.05);}
+  const first=chartTime(sorted[0][view.date]),last=chartTime(sorted.at(-1)[view.date]);
+  const svg=svgEl("svg",{viewBox:"0 0 900 250",role:"img","aria-label":view.fields.find(f=>f.key===key)?.label+"歷史趨勢；完整原始數值見紀錄",preserveAspectRatio:"none"});
+  for(const y of [20,115,220])svg.append(svgEl("path",{d:"M10 "+y+"H890",class:"grid"}));
+  keys.forEach((k,index)=>{
+    // Missing values deliberately break paths; never bridge unknown observations.
+    let d="",continues=false;
+    for(const r of sorted){if(!number(r[k])){continues=false;continue;}
+      const x=10+880*(chartTime(r[view.date])-first)/(last-first||1),y=220-200*(r[k]-lo)/(hi-lo);
+      d+=(continues?"L":"M")+x+" "+y+" ";continues=true;
+    }
+    svg.append(svgEl("path",{d,class:"line series-"+index}));
+    if(sorted.length===1)svg.append(svgEl("circle",{cx:10,cy:220-200*(sorted[0][k]-lo)/(hi-lo),r:4,class:"event-point series-"+index}));
+  });
+  const legend=el("div",undefined,{class:"legend"});keys.forEach((k,i)=>legend.append(el("span",view.fields.find(f=>f.key===k)?.label||k,{class:"series-"+i})));
+  const axis=el("div",undefined,{class:"axis"});axis.append(el("span",String(sorted[0][view.date])),el("span",fieldValue(view,{[key]:lo},key)+"–"+fieldValue(view,{[key]:hi},key)),el("span",String(sorted.at(-1)[view.date])));
+  root.append(svg,axis,legend);return root;
+}
+function productSelect(label, options, value, onChange, id) {
+  const wrap=el("label",label);const select=el("select",undefined,{id,"aria-label":label});
+  for(const [v,text] of options)select.append(el("option",text,{value:v}));select.value=value;
+  select.addEventListener("change",()=>onChange(select.value));wrap.append(select);return wrap;
+}
+function scopedRows(view,entity,key) {
+  const entityRows=view.rows.filter(r=>String(r[key])===entity);const last=view.date?latestRow(entityRows,view.date):null;const cutoff=last?chartTime(last[view.date])-(bundle.kind==="aqi"?24:90)*86400000/(bundle.kind==="aqi"?24:1):null;
+  return entityRows.filter(r=>(state.start||state.end||cutoff===null||chartTime(r[view.date])>=cutoff)&&(!view.date||!state.start||String(r[view.date]).slice(0,10)>=state.start)&&(!view.date||!state.end||String(r[view.date]).slice(0,10)<=state.end));
+}
+function productPeriod(root){
+  const form=el("div",undefined,{class:"product-period"});
+  for(const [key,label] of [["start","開始日期"],["end","結束日期"]]){
+    const wrap=el("label",label),input=el("input",undefined,{type:"date",value:state[key],"aria-label":"研究"+label});
+    input.addEventListener("change",()=>{state[key]=input.value;saveState();renderProduct();});
+    wrap.append(input);form.append(wrap);
+  }
+  form.append(productButton("清除日期",()=>{state.start="";state.end="";saveState();renderProduct();},"reset"));
+  root.append(form);if(state.start&&state.end&&state.start>state.end)root.append(el("p","結束日期不能早於開始日期。",{class:"error",role:"alert"}));
+}
+function renderAirProduct(root) {
+  const observations=bundle.datasets.find(v=>v.id==="overview");
+  const sites=[...new Set(observations.rows.map(r=>r.site_name))].sort((a,b)=>a.localeCompare(b,"zh-TW"));
+  const active=sites.includes(productState.entity)?productState.entity:sites[0];
+  if(!productState.entity)productState.entity=active;
+  const stationRows=observations.rows.filter(r=>r.site_name===active);
+  const current=latestRow(stationRows,"datetime");
+  if(productState.screen==="home"||productState.screen==="report") {
+    root.append(sectionTitle("先找到測站，再讀懂這次觀測。"));
+    const form=el("div",undefined,{class:"place-form"});
+    const counties=[...new Set(observations.rows.map(r=>r.county).filter(Boolean))].sort();
+    const county=current?.county||counties[0],local=sites.filter(s=>observations.rows.some(r=>r.site_name===s&&r.county===county));
+    form.append(productSelect("縣市",counties.map(x=>[x,x]),county,value=>{
+      const site=sites.find(s=>observations.rows.some(r=>r.site_name===s&&r.county===value));routeProduct("home",{entity:site||""});
+    },"place-county"));
+    form.append(productSelect("測站",local.map(x=>[x,x]),active,value=>routeProduct("home",{entity:value}),"place-station"));
+    form.append(productButton("開啟報告",()=>routeProduct("report",{entity:active}),"pin","primary"));root.append(form);
+    if(productState.screen==="home"){
+      const choices=el("div",undefined,{class:"station-options"});
+      for(const name of sites)choices.append(productButton(name,()=>routeProduct("report",{entity:name}),"pin"));root.append(choices);return;
+    }
+    if(!current){root.append(el("p","沒有這個測站的觀測。"));return;}
+    const readout=el("section",undefined,{class:"air-report"});
+    const values=el("div");values.append(el("p",current.county,{class:"kicker"}),el("h2",active),el("p","示範資料時間 · "+current.datetime,{class:"metadata"}));
+    const readings=el("div",undefined,{class:"air-reading"});
+    for(const [key,label]of[["aqi","AQI"],["pm25","PM2.5 · μg/m³"]]){const box=el("div");box.append(el("p",label),el("strong",fieldValue(observations,current,key),{class:key==="aqi"?"big":"mid"}));readings.append(box);}
+    values.append(readings);
+    const actions=el("div",undefined,{class:"surface"});actions.append(el("h3","示範觀測"),el("p","非即時空品或正式預報。"),productLink("比較測站","stations"),productLink("觀測紀錄","records",{view:"overview",entity:active}));
+    readout.append(values,actions);root.append(readout);productPeriod(root);
+    const tabs=el("div",undefined,{class:"air-tabs"});
+    for(const [m,label] of [["history","歷史"],["anomaly","異常紀錄"],["forecast","預測核對"]]){
+      const b=productButton(label,()=>routeProduct("report",{research:m,entity:active}),m==="anomaly"?"alert":m==="forecast"?"check":"clock");b.setAttribute("aria-pressed",String(productState.research===m));tabs.append(b);
+    }root.append(tabs);
+    const id=productState.research==="forecast"?"forecast":productState.research==="anomaly"?"anomaly":"overview";
+    const view=bundle.datasets.find(v=>v.id===id),rows=scopedRows(view,active,"site_name");
+    root.append(nativeTrend(rows,view,view.value,view.secondary));
+    if(id==="forecast")root.append(el("p","歷史留出集的次小時預測核對，不是未來正式預報。",{class:"metadata"}));
+    if(id==="anomaly"){const marked=rows.filter(r=>r.is_anomaly===1);root.append(sectionTitle("模型標記紀錄",marked.length?"":"這段期間没有模型標記，不代表沒有風險。"));
+      const events=el("ul",undefined,{class:"event-list"});for(const r of marked.slice(-50).reverse()){const li=el("li");li.append(productLink(r.datetime+" · AQI "+format(r.aqi),"records",{view:"anomaly",entity:active,detail:JSON.stringify(view.identity.map(k=>r[k]))}));events.append(li);}root.append(events);}
+    root.append(productLink("完整紀錄與下載","records",{view:id,entity:active}));return;
+  }
+  const view=bundle.datasets.find(v=>v.id==="stations");
+  root.append(sectionTitle("測站最新觀測比較","各站顯示自己的資料時間；最多三站，不假定同步觀測。"));
+  const chosen=productState.entities.filter(s=>sites.includes(s));
+  const form=el("div",undefined,{class:"station-options"});
+  for(const site of sites){const selectedSite=chosen.includes(site);const b=productButton((selectedSite?"移除 ":"加入 ")+site,()=>{
+    productState.entities=selectedSite?chosen.filter(s=>s!==site):chosen.length<3?[...chosen,site]:chosen;saveState();renderProduct();
+  },selectedSite?"close":"compare");b.disabled=!selectedSite&&chosen.length>=3;form.append(b);}root.append(form);
+  const grid=el("div",undefined,{class:"comparison"});
+  for(const site of chosen){const row=view.rows.find(r=>r.site_name===site);if(row){const card=el("article");card.append(el("h3",site),productValues(view,row));grid.append(card);}}
+  root.append(grid);if(!chosen.length)root.append(el("p","請選取要比較的測站。"));
+}
+function renderMarketProduct(root) {
+  const overview=bundle.datasets.find(v=>v.id==="overview"),symbols=[...new Set(overview.rows.map(r=>r.symbol))].sort();
+  const symbol=symbols.includes(productState.entity)?productState.entity:symbols[0];if(!productState.entity)productState.entity=symbol;
+  const frame=el("div",undefined,{class:"market-frame"}),rail=el("aside",undefined,{class:"market-rail"});
+  rail.append(el("h2","研究標的"),productSelect("股票代碼",symbols.map(x=>[x,x]),symbol,value=>routeProduct("research",{entity:value,datum:""}),"instrument"));
+  const center=el("section"),side=el("aside",undefined,{class:"market-side"});
+  const all=overview.rows.filter(r=>r.symbol===symbol),latest=latestRow(all,"date");
+  center.append(el("p",symbol,{class:"kicker"}),sectionTitle("標的研究"));
+  if(latest){const amount=el("div",undefined,{class:"market-amount"});amount.append(el("strong",fieldValue(overview,latest,"close"),{class:"mid"}),el("span",fieldValue(overview,latest,"daily_return")+" 日報酬"));center.append(amount,el("p","最新樣本日 "+latest.date,{class:"metadata"}));}
+  productPeriod(center);
+  const modes=el("div",undefined,{class:"market-modes"});
+  for(const [m,label]of[["price","價格"],["volatility","波動"],["anomaly","異常"]]){const b=productButton(label,()=>routeProduct("research",{research:m,entity:symbol}),m==="anomaly"?"alert":m==="volatility"?"wave":"chart");b.setAttribute("aria-pressed",String(productState.research===m));modes.append(b);}center.append(modes);
+  const rows=scopedRows(overview,symbol,"symbol"),metric=productState.research==="volatility"?"volatility_20":"close";
+  center.append(nativeTrend(rows,overview,metric));if(metric==="volatility_20")center.append(el("p","原始 20 日滾動波動率；未年化。",{class:"metadata"}));
+  const visible=productState.research==="anomaly"?rows.filter(r=>r.model_anomaly===1):rows;
+  const eventRows=[...visible].sort((a,b)=>b.date.localeCompare(a.date));
+  center.append(sectionTitle(productState.research==="anomaly"?"模型標記日期":"日期紀錄"));
+  if(!eventRows.length)center.append(el("p","這段期間沒有符合條件的紀錄；模型未標記不代表沒有風險。"));
+  const dates=el("div",undefined,{class:"event-list"});
+  for(const r of eventRows.slice(0,30)){const b=productButton(r.date+" · "+fieldValue(overview,r,"close"),()=>{productState.datum=r.date;saveState();renderProduct();$("product-feedback").textContent="已選 "+symbol+" "+r.date+" 的紀錄";},"clock");b.setAttribute("aria-pressed",String(productState.datum===r.date));dates.append(b);}
+  center.append(dates,productLink("完整歷史紀錄與下載","records",{view:productState.research==="volatility"?"volatility":productState.research==="anomaly"?"anomaly":"overview",entity:symbol}),productLink("資料工具","tools"));
+  const chosen=rows.find(r=>r.date===productState.datum)||latestRow(rows,"date");
+  side.append(el("p","所選日期",{class:"kicker"}));
+  if(chosen)side.append(el("h2",chosen.date),productValues(overview,chosen));else side.append(el("p","此範圍沒有資料。"));
+  side.append(el("p","DEMO · 非即時行情；分析分數不是機率或投資勝率。",{class:"metadata"}));
+  frame.append(rail,center,side);root.append(frame);
+}
+function renderCPBLProduct(root){
+  const view=dataset;
+  if(productState.screen==="home"){
+    const teams=bundle.datasets.find(v=>v.id==="teams"),years=[...new Set(teams.rows.map(r=>r.season))].sort((a,b)=>b-a);
+    const season=years.map(String).includes(productState.entity)?Number(productState.entity):years[0];
+    root.append(sectionTitle("球隊戰績","快照統計依勝率排序，非官方名次。"),productSelect("球季",years.map(y=>[String(y),String(y)]),String(season),value=>routeProduct("home",{entity:value}),"season"));
+    const grid=el("div",undefined,{class:"almanac-grid"}),standings=el("section"),preview=el("section");
+    const list=el("ul",undefined,{class:"standings"});
+    for(const r of teams.rows.filter(r=>r.season===season).sort((a,b)=>(b.win_pct??-1)-(a.win_pct??-1))){
+      const li=el("li");li.append(productLink(r.team,"team",{view:"teams",entity:r.team}),el("span","場次 "+format(r.games)),el("span","勝／敗 "+format(r.wins)+" / "+format(r.losses)),el("strong","勝率 "+fieldValue(teams,r,"win_pct")));list.append(li);
+    }standings.append(list);
+    for(const [id,key,title]of[["batters","ops","OPS"],["pitchers","era","ERA"]]){
+      const d=bundle.datasets.find(v=>v.id===id),eligible=d.rows.filter(r=>number(r[key])&&number(r[d.minimum.key])&&r[d.minimum.key]>=d.minimum.value).sort((a,b)=>id==="pitchers"?a[key]-b[key]:b[key]-a[key]).slice(0,3);
+      preview.append(sectionTitle(title,d.minimum.label+" "+d.minimum.value+" · 快照成績排序"),productLink(id==="batters"?"打者榜":"投手榜","board",{view:id}));
+      const ol=el("ol",undefined,{class:"rank-preview"});for(const r of eligible){const li=el("li");li.append(productLink(r.player_name,"person",{view:id,entity:r.player_id}),el("small",r.team),el("strong",fieldValue(d,r,key)));ol.append(li);}preview.append(ol);
+    }grid.append(standings,preview);root.append(grid);return;
+  }
+  if(productState.screen==="team"){
+    const teams=bundle.datasets.find(v=>v.id==="teams");root.append(sectionTitle(productState.entity));
+    for(const r of teams.rows.filter(r=>r.team===productState.entity))root.append(productValues(teams,r));
+    root.append(productLink("打者名單","board",{view:"batters",entity:productState.entity,group:productState.entity}),productLink("投手名單","board",{view:"pitchers",entity:productState.entity,group:productState.entity}),productLink("完整球員名單","records",{view:"roster",group:productState.entity}));return;
+  }
+  const person=view.rows.find(r=>r.player_id===productState.entity);
+  root.append(sectionTitle(person?.player_name||"找不到球員"));
+  if(!person){root.append(productLink("返回成績榜","board",{view:view.id}));return;}
+  root.append(el("p",person.team),el("p","發布快照 · "+bundle.source.range,{class:"metadata"}),productValues(view,person));
+  if(/^\d{10}$/u.test(person.player_id||""))root.append(el("a","CPBL 官方球員頁",{href:"https://www.cpbl.com.tw/team/person?acnt="+person.player_id,rel:"noopener noreferrer"}));
+  root.append(productLink("返回成績榜","board",{view:view.id}));
+  const id=JSON.stringify(view.identity.map(k=>person[k])),picked=selected.has(id);
+  root.append(productButton(picked?"移出比較":"加入比較",()=>{if(picked)selected.delete(id);else if(selected.size<3)selected.add(id);saveState();renderComparison();renderProduct();},"compare"));
+  root.append(productLink("比較已選紀錄","records",{view:view.id}));
+}
+function renderProduct() {
+  if(!bundle)return;
+  const screen=productState.screen,record=screen==="records"||screen==="board"||screen==="methods"||screen==="tools";
+  $("record-browser").hidden=!record;$("product-root").hidden=record;
+  $("snapshot-panel").hidden=!(bundle.kind==="market"&&(screen==="tools"||screen==="records"));
+  $("product-nav").replaceChildren(...(bundle.kind==="aqi"?[productLink("查測站","home"),productLink("測站比較","stations"),productLink("資料與方法","methods",{view:"metrics"})]:
+    bundle.kind==="market"?[productLink("標的研究","research"),productLink("資料與方法","methods",{view:"metrics"}),productLink("資料工具","tools")]:
+    [productLink("球隊戰績","home"),productLink("打者榜","board",{view:"batters"}),productLink("投手榜","board",{view:"pitchers"}),productLink("球員搜尋","records",{view:"roster"}),productLink("資料版本","methods",{view:"history"})]));
+  const root=$("product-root");root.replaceChildren();
+  if(!record){
+    if(bundle.kind==="aqi")renderAirProduct(root);else if(bundle.kind==="market")renderMarketProduct(root);else renderCPBLProduct(root);
+    productAnimation?.cancel();productAnimation=root.animate([{opacity:.8,transform:"translateY(5px)"},{opacity:1,transform:"translateY(0)"}],{duration:200,easing:"cubic-bezier(.2,.8,.2,1)"});
+  }
+  $("metrics").closest(".engine-summary").hidden=screen!=="records";
+  $("chart-panel").hidden=screen==="board"||screen==="tools"||dataset.id==="metrics";
+  $("views").hidden=screen!=="records";
+  $("product-feedback").textContent="";
+}
+
 $("retry").addEventListener("click", () => location.reload());
 decorateControls();
 initialize().catch(() => {
