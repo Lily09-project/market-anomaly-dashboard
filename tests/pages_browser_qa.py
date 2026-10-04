@@ -204,7 +204,7 @@ def functional_check(page, url, bundle):
           window.__qaSlowReleased = false;
           window.__qaReleaseSlowSnapshot = null;
           File.prototype.text = function() {
-            if (this.name !== "slow-A.json") return nativeText.call(this);
+            if (!this.name.startsWith("slow-")) return nativeText.call(this);
             const file = this;
             return new Promise(resolve => {
               window.__qaReleaseSlowSnapshot = () => nativeText.call(file).then(value => {
@@ -224,6 +224,18 @@ def functional_check(page, url, bundle):
         page.wait_for_function("window.__qaSlowReleased === true")
         page.wait_for_timeout(50)
         assert downloaded_json(page, "#snapshot-download") == latest
+        # Clearing one side invalidates an older in-flight parse and keeps download disabled.
+        page.evaluate("() => { window.__qaSlowReleased = false; window.__qaReleaseSlowSnapshot = null; }")
+        page.locator("#snapshot-a").set_input_files({"name": "slow-clear-A.json", "mimeType": "application/json", "buffer": good})
+        page.wait_for_function("typeof window.__qaReleaseSlowSnapshot === 'function'")
+        page.locator("#snapshot-a").set_input_files([])
+        page.locator("#snapshot-status").filter(has_text="請選擇兩份快照").wait_for()
+        assert page.locator("#snapshot-download").is_disabled()
+        page.evaluate("window.__qaReleaseSlowSnapshot()")
+        page.wait_for_function("window.__qaSlowReleased === true")
+        page.wait_for_timeout(50)
+        assert page.locator("#snapshot-download").is_disabled()
+        assert "請選擇兩份快照" in page.locator("#snapshot-status").inner_text()
         page.evaluate("() => { File.prototype.text = window.__qaNativeFileText; }")
         tampered = {**original, "project": "tampered"}
         page.locator("#snapshot-b").set_input_files({"name": "tampered.json", "mimeType": "application/json",
@@ -415,6 +427,22 @@ def visual_polish_check(page, url, bundle):
         if bundle["kind"] == "aqi" and view["id"] == "anomaly":
             assert page.locator("#chart .anomaly-point").count() > 0
             assert "三角形" in page.locator("#legend").inner_text()
+
+
+def text_spacing_check(page, url, bundle):
+    page.goto(url)
+    page.locator("#status").filter(has_text="筆符合條件").wait_for()
+    page.set_viewport_size({"width": 320, "height": 844})
+    page.add_style_tag(content="""* { letter-spacing: .12em !important; word-spacing: .16em !important; line-height: 1.5 !important; }
+      p { margin-block-end: 2em !important; }""")
+    for view in bundle["datasets"]:
+        page.locator('#views a[href="?view=' + view["id"] + '"]').click()
+        layout_check(page)
+    page.emulate_media(forced_colors="active")
+    for view in bundle["datasets"]:
+        page.locator('#views a[href="?view=' + view["id"] + '"]').click()
+        layout_check(page)
+    page.emulate_media(forced_colors="none")
 
 
 def synthetic_chart_check(browser, url, template):
@@ -687,6 +715,7 @@ def main():
             functional_check(page, args.url, bundle)
             ux_regression_check(page, args.url, bundle)
             visual_polish_check(page, args.url, bundle)
+            text_spacing_check(page, args.url, bundle)
             context.close()
         for zone in ("UTC", "Asia/Taipei", "America/Los_Angeles"):
             context = browser.new_context(viewport={"width": 390, "height": 844}, timezone_id=zone, reduced_motion="reduce")
