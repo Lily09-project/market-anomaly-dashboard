@@ -784,6 +784,27 @@ def cross_browser_smoke(browser_type, url, bundle):
         browser.close()
 
 
+def native_keyboard_check(page):
+    page.locator("a.skip").focus()
+    visited = 0
+    for _ in range(100):
+        page.keyboard.press("Tab")
+        result = page.evaluate("""() => {
+          const n=document.activeElement;
+          if(n===document.body||n.matches("a.skip"))return null;
+          const r=n.getBoundingClientRect(),s=getComputedStyle(n);
+          const hit=document.elementFromPoint(Math.max(1,Math.min(innerWidth-1,r.x+r.width/2)),Math.max(1,Math.min(innerHeight-1,r.y+r.height/2)));
+          return {visible:r.width>0&&r.height>0,outline:s.outlineStyle!=="none"&&parseFloat(s.outlineWidth)>=2,occluded:!(hit&&(n.contains(hit)||hit.contains(n)))};
+        }""")
+        if result is None:
+            break
+        assert result["visible"] and result["outline"] and not result["occluded"], result
+        visited += 1
+    else:
+        raise AssertionError("Native page keyboard traversal did not reach boundary")
+    assert visited >= 3
+
+
 def native_product_check(browser, url, bundle, evidence):
     """Real published bundle, task routes, scope, history and responsive composition."""
     for width in (320, 390, 768, 1024, 1440):
@@ -797,7 +818,7 @@ def native_product_check(browser, url, bundle, evidence):
             page.evaluate("(scale) => document.documentElement.style.fontSize = (16*scale)+'px'", scale)
             assert not page.locator("#record-browser").is_visible()
             assert page.locator("#product-nav a").count() >= 3
-            layout_check(page); contrast_check(page)
+            layout_check(page); contrast_check(page); native_keyboard_check(page)
             assert page.locator("#product-root svg").evaluate_all("(nodes) => nodes.every(node => !node.outerHTML.includes(\"NaN\"))")
             assert page.locator("h1").count() == 1
             assert page.locator("body").inner_text().find("設計樣稿") == -1
