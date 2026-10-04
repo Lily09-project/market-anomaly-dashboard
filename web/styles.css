@@ -168,3 +168,7 @@ button:not(:disabled):active{transform:translateY(1px)}
 
 
 .market-navigation #views a{justify-content:flex-start}
+
+/* Native checkboxes have a margin above the 24px minimum, including animated subpixels. */
+input[type="checkbox"]{flex:0 0 28px;width:28px;min-height:28px;height:28px}
+.toggle input[type="checkbox"]{flex:0 0 28px}
