@@ -42,6 +42,54 @@ function decorateControls() {
   const repository = $("repository");
   repository.replaceChildren(controlIcon("code"), el("span", repository.textContent, {class: "control-label"}));
 }
+
+const motionRuns = new Map();
+const motionTiming = Object.freeze({cpbl:160, market:140, aqi:200, feedback:160});
+function cancelFeedbackMotion(container) {
+  for (const [node, animation] of motionRuns) {
+    if (node === container || container.contains(node)) {
+      animation.cancel();
+      motionRuns.delete(node);
+    }
+  }
+}
+function animateFeedback(node, emphasis = false) {
+  if (!node || !node.animate || !node.isConnected || document.hidden) return;
+  motionRuns.get(node)?.cancel();
+  if (node.contains(document.activeElement)) return;
+  const kind = bundle?.kind || document.documentElement.dataset.product;
+  // Only small, non-interactive content regions move. Values are never interpolated.
+  const start = kind === "cpbl" ? {opacity:.78,transform:"translateY(2px)"} :
+    kind === "aqi" ? {opacity:.82,transform:"translateY(3px)"} :
+    {opacity:.65,transform:"translateY(0)"};
+  const animation = node.animate([start,{opacity:1,transform:"translateY(0)"}],
+    {duration:emphasis ? motionTiming.feedback : motionTiming[kind],easing:"cubic-bezier(.2,.7,.2,1)"});
+  motionRuns.set(node, animation);
+  const release = () => { if (motionRuns.get(node) === animation) motionRuns.delete(node); };
+  animation.onfinish = release;
+  animation.oncancel = release;
+}
+function playProductMotion(root) {
+  root.dataset.motionProfile = bundle.kind;
+  const targets = bundle.kind === "market" ? [root.querySelector(".native-trend"),root.querySelector(".market-side dl")] :
+    bundle.kind === "aqi" ? [root.querySelector(".air-reading") || root.querySelector(".comparison"),root.querySelector(".native-trend")] :
+    [root.querySelector(".standings") || root.querySelector("dl"),root.querySelector(".rank-preview")];
+  for (const node of targets) animateFeedback(node);
+}
+function announceProduct(message) {
+  const status = $("product-feedback");
+  status.textContent = message;
+  animateFeedback(status,true);
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) cancelFeedbackMotion(document);
+});
+document.addEventListener("focusin", event => {
+  for (const [node, animation] of motionRuns) {
+    if (node.contains(event.target)) { animation.cancel(); motionRuns.delete(node); }
+  }
+});
+
 let lastAnimatedView, viewAnimation;
 function animateView() {
   if (lastAnimatedView === dataset.id) return;
@@ -49,8 +97,7 @@ function animateView() {
   viewAnimation?.cancel();
   const primary = bundle.kind === "aqi" && !$("chart-panel").hidden ? $("chart-panel") : $("table-title").closest("section");
   if (!primary.animate) return;
-  viewAnimation = primary.animate([{transform: "translateY(6px)"}, {transform: "translateY(0)"}],
-    {duration: bundle.kind === "market" ? 140 : 200, easing: "cubic-bezier(.2,.7,.2,1)"});
+  animateFeedback(primary);
 }
 
 const el = (tag, text, attrs = {}) => {
@@ -124,6 +171,7 @@ function download(text, name, mime) {
   const link = el("a", "", {href: url, download: name});
   document.body.append(link); link.click(); link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1500);
+  announceProduct("已建立檔案，開始下載。");
 }
 let bundle, dataset, state, displayed = [], selected = new Set(), currentPage = 0, lastDetailButton;
 let pageSize = 20, resizeFrame = 0;
@@ -430,6 +478,10 @@ function valuesDl(row) {
 }
 function renderComparison() {
   const rows = selectedRows();
+  const priorSelection = $("comparison").dataset.selection;
+  const selection = JSON.stringify(rows.map(rowId));
+  cancelFeedbackMotion($("comparison"));
+  $("comparison").dataset.selection = selection;
   $("compare-jump").disabled = !rows.length;
   setButtonText($("compare-jump"), "查看比較 · " + rows.length + "/3");
   $("comparison").replaceChildren(...rows.map(row => {
@@ -443,6 +495,10 @@ function renderComparison() {
   }));
   $("selection-status").textContent = rows.length ? "已選取 " + rows.length + " / 3 筆資料。" : "勾選表格的比較欄，最多可比較 3 筆資料。";
   $("clear-selection").disabled = !rows.length; $("selection-download").disabled = !rows.length;
+  if (priorSelection !== undefined && priorSelection !== selection) {
+    animateFeedback($("selection-status"),true);
+    animateFeedback($("comparison").lastElementChild,true);
+  }
 }
 function renderDetail(focus = false) {
   const row = dataset.rows.find(item => rowId(item) === state.detail);
@@ -453,7 +509,7 @@ function renderDetail(focus = false) {
   if (bundle.kind === "cpbl" && /^\d{10}$/u.test(row.player_id || "")) {
     $("detail").append(el("a", "CPBL 官方球員頁", {href: "https://www.cpbl.com.tw/team/person?acnt=" + row.player_id, rel: "noopener noreferrer"}));
   }
-  if (focus) $("detail-title").focus();
+  if (focus) { $("detail-title").focus(); animateFeedback($("detail")); }
 }
 function render() {
   const invalid = dataset.date && state.start && state.end && state.start > state.end;
@@ -638,12 +694,8 @@ async function initialize() {
 
 /* Product routes sit on the verified data engine; legacy ?view links stay usable. */
 let productState = {screen:"home", entity:"", research:"history", datum:"", entities:[]};
-let productAnimation;
-// Stop positional entrance motion before a focused control is scrolled into view.
-$("product-root").addEventListener("focusin", () => {
-  productAnimation?.cancel();
-  productAnimation = null;
-});
+// Keyboard focus immediately settles content feedback before native scrolling.
+$("product-root").addEventListener("focusin", () => cancelFeedbackMotion($("product-root")));
 function readProductState() {
   const q = new URLSearchParams(location.search);
   const routes = ["home","report","stations","research","board","person","team","records","methods","tools"];
@@ -714,6 +766,13 @@ function nativeTrend(rows,view,key,secondary=null) {
     const x=10+880*(chartTime(row[view.date])-first)/(last-first||1),y=220-200*(row[key]-lo)/(hi-lo);
     svg.append(svgEl("path",{d:"M"+x+" "+(y-5)+"l5 9h-10Z",class:"anomaly-point"}));
   }
+  if(bundle.kind==="market"&&productState.datum){
+    const chosen=sorted.find(row=>row[view.date]===productState.datum);
+    if(chosen&&number(chosen[key])){
+      const x=10+880*(chartTime(chosen[view.date])-first)/(last-first||1),y=220-200*(chosen[key]-lo)/(hi-lo);
+      svg.append(svgEl("circle",{cx:x,cy:y,r:6,class:"selected-observation","aria-hidden":"true"}));
+    }
+  }
   const legend=el("div",undefined,{class:"legend"});keys.forEach((k,i)=>legend.append(el("span",view.fields.find(f=>f.key===k)?.label||k,{class:"series-"+i})));
   const axis=el("div",undefined,{class:"axis"});axis.append(el("span",String(sorted[0][view.date])),el("span",fieldValue(view,{[key]:lo},key)+"–"+fieldValue(view,{[key]:hi},key)),el("span",String(sorted.at(-1)[view.date])));
   if(productState.research==="anomaly")legend.append(el("span","三角形：模型標記",{class:"anomaly-legend"}));
@@ -722,7 +781,10 @@ function nativeTrend(rows,view,key,secondary=null) {
 function productSelect(label, options, value, onChange, id) {
   const wrap=el("label",label);const select=el("select",undefined,{id,"aria-label":label});
   for(const [v,text] of options)select.append(el("option",text,{value:v}));select.value=value;
-  select.addEventListener("change",()=>onChange(select.value));wrap.append(select);return wrap;
+  select.addEventListener("change",()=>{
+    onChange(select.value);
+    $(id)?.focus({preventScroll:true});
+  });wrap.append(select);return wrap;
 }
 function scopedRows(view,entity,key) {
   const entityRows=view.rows.filter(r=>String(r[key])===entity);const last=view.date?latestRow(entityRows,view.date):null;const cutoff=last?chartTime(last[view.date])-(bundle.kind==="aqi"?86400000:90*86400000):null;
@@ -785,7 +847,7 @@ function renderAirProduct(root) {
   const form=el("div",undefined,{class:"station-options"});
   for(const site of sites){const selectedSite=chosen.includes(site);const b=productButton((selectedSite?"移除 ":"加入 ")+site,()=>{
     productState.entities=selectedSite?chosen.filter(s=>s!==site):chosen.length<3?[...chosen,site]:chosen;saveState();renderProduct();$("station-pick-"+site)?.focus({preventScroll:true});
-  },selectedSite?"close":"compare");b.id="station-pick-"+site;b.disabled=!selectedSite&&chosen.length>=3;form.append(b);}root.append(form);
+  },selectedSite?"close":"compare");b.id="station-pick-"+site;b.setAttribute("aria-pressed",String(selectedSite));b.disabled=!selectedSite&&chosen.length>=3;form.append(b);}root.append(form);
   const grid=el("div",undefined,{class:"comparison"});
   for(const site of chosen){const row=view.rows.find(r=>r.site_name===site);if(row){const card=el("article");card.append(el("h3",site),productValues(view,row));grid.append(card);}}
   root.append(grid);if(!chosen.length)root.append(el("p","請選取要比較的測站。"));
@@ -813,7 +875,7 @@ function renderMarketProduct(root) {
   center.append(dates,productLink("完整歷史紀錄與下載","records",{view:productState.research==="volatility"?"volatility":productState.research==="anomaly"?"anomaly":"overview",entity:symbol}),productLink("資料工具","tools",{view:"overview",group:productState.entity}));
   const chosen=rows.find(r=>r.date===productState.datum)||latestRow(rows,"date");
   side.append(el("p","所選日期",{class:"kicker"}));
-  if(chosen)side.append(el("h2",chosen.date),productValues(overview,chosen));else side.append(el("p","此範圍沒有資料。"));
+  if(chosen){side.dataset.selectedDate=chosen.date;side.append(el("h2",chosen.date),productValues(overview,chosen));}else side.append(el("p","此範圍沒有資料。"));
   side.append(el("p","DEMO · 非即時行情；分析分數不是機率或投資勝率。",{class:"metadata"}));
   frame.append(rail,center,side);root.append(frame);
 }
@@ -846,7 +908,14 @@ function renderCPBLProduct(root){
   if(/^\d{10}$/u.test(person.player_id||""))root.append(el("a","CPBL 官方球員頁",{href:"https://www.cpbl.com.tw/team/person?acnt="+person.player_id,rel:"noopener noreferrer"}));
   root.append(productLink("返回成績榜","board",{view:view.id}));
   const id=JSON.stringify(view.identity.map(k=>person[k])),picked=selected.has(id);
-  root.append(productButton(picked?"移出比較":"加入比較",()=>{if(picked)selected.delete(id);else if(selected.size<3)selected.add(id);saveState();renderComparison();renderProduct();},"compare"));
+  const compareButton=productButton(picked?"移出比較":"加入比較",()=>{
+    if(picked)selected.delete(id);else if(selected.size<3)selected.add(id);
+    saveState();renderComparison();renderProduct();
+    $("person-compare")?.focus({preventScroll:true});
+    announceProduct("已選取 "+selected.size+" / 3 筆比較紀錄。");
+  },"compare");
+  compareButton.id="person-compare";compareButton.setAttribute("aria-pressed",String(picked));
+  compareButton.disabled=!picked&&selected.size>=3;root.append(compareButton);
   root.append(productLink("比較已選紀錄","records",{view:view.id}));
 }
 function renderProduct() {
@@ -858,10 +927,10 @@ function renderProduct() {
   $("product-nav").replaceChildren(...(bundle.kind==="aqi"?[productLink("查測站","home"),productLink("測站比較","stations"),productLink("資料與方法","methods",{view:"metrics"})]:
     bundle.kind==="market"?[productLink("標的研究","research"),productLink("資料與方法","methods",{view:"metrics"}),productLink("資料工具","tools",{view:"overview",group:productState.entity})]:
     [productLink("球隊戰績","home"),productLink("打者榜","board",{view:"batters"}),productLink("投手榜","board",{view:"pitchers"}),productLink("球員搜尋","records",{view:"roster"}),productLink("資料版本","methods",{view:"history"})]));
-  const root=$("product-root");root.replaceChildren();
+  const root=$("product-root");cancelFeedbackMotion(root);root.replaceChildren();
   if(!record){
     if(bundle.kind==="aqi")renderAirProduct(root);else if(bundle.kind==="market")renderMarketProduct(root);else renderCPBLProduct(root);
-    productAnimation?.cancel();productAnimation=root.animate([{opacity:.8,transform:"translateY(5px)"},{opacity:1,transform:"translateY(0)"}],{duration:200,easing:"cubic-bezier(.2,.8,.2,1)"});
+    playProductMotion(root);
   }
   $("metrics").closest(".engine-summary").hidden=screen!=="records";
   $("chart-panel").hidden=screen==="board"||screen==="tools"||dataset.id==="metrics";

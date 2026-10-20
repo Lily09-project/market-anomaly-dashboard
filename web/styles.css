@@ -148,7 +148,7 @@ button[aria-pressed=true]{background:var(--tint);border-color:var(--accent);box-
 button,#repository,#views a{display:inline-flex;align-items:center;justify-content:center;gap:.5rem}
 button{transition:background-color .12s,border-color .12s}.control-icon{transition:transform .12s}
 button:not(:disabled):active .control-icon{transform:scale(.92)}
-@media(hover:hover){button:not(:disabled):hover .control-icon{transform:translateX(2px)}}
+@media(hover:hover){html[data-product=market] button:not(:disabled):hover .control-icon{transform:translateX(2px)}html[data-product=cpbl] button:not(:disabled):hover .control-icon{transform:rotate(-5deg)}html[data-product=aqi] button:not(:disabled):hover .control-icon{transform:translateY(-1px)}}
 input[type=checkbox]{flex:0 0 28px;width:28px;height:28px;min-height:28px}
 col.action-column{width:8rem}
 @media(max-width:75em){.market-frame{grid-template-columns:minmax(0,9rem) minmax(0,1fr)}.market-side{grid-column:2;border-left:0;border-top:1px solid var(--border);padding:1rem 0}}
@@ -167,3 +167,13 @@ button,input,select{border-radius:var(--radius)}
 .market-frame section>a{display:flex;gap:.4rem;align-items:center;min-height:44px;margin:.75rem 0;width:fit-content;max-width:100%}
 @container(max-width:24rem){.market-side dl{grid-template-columns:minmax(0,1fr);gap:.25rem}.market-side dd{margin-bottom:.75rem}.market-side dt{font-weight:600}}
 @container(max-width:16rem){.surface{padding:.5rem}.surface a{margin-right:0}}
+
+/* Purposeful feedback; fixed controls retain their position throughout motion. */
+:root{--motion-press:100ms;--motion-hover:140ms;--motion-ease:cubic-bezier(.2,.7,.2,1)}
+button,a[aria-current],button[aria-pressed]{transition:background-color var(--motion-hover) var(--motion-ease),border-color var(--motion-hover) var(--motion-ease)}
+.control-icon{transition:transform var(--motion-press) var(--motion-ease)}
+html[data-product=cpbl] button:not(:disabled):active .control-icon{transform:rotate(-8deg)}
+html[data-product=market] button:not(:disabled):active .control-icon{transform:translateX(2px)}
+html[data-product=aqi] button:not(:disabled):active .control-icon{transform:translateY(1px)}
+.native-trend .selected-observation{fill:var(--surface);stroke:var(--accent);stroke-width:3;vector-effect:non-scaling-stroke}
+#person-compare[aria-pressed=true]{border-color:var(--accent)}

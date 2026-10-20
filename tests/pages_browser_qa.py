@@ -785,37 +785,129 @@ def cross_browser_smoke(browser_type, url, bundle):
 
 
 def native_keyboard_check(page):
-    # A real final focus target avoids relying on engine-specific browser-chrome
-    # focus behavior at the end of the document. All intervening targets are checked.
+    # Sample the visible portion of the actual focused rect after native scroll
+    # has settled. Never substitute a clamped viewport edge for an offscreen target.
+    evidence = ROOT / "reports/pages-qa"
+    evidence.mkdir(parents=True, exist_ok=True)
+    engine = page.context.browser.browser_type.name
+    width = page.viewport_size["width"]
+    scale = page.evaluate("getComputedStyle(document.documentElement).fontSize").replace(".", "-")
+    name = f"keyboard-{engine}-{width}-{scale}"
+    visited = []
+    reached_boundary = False
+    failure = False
+    page.context.tracing.start(screenshots=True, snapshots=True, sources=False)
     limit = page.evaluate("""() => {
       const end=document.createElement("button");
       end.id="qa-focus-boundary";end.textContent="Keyboard test boundary";
       document.body.append(end);
       return document.querySelectorAll('a[href],button,input,select,textarea,summary,[tabindex="0"]').length*3+20;
     }""")
-    visited = []
-    reached_boundary = False
     try:
         page.locator("a.skip").focus()
         for _ in range(limit):
             page.keyboard.press("Tab")
-            result = page.evaluate("""() => {
+            result = page.evaluate("""async () => {
+              await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
               const n=document.activeElement;
               if(n.id==="qa-focus-boundary")return {boundary:true};
-              const motionStable=!n.closest("#product-root")||document.getElementById("product-root").getAnimations().every(a=>a.playState!=="running");
+              const motionStable=!n.closest("#product-root")||document.getElementById("product-root").getAnimations({subtree:true}).every(a=>a.playState!=="running");
               const r=n.getBoundingClientRect(),s=getComputedStyle(n);
-              const hit=document.elementFromPoint(Math.max(1,Math.min(innerWidth-1,r.x+r.width/2)),Math.max(1,Math.min(innerHeight-1,r.y+r.height/2)));
-              return {boundary:false,motionStable,tag:n.tagName,id:n.id,text:n.textContent.slice(0,40),visible:r.width>0&&r.height>0,outline:s.outlineStyle!=="none"&&parseFloat(s.outlineWidth)>=2,occluded:!(hit&&(n.contains(hit)||hit.contains(n)))};
+              const left=Math.max(0,r.left),right=Math.min(innerWidth,r.right);
+              const top=Math.max(0,r.top),bottom=Math.min(innerHeight,r.bottom);
+              const visible=r.width>0&&r.height>0&&left<right&&top<bottom;
+              const hit=visible?document.elementFromPoint((left+right)/2,(top+bottom)/2):null;
+              return {boundary:false,motionStable,tag:n.tagName,id:n.id,text:n.textContent.slice(0,80),
+                visible,outline:s.outlineStyle!=="none"&&parseFloat(s.outlineWidth)>=2,
+                occluded:!(hit&&(n.contains(hit)||hit.contains(n))),
+                rect:{x:r.x,y:r.y,width:r.width,height:r.height},
+                viewport:{width:innerWidth,height:innerHeight},scroll:{x:scrollX,y:scrollY},
+                hit:hit?{tag:hit.tagName,id:hit.id,class:hit.getAttribute("class")}:null};
             }""")
             if result["boundary"]:
                 reached_boundary = True
                 break
-            assert result["motionStable"] and result["visible"] and result["outline"] and not result["occluded"], result
             visited.append(result)
-        assert reached_boundary, (page.context.browser.browser_type.name, visited)
+            assert result["motionStable"] and result["visible"] and result["outline"] and not result["occluded"], result
+        assert reached_boundary, (engine, visited)
         assert len(visited) >= 3, visited
+    except Exception:
+        failure = True
+        (evidence / f"{name}.json").write_text(json.dumps({
+            "browser": engine, "version": page.context.browser.version,
+            "url": page.url, "visited": visited,
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+        page.screenshot(path=str(evidence / f"{name}.png"), full_page=True)
+        raise
     finally:
         page.locator("#qa-focus-boundary").evaluate("(node) => node.remove()")
+        if failure:
+            page.context.tracing.stop(path=str(evidence / f"{name}.zip"))
+        else:
+            page.context.tracing.stop()
+
+
+def native_motion_check(browser, url, bundle):
+    """Rapid real control changes must commit state before motion can finish."""
+    context = browser.new_context(viewport={"width": 390, "height": 844}, accept_downloads=True)
+    page = context.new_page()
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    # Stretch feedback to expose overlap/cancellation without waiting for timers.
+    page.add_init_script("""(() => {
+      const animate = Element.prototype.animate;
+      Element.prototype.animate = function(...args) {
+        const animation = animate.apply(this,args);
+        animation.playbackRate = .1;
+        return animation;
+      };
+    })()""")
+    try:
+        page.goto(url + ("?screen=stations" if bundle["kind"] == "aqi" else ""))
+        page.locator("#product-root h2").first.wait_for()
+        assert page.locator("#product-root").get_attribute("data-motion-profile") == bundle["kind"]
+        if bundle["kind"] == "cpbl":
+            page.locator(".rank-preview a").first.click()
+            page.locator("#person-compare").wait_for()
+            page.evaluate("""() => {
+              for(let i=0;i<3;i++)document.getElementById("person-compare").click();
+            }""")
+            assert page.locator("#person-compare").get_attribute("aria-pressed") == "true"
+            selection = page.evaluate("JSON.parse(new URLSearchParams(location.search).get('selected'))")
+            assert len(selection) == 1
+            assert "1 / 3" in page.locator("#product-feedback").inner_text()
+        elif bundle["kind"] == "market":
+            final = page.evaluate("""() => {
+              const values=[...document.getElementById("instrument").options].map(n=>n.value);
+              for(const value of [values.at(-1),values[0],values.at(-1)]){
+                const select=document.getElementById("instrument");
+                select.value=value;select.dispatchEvent(new Event("change",{bubbles:true}));
+              }
+              return values.at(-1);
+            }""")
+            assert page.locator("#instrument").input_value() == final
+            assert page.evaluate("new URLSearchParams(location.search).get('entity')") == final
+            button = page.locator(".event-list button").first
+            datum = button.get_attribute("id").removeprefix("datum-")
+            button.click()
+            assert page.locator(".market-side").get_attribute("data-selected-date") == datum
+            assert page.locator(".native-trend .selected-observation").count() == 1
+            assert page.evaluate("new URLSearchParams(location.search).get('datum')") == datum
+        else:
+            picked = page.evaluate("""() => {
+              const id=document.querySelector('.station-options button').id;
+              for(let i=0;i<3;i++)document.getElementById(id).click();
+              return id;
+            }""")
+            assert page.locator("[id=" + json.dumps(picked) + "]").get_attribute("aria-pressed") == "true"
+            assert page.locator("#product-root .comparison article").count() == 1
+            assert len(page.evaluate("JSON.parse(new URLSearchParams(location.search).get('entities'))")) == 1
+        native_keyboard_check(page)
+        assert page.locator("#product-root").evaluate(
+            "(node)=>node.getAnimations({subtree:true}).every(a=>a.playState!=='running')")
+        assert not errors, errors
+    finally:
+        context.close()
 
 
 def native_product_check(browser, url, bundle, evidence):
@@ -997,12 +1089,14 @@ def main():
             cpbl_innings_display_check(page, args.url, bundle)
             page.close()
         native_product_check(browser, args.url, bundle, evidence)
+        native_motion_check(browser, args.url, bundle)
         browser.close()
         for browser_type in (engine.firefox, engine.webkit):
             cross_browser_smoke(browser_type, args.url, bundle)
             native_browser = browser_type.launch()
             try:
                 native_product_check(native_browser, args.url, bundle, evidence)
+                native_motion_check(native_browser, args.url, bundle)
             finally:
                 native_browser.close()
     print("PASS: Chromium fixed palette x 2 OS preferences x 5 viewports x 2 text scales x every page; history, invalid filters, snapshot limits, dense extrema, degenerate charts, marker shapes, raw innings exports; Firefox/WebKit responsive, fixed-palette, route, download, snapshot and date smoke")
