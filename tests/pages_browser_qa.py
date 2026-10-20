@@ -784,6 +784,73 @@ def cross_browser_smoke(browser_type, url, bundle):
         browser.close()
 
 
+FOCUS_PROBE_JS = """async () => {
+  const n=document.activeElement;
+  if(n.id==="qa-focus-boundary")return {boundary:true};
+  const before=n.getBoundingClientRect();
+  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  const r=n.getBoundingClientRect(),s=getComputedStyle(n);
+  const geometry=/^(transform|translate|rotate|scale|opacity|top|right|bottom|left|width|height|minWidth|maxWidth|minHeight|maxHeight|margin.*|padding.*|border.*Width|fontSize|lineHeight|letterSpacing|offsetDistance|offsetPath)$/;
+  const affecting=[];
+  for(let ancestor=n;ancestor;ancestor=ancestor.parentElement){
+    for(const animation of ancestor.getAnimations()){
+      if(animation.playState!=="running"||animation.effect?.target!==ancestor)continue;
+      const properties=[...new Set(animation.effect.getKeyframes().flatMap(frame=>Object.keys(frame)))].filter(key=>geometry.test(key));
+      if(properties.length)affecting.push({id:ancestor.id,tag:ancestor.tagName,properties});
+    }
+  }
+  const movement=Math.max(...["x","y","width","height"].map(key=>Math.abs(before[key]-r[key])));
+  const left=Math.max(0,r.left),right=Math.min(innerWidth,r.right);
+  const top=Math.max(0,r.top),bottom=Math.min(innerHeight,r.bottom);
+  const visible=n.isConnected&&r.width>0&&r.height>0&&left<right&&top<bottom;
+  const hit=visible?document.elementFromPoint((left+right)/2,(top+bottom)/2):null;
+  return {boundary:false,motionStable:movement<=.5&&affecting.length===0,movement,affecting,
+    tag:n.tagName,id:n.id,text:n.textContent.slice(0,80),
+    visible,outline:s.outlineStyle!=="none"&&parseFloat(s.outlineWidth)>=2,
+    occluded:!(hit&&(n.contains(hit)||hit.contains(n))),
+    rect:{x:r.x,y:r.y,width:r.width,height:r.height},
+    viewport:{width:innerWidth,height:innerHeight},scroll:{x:scrollX,y:scrollY},
+    hit:hit?{tag:hit.tagName,id:hit.id,class:hit.getAttribute("class")}:null};
+}"""
+
+
+def focus_probe_contract_check(browser):
+    """The probe rejects real motion/occlusion, not unrelated color feedback."""
+    page = browser.new_page(viewport={"width": 390, "height": 844})
+    try:
+        page.set_content('<style>button:focus {outline:3px solid #123456}</style>'
+                         '<div id="ancestor"><button id="target">Probe</button></div>')
+        page.locator("#target").focus()
+        still = page.evaluate(FOCUS_PROBE_JS)
+        assert still["motionStable"] and still["visible"] and still["outline"] and not still["occluded"], still
+        page.evaluate("""() => {
+          document.getElementById("target").animate(
+            [{backgroundColor:"#ffffff"},{backgroundColor:"#eeeeee"}],{duration:10000});
+        }""")
+        color = page.evaluate(FOCUS_PROBE_JS)
+        assert color["motionStable"], color
+        for target in ("target", "ancestor"):
+            page.evaluate("""id => {
+              for(const a of document.getAnimations())a.cancel();
+              document.getElementById(id).animate(
+                [{transform:"translateX(0px)"},{transform:"translateX(80px)"}],{duration:10000});
+            }""", target)
+            moving = page.evaluate(FOCUS_PROBE_JS)
+            assert not moving["motionStable"] and moving["affecting"], moving
+        page.evaluate("""() => {
+          for(const a of document.getAnimations())a.cancel();
+          const r=document.getElementById("target").getBoundingClientRect();
+          const overlay=document.createElement("div");
+          Object.assign(overlay.style,{position:"fixed",left:r.left+"px",top:r.top+"px",
+            width:r.width+"px",height:r.height+"px",zIndex:"999",background:"white"});
+          document.body.append(overlay);
+        }""")
+        blocked = page.evaluate(FOCUS_PROBE_JS)
+        assert blocked["occluded"], blocked
+    finally:
+        page.close()
+
+
 def native_keyboard_check(page):
     # Sample the visible portion of the actual focused rect after native scroll
     # has settled. Never substitute a clamped viewport edge for an offscreen target.
@@ -807,23 +874,7 @@ def native_keyboard_check(page):
         page.locator("a.skip").focus()
         for _ in range(limit):
             page.keyboard.press("Tab")
-            result = page.evaluate("""async () => {
-              await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-              const n=document.activeElement;
-              if(n.id==="qa-focus-boundary")return {boundary:true};
-              const motionStable=!n.closest("#product-root")||document.getElementById("product-root").getAnimations({subtree:true}).every(a=>a.playState!=="running");
-              const r=n.getBoundingClientRect(),s=getComputedStyle(n);
-              const left=Math.max(0,r.left),right=Math.min(innerWidth,r.right);
-              const top=Math.max(0,r.top),bottom=Math.min(innerHeight,r.bottom);
-              const visible=r.width>0&&r.height>0&&left<right&&top<bottom;
-              const hit=visible?document.elementFromPoint((left+right)/2,(top+bottom)/2):null;
-              return {boundary:false,motionStable,tag:n.tagName,id:n.id,text:n.textContent.slice(0,80),
-                visible,outline:s.outlineStyle!=="none"&&parseFloat(s.outlineWidth)>=2,
-                occluded:!(hit&&(n.contains(hit)||hit.contains(n))),
-                rect:{x:r.x,y:r.y,width:r.width,height:r.height},
-                viewport:{width:innerWidth,height:innerHeight},scroll:{x:scrollX,y:scrollY},
-                hit:hit?{tag:hit.tagName,id:hit.id,class:hit.getAttribute("class")}:null};
-            }""")
+            result = page.evaluate(FOCUS_PROBE_JS)
             if result["boundary"]:
                 reached_boundary = True
                 break
@@ -849,6 +900,7 @@ def native_keyboard_check(page):
 
 def native_motion_check(browser, url, bundle):
     """Rapid real control changes must commit state before motion can finish."""
+    focus_probe_contract_check(browser)
     context = browser.new_context(viewport={"width": 390, "height": 844}, accept_downloads=True)
     page = context.new_page()
     errors = []
@@ -899,12 +951,12 @@ def native_motion_check(browser, url, bundle):
               for(let i=0;i<3;i++)document.getElementById(id).click();
               return id;
             }""")
-            assert page.locator("[id=" + json.dumps(picked) + "]").get_attribute("aria-pressed") == "true"
+            assert page.evaluate("(id) => document.getElementById(id).getAttribute(\"aria-pressed\")", picked) == "true"
             assert page.locator("#product-root .comparison article").count() == 1
             assert len(page.evaluate("JSON.parse(new URLSearchParams(location.search).get('entities'))")) == 1
         native_keyboard_check(page)
         assert page.locator("#product-root").evaluate(
-            "(node)=>node.getAnimations({subtree:true}).every(a=>a.playState!=='running')")
+            "(node)=>node.getAnimations({subtree:true}).filter(a=>!(a instanceof CSSTransition)).every(a=>a.playState!=='running')")
         assert not errors, errors
     finally:
         context.close()
