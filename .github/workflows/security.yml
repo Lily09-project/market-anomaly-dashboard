@@ -56,9 +56,6 @@ jobs:
           python -m compileall -q app.py src scripts tests
           python scripts/verify_release.py
 
-      - name: Audit dependencies
-        run: python -m pip_audit --strict --progress-spinner off
-
       - name: Scan Python source
         run: python -m bandit -r app.py src scripts --exclude tests
 
@@ -144,3 +141,27 @@ jobs:
         run: python scripts/ui_qa.py --url http://127.0.0.1:8765 --theme-mode "$UI_THEME"
       - name: Run extended 200% text browser QA
         run: python scripts/ui_qa.py --url http://127.0.0.1:8765 --extended --text-scale --theme-mode "$UI_THEME"
+
+  # Independent and mandatory: audit failure must not hide source validation.
+  dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install project and audit tools
+        run: |
+          python -m pip install "pip>=26.2"
+          python -m pip install --requirement requirements-dev.lock.txt
+
+      - name: Audit dependencies
+        run: python -m pip_audit --strict --progress-spinner off

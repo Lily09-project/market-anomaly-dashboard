@@ -71,7 +71,7 @@ def test_github_actions_runs_locked_release_and_browser_gates() -> None:
     assert "MARKET_DASHBOARD_OFFLINE: \"1\"" in workflow
     assert "python run_all.py --mode sample" in workflow
     assert "python scripts/ui_qa.py --url http://127.0.0.1:8765" in workflow
-    assert workflow.count("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1") == 4
+    assert workflow.count("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1") == 5
     assert "gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e" in workflow
 
     e2e_requirements = project_path("requirements-e2e.txt").read_text(encoding="utf-8")
