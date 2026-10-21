@@ -70,7 +70,7 @@ def test_dashboard_pages_and_sidebar_interactions(monkeypatch, sample_pipeline_o
     app.run(timeout=120)
     assert not app.exception
     assert app.session_state["active_custom_stock_symbol"] == "TSLA"
-    assert app.query_params["symbol"] == ["TSLA"]
+    assert _query_values(app, "symbol") == ["TSLA"]
 
     button_by_label(app, "清除代號").click()
     app.run(timeout=120)
@@ -79,7 +79,7 @@ def test_dashboard_pages_and_sidebar_interactions(monkeypatch, sample_pipeline_o
 
     app.radio[0].set_value("異常偵測展示")
     app.run(timeout=120)
-    assert app.query_params["page"] == ["anomalies"]
+    assert _query_values(app, "page") == ["anomalies"]
     assert not app.exception
     assert [item.label for item in app.date_input] == ["開始日期", "結束日期"]
     assert len(app.get("plotly_chart")) == 3
@@ -121,7 +121,7 @@ def test_dashboard_exposes_research_snapshot_downloads(monkeypatch, sample_pipel
     app.run(timeout=120)
 
     assert app.session_state["stock_analysis_symbol"] == "TSLA"
-    assert app.query_params["symbol"] == ["TSLA"]
+    assert _query_values(app, "symbol") == ["TSLA"]
     labels = {item.label for item in app.get("download_button")}
     assert {"下載 JSON", "列印 HTML"} <= labels
 
@@ -183,9 +183,19 @@ def test_page_switch_prunes_stale_query_parameters(monkeypatch) -> None:
     app.query_params["pool_size"] = "10"
     app.run(timeout=120)
 
-    assert app.query_params["page"] == ["anomalies"]
+    assert _query_values(app, "page") == ["anomalies"]
     assert "symbol" not in app.query_params
     assert "industry" not in app.query_params
     assert "profile" not in app.query_params
     assert "min_score" not in app.query_params
     assert "pool_size" not in app.query_params
+
+
+def _query_values(app: AppTest, key: str) -> list[str]:
+    """Preserve exact multivalue assertions across AppTest query APIs."""
+    params = app.query_params
+    if hasattr(params, "get_all"):
+        return params.get_all(key)
+    value = params[key]
+    assert isinstance(value, list), "Legacy AppTest must expose query values as a list"
+    return value
