@@ -39,7 +39,7 @@ CI 執行品質、安全與 Pages 瀏覽器驗收。公開展示只發布經允�
 
 部署與功能邊界見 [GitHub Pages 指南](docs/GITHUB_PAGES.md)，安全通報見 [SECURITY.md](SECURITY.md)。
 
-## 完整研究流程
+## 資料來源與降級
 
 Python／Streamlit 是可解釋研究工作台，包含可解釋市場雷達（`src/market_screener.py`）、Research Snapshot（`snapshot_id` 與 SHA-256）及 Snapshot Comparison。不提供買賣建議；LIVE 需檢查交易日與完整度，DEMO／cache／offline 均明確標示。
 
