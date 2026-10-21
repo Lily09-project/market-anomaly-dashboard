@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import struct
-import zlib
 
 import pandas as pd
 try:
@@ -16,37 +14,13 @@ from src.train_anomaly_model import precision_recall_f1, train_anomaly_model
 from src.utils import load_config, project_path, write_json
 
 
-def _write_fallback_png(path: Path, color: tuple[int, int, int] = (16, 81, 134)) -> None:
-    width, height = 640, 320
-    rows = []
-    for y in range(height):
-        row = bytearray([0])
-        for x in range(width):
-            line = abs(y - (height - 45 - int((x / max(width - 1, 1)) * 190))) < 2
-            if line:
-                row.extend(color)
-            else:
-                shade = 240 - int((y / height) * 8)
-                row.extend((shade, shade + 1, shade + 2))
-        rows.append(bytes(row))
-    raw = b"".join(rows)
-
-    def chunk(kind: bytes, data: bytes) -> bytes:
-        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
-
-    png = (
-        b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
-        + chunk(b"IDAT", zlib.compress(raw, 9))
-        + chunk(b"IEND", b"")
-    )
-    path.write_bytes(png)
+def _require_plotting() -> None:
+    if plt is None:
+        raise RuntimeError("Chart rendering is unavailable; install a working matplotlib. No synthetic report image was generated.")
 
 
 def _save_price_trend(df: pd.DataFrame, path: Path) -> None:
-    if plt is None:
-        _write_fallback_png(path, (16, 81, 134))
-        return
+    _require_plotting()
     fig, ax = plt.subplots(figsize=(11, 5))
     for symbol, group in df.groupby("symbol"):
         ax.plot(group["date"], group["close"], linewidth=1.4, label=str(symbol))
@@ -61,9 +35,7 @@ def _save_price_trend(df: pd.DataFrame, path: Path) -> None:
 
 
 def _save_volatility_trend(df: pd.DataFrame, path: Path) -> None:
-    if plt is None:
-        _write_fallback_png(path, (253, 179, 56))
-        return
+    _require_plotting()
     fig, ax = plt.subplots(figsize=(11, 5))
     for symbol, group in df.groupby("symbol"):
         ax.plot(group["date"], group["volatility_20"], linewidth=1.2, label=str(symbol))
@@ -78,9 +50,7 @@ def _save_volatility_trend(df: pd.DataFrame, path: Path) -> None:
 
 
 def _save_anomaly_cases(df: pd.DataFrame, path: Path) -> None:
-    if plt is None:
-        _write_fallback_png(path, (232, 99, 73))
-        return
+    _require_plotting()
     fig, ax = plt.subplots(figsize=(11, 5))
     first_symbol = str(df["symbol"].iloc[0])
     group = df[df["symbol"].astype(str) == first_symbol]
@@ -131,7 +101,7 @@ def evaluate_model(config: dict | None = None) -> Path:
             "anomaly_rate": float(y_baseline.mean()),
         },
         "top_anomaly_cases": top_cases,
-        "limitation": "Evaluation is measured against heuristic pseudo-labels. Results show technical detection behavior, not investment performance.",
+        "limitation": "Retrospective in-sample evaluation against heuristic pseudo-labels; this is not out-of-time validation. Results show technical detection behavior, not investment performance.",
     }
 
     figures_dir = project_path(cfg["reports"]["figures_dir"])

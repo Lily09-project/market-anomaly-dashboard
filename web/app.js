@@ -138,7 +138,7 @@ function chartDate(time) {
 function compactFields() {
   const extra = bundle.kind === "market" ? ["daily_return", "model_anomaly"] : dataset.id === "batters" ? ["batting_average", "pa"] :
     dataset.id === "pitchers" ? ["era", "innings_pitched"] : dataset.id === "roster" ? ["roster_status", "player_type"] : dataset.id === "teams" ? ["season", "wins", "losses"] : bundle.kind === "aqi" ? ["pm25", "is_anomaly", "actual_next_hour_aqi"] : [];
-  return new Set([dataset.name === "snapshot_id" ? null : dataset.name, dataset.group, dataset.date, dataset.value, ...extra].filter(Boolean));
+  return new Set([dataset.name === "snapshot_id" ? null : dataset.name, dataset.group, dataset.date, dataset.value, state.sort, ...extra].filter(Boolean));
 }
 function tablePageSize() {
   return $("table").clientWidth <= 56 * parseFloat(getComputedStyle($("table")).fontSize) ? 8 : 20;
@@ -220,6 +220,7 @@ function saveState(push = false) {
   history[push ? "pushState" : "replaceState"](push ? {scrollY: 0} : history.state, "", location.pathname + "?" + query);
 }
 function fillControls() {
+  renderRecordScope();
   $("search").value = state.search;
   $("search").placeholder = dataset.id === "metrics" ? "搜尋模型或評估指標" : "搜尋股票代碼或關鍵字";
   $("anomaly-label").hidden = !dataset.fields.some(field => ["is_anomaly", "model_anomaly"].includes(field.key));
@@ -259,6 +260,23 @@ function fillControls() {
     });
     return link;
   }));
+}
+function clearRecordScope() {
+  if (productState.screen === "records" && ["aqi", "market"].includes(bundle.kind)) productState.entity = "";
+}
+function renderRecordScope() {
+  let scope = $("record-scope");
+  if (!scope) {
+    scope = el("div", undefined, {id: "record-scope"});
+    $("group-label").parentElement.append(scope);
+  }
+  const active = productState.screen === "records" && productState.entity && ["aqi", "market"].includes(bundle.kind);
+  scope.hidden = !active;
+  scope.replaceChildren();
+  if (active) {
+    scope.append(el("span", (bundle.kind === "aqi" ? "測站範圍：" : "標的範圍：") + productState.entity + " "),
+      productButton("解除範圍", () => {clearRecordScope(); currentPage = 0; fillControls(); saveState(); render();}, "reset"));
+  }
 }
 function filteredRows() {
   const query = state.search.trim().toLocaleLowerCase("zh-TW");
@@ -438,7 +456,7 @@ function renderTable() {
   const compact = compactFields();
   hrow.append(el("th", "比較", {scope: "col"}));
   for (const field of dataset.fields) {
-    const th = el("th", field.label, {scope: "col", "data-kind": field.kind, class: compact.has(field.key) ? "" : "secondary-field"});
+    const th = el("th", field.label, {scope: "col", "data-field": field.key, "data-kind": field.kind, class: compact.has(field.key) ? "" : "secondary-field"});
     if (field.key === state.sort) th.setAttribute("aria-sort", state.descending ? "descending" : "ascending");
     hrow.append(th);
   }
@@ -647,6 +665,7 @@ async function initialize() {
   $("snapshot-download").addEventListener("click", () => { if (comparisonReport) download(JSON.stringify(comparisonReport, null, 2), "snapshot-comparison.json", "application/json;charset=utf-8"); });
   for (const [id, key] of [["search", "search"], ["group", "group"], ["start", "start"], ["end", "end"], ["sort", "sort"], ["minimum", "minimum"]]) {
     $(id).addEventListener(id === "search" ? "input" : "change", () => {
+      if (key === "group" || key === "search") {clearRecordScope(); renderRecordScope();}
       state[key] = key === "minimum" ? Number($(id).value) : $(id).value;
       if (key === "minimum" && (!Number.isFinite(state.minimum) || state.minimum < 0 || state.minimum > 100000)) {
         state.minimum = dataset.minimum?.value || 0; $(id).value = state.minimum;
@@ -658,6 +677,7 @@ async function initialize() {
   $("compare-jump").addEventListener("click", () => {$("compare-title").focus({preventScroll: true}); $("compare-title").scrollIntoView({block: "start"});});
   $("direction").addEventListener("click", () => {state.descending = !state.descending; setButtonText($("direction"), state.descending ? "遞減" : "遞增"); saveState(); render();});
   $("reset").addEventListener("click", () => {
+    clearRecordScope();
     Object.assign(state, {onlyAnomaly: false, search: "", group: "", start: "", end: "", detail: "", minimum: dataset.minimum?.value || 0});
     currentPage = 0; fillControls(); saveState(); render();
   });

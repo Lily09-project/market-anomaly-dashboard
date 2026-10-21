@@ -140,13 +140,13 @@ def train_anomaly_model(config: dict | None = None) -> Path:
         "f1": float(f1),
         "anomaly_rate": float(y_pred.mean()),
         "pseudo_label_positive_rate": float(y_true.mean()),
-        "limitation_note": "Pseudo-labels are heuristic volatility flags, not ground-truth market labels.",
+        "limitation_note": "Retrospective in-sample pseudo-label evaluation, not out-of-time validation or ground-truth market labels.",
         "model_anomaly_rate": float(y_pred.mean()),
         "precision_vs_pseudo_label": float(precision),
         "recall_vs_pseudo_label": float(recall),
         "f1_vs_pseudo_label": float(f1),
         "baseline_anomaly_count": int(df["zscore_baseline_anomaly"].sum()),
-        "limitation": "Pseudo-labels are heuristic volatility flags, not ground-truth market labels.",
+        "limitation": "Retrospective in-sample pseudo-label evaluation, not out-of-time validation or ground-truth market labels.",
         "feature_columns": MODEL_FEATURES,
     }
 

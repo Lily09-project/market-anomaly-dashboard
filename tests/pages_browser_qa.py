@@ -1046,6 +1046,47 @@ def native_product_check(browser, url, bundle, evidence):
             context.close()
 
 
+
+def scope_and_sort_regression_check(browser, url, bundle):
+    """Visible filters, reset, exports and history agree with the record scope."""
+    context = browser.new_context(viewport={"width": 390, "height": 844}, accept_downloads=True)
+    page = context.new_page()
+    overview = bundle["datasets"][0]
+    if bundle["kind"] in {"market", "aqi"}:
+        key = "symbol" if bundle["kind"] == "market" else "site_name"
+        entity = str(overview["rows"][0][key])
+        page.goto(url + "?screen=records&view=overview&entity=" + quote(entity, safe=""))
+        page.locator("#json").wait_for()
+        report = downloaded_json(page, "#json")
+        assert report["rows"] and all(str(row[key]) == entity for row in report["rows"])
+        assert entity in page.locator("#record-scope").inner_text()
+        groups = sorted({str(row[overview["group"]]) for row in overview["rows"]})
+        own_group = str(next(row[overview["group"]] for row in overview["rows"] if str(row[key]) == entity))
+        other = next(group for group in groups if group != own_group)
+        page.locator("#group").select_option(other)
+        report = downloaded_json(page, "#json")
+        assert report["rows"] and all(str(row[overview["group"]]) == other for row in report["rows"])
+        assert not page.locator("#record-scope").is_visible()
+        page.reload()
+        report = downloaded_json(page, "#json")
+        assert report["rows"] and all(str(row[overview["group"]]) == other for row in report["rows"])
+        page.locator("#reset").click()
+        report = downloaded_json(page, "#json")
+        assert len(report["rows"]) == len(overview["rows"])
+        page.goto(url + "?screen=records&view=overview&entity=" + quote(entity, safe=""))
+        page.locator("#reset").click()
+        report = downloaded_json(page, "#json")
+        assert len(report["rows"]) == len(overview["rows"])
+    else:
+        for view in ("batters", "pitchers"):
+            page.goto(url + "?screen=board&view=" + view)
+            page.locator("#sort").wait_for()
+            dataset = next(item for item in bundle["datasets"] if item["id"] == view)
+            for field in dataset["fields"]:
+                page.locator("#sort").select_option(field["key"])
+                assert page.locator('th[data-field="' + field["key"] + '"]').is_visible(), field["key"]
+    context.close()
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", required=True)
@@ -1140,6 +1181,7 @@ def main():
             page = browser.new_page(viewport={"width": 390, "height": 844}, accept_downloads=True)
             cpbl_innings_display_check(page, args.url, bundle)
             page.close()
+        scope_and_sort_regression_check(browser, args.url, bundle)
         native_product_check(browser, args.url, bundle, evidence)
         native_motion_check(browser, args.url, bundle)
         browser.close()
