@@ -11,3 +11,6 @@ pyyaml>=6.0.3,<7
 yfinance>=0.2.54,<2
 # Security floor for requests' HTTP transport dependency.
 urllib3>=2.8.0,<3
+
+Pillow>=13.0.0,<14
+certifi>=2026.10.19
