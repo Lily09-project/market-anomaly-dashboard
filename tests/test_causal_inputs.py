@@ -92,3 +92,52 @@ def test_failed_render_invalidates_old_and_partial_outputs(monkeypatch, tmp_path
     assert all(not (figures / name).exists() for name in names)
     assert not summary.exists()
     assert unrelated.read_text(encoding="utf-8") == "keep"
+
+
+def test_sample_and_explicit_inputs_do_not_even_inspect_raw_cache(monkeypatch, tmp_path):
+    market = tmp_path / "sample_market.csv"
+    fx = tmp_path / "sample_fx.csv"
+    market.write_text("date,symbol,open,high,low,close,volume\n2026-01-01,0050,1,2,1,2,3\n", encoding="utf-8")
+    fx.write_text("date,currency_pair,exchange_rate\n2026-01-01,USD_TWD,31\n", encoding="utf-8")
+    cfg = {"data": {"raw_dir": str(tmp_path / "unrelated"), "sample_market_path": str(market),
+                    "sample_fx_path": str(fx), "currency_pair": "USD_TWD"}}
+
+    def forbidden_scan(*args):
+        raise AssertionError("Unrelated raw cache must not be inspected")
+
+    monkeypatch.setattr(preprocess, "_candidate_paths", forbidden_scan)
+    assert preprocess._load_market(cfg, "sample")["symbol"].tolist() == ["0050"]
+    assert preprocess._load_fx(cfg, "sample")["exchange_rate"].tolist() == [31.]
+    assert preprocess._load_market(cfg, "api", market)["symbol"].tolist() == ["0050"]
+    assert preprocess._load_fx(cfg, "api", fx)["exchange_rate"].tolist() == [31.]
+
+
+def test_fx_exact_age_limit_and_future_prefix_invariance():
+    market = pd.DataFrame({
+        "symbol": ["A", "A", "A"],
+        "date": pd.to_datetime(["2025-12-31", "2026-01-08", "2026-01-08 00:00:01"], format="mixed"),
+    })
+    fx = pd.DataFrame({"date": pd.to_datetime(["2026-01-01"]),
+                       "currency_pair": ["USD_TWD"], "exchange_rate": [31.]})
+    result = preprocess.merge_market_fx(market, fx, "USD_TWD")
+    assert result["date"].tolist() == [pd.Timestamp("2026-01-08")]
+    later = pd.concat([fx, pd.DataFrame({"date": pd.to_datetime(["2026-02-01"]),
+                                       "currency_pair": ["USD_TWD"], "exchange_rate": [999.]})], ignore_index=True)
+    pd.testing.assert_frame_equal(result, preprocess.merge_market_fx(market, later, "USD_TWD"))
+    with pytest.raises(ValueError, match="non-negative"):
+        preprocess.merge_market_fx(market, fx, "USD_TWD", max_age_days=-1)
+
+
+def test_raw_cache_order_is_deterministic_and_excludes_directories(tmp_path):
+    import os
+
+    older = tmp_path / "old_market.csv"
+    newer = tmp_path / "new_market.csv"
+    tied = tmp_path / "z_market.csv"
+    for path in (older, newer, tied):
+        path.write_text("test", encoding="utf-8")
+    os.utime(older, ns=(1_000_000_000, 1_000_000_000))
+    os.utime(newer, ns=(2_000_000_000, 2_000_000_000))
+    os.utime(tied, ns=(2_000_000_000, 2_000_000_000))
+    (tmp_path / "directory_market.csv").mkdir()
+    assert preprocess._candidate_paths(str(tmp_path), "*market*.csv") == [tied, newer, older]

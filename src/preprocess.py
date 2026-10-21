@@ -12,11 +12,12 @@ from src.utils import atomic_write_dataframe, ensure_parent, load_config, projec
 
 def _candidate_paths(directory: str, pattern: str) -> list[Path]:
     base = project_path(directory)
-    return sorted(base.glob(pattern), key=lambda path: (path.stat().st_mtime_ns, path.name), reverse=True) if base.exists() else []
+    return sorted((path for path in base.glob(pattern) if path.is_file()), key=lambda path: (path.stat().st_mtime_ns, path.name), reverse=True) if base.exists() else []
 
 
 def _load_market(config: dict, mode: str = "api", input_path: str | Path | None = None) -> pd.DataFrame:
-    raw_paths = _candidate_paths(config["data"]["raw_dir"], "*market*.csv")
+    # Sample and explicit-input runs must not inspect unrelated raw caches.
+    raw_paths = _candidate_paths(config["data"]["raw_dir"], "*market*.csv") if mode == "api" and input_path is None else []
     sample_path = project_path(config["data"]["sample_market_path"])
     if input_path is not None:
         raw_paths = [Path(input_path)]
@@ -28,7 +29,8 @@ def _load_market(config: dict, mode: str = "api", input_path: str | Path | None 
 
 
 def _load_fx(config: dict, mode: str = "api", input_path: str | Path | None = None) -> pd.DataFrame:
-    raw_paths = _candidate_paths(config["data"]["raw_dir"], "*fx*.csv")
+    # Sample and explicit-input runs must not inspect unrelated raw caches.
+    raw_paths = _candidate_paths(config["data"]["raw_dir"], "*fx*.csv") if mode == "api" and input_path is None else []
     sample_path = project_path(config["data"]["sample_fx_path"])
     if input_path is not None:
         raw_paths = [Path(input_path)]
@@ -47,7 +49,7 @@ def merge_market_fx(market: pd.DataFrame, fx: pd.DataFrame, currency_pair: str, 
     fx["date"] = pd.to_datetime(fx["date"], errors="coerce")
     market = market.dropna(subset=["date"]).sort_values("date")
     fx = fx.loc[fx["currency_pair"].eq(currency_pair)].dropna(subset=["date", "exchange_rate"])
-    fx = fx.sort_values("date").drop_duplicates("date", keep="last")
+    fx = fx.sort_values("date", kind="stable").drop_duplicates("date", keep="last")
     if fx.empty:
         raise ValueError("No usable FX observations for the configured currency pair.")
     if max_age_days < 0:
