@@ -197,5 +197,7 @@ def _query_values(app: AppTest, key: str) -> list[str]:
     if hasattr(params, "get_all"):
         return params.get_all(key)
     value = params[key]
-    assert isinstance(value, list), "Legacy AppTest must expose query values as a list"
+    if isinstance(value, str):
+        return [value]
+    assert isinstance(value, list) and all(isinstance(item, str) for item in value)
     return value
