@@ -67,6 +67,26 @@ def _save_anomaly_cases(df: pd.DataFrame, path: Path) -> None:
     plt.close(fig)
 
 
+
+_REPORT_FIGURES = ("price_trend.png", "volatility_trend.png", "anomaly_cases.png")
+
+
+def _render_report_figures(df: pd.DataFrame, figures_dir: Path) -> None:
+    """Never leave stale or partially rendered figures looking like this run."""
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    targets = [figures_dir / name for name in _REPORT_FIGURES]
+    for target in targets:
+        target.unlink(missing_ok=True)
+    try:
+        for renderer, target in zip(
+            (_save_price_trend, _save_volatility_trend, _save_anomaly_cases), targets):
+            renderer(df, target)
+    except Exception:
+        for target in targets:
+            target.unlink(missing_ok=True)
+        raise
+
+
 def evaluate_model(config: dict | None = None) -> Path:
     cfg = config or load_config()
     results_path = project_path(cfg["data"]["results_path"])
@@ -105,10 +125,9 @@ def evaluate_model(config: dict | None = None) -> Path:
     }
 
     figures_dir = project_path(cfg["reports"]["figures_dir"])
-    figures_dir.mkdir(parents=True, exist_ok=True)
-    _save_price_trend(df, figures_dir / "price_trend.png")
-    _save_volatility_trend(df, figures_dir / "volatility_trend.png")
-    _save_anomaly_cases(df, figures_dir / "anomaly_cases.png")
+    # A failed new render must not leave the previous success summary in place.
+    project_path(cfg["reports"]["evaluation_summary_path"]).unlink(missing_ok=True)
+    _render_report_figures(df, figures_dir)
 
     return write_json(summary, cfg["reports"]["evaluation_summary_path"])
 
