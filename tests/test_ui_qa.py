@@ -163,3 +163,12 @@ def test_browser_failure_evidence_is_structured_and_atomic(tmp_path: Path) -> No
     assert "mobile/stocks" in payload["error"]
     assert payload["screenshots"] == ["failure-stocks-mobile.png", "stocks-mobile.png"]
     assert not (tmp_path / "failure-evidence.json.tmp").exists()
+
+def test_browser_ci_retains_candidate_visual_evidence() -> None:
+    workflow = Path(".github/workflows/security.yml").read_text(encoding="utf-8")
+    evidence = workflow.split("name: Retain browser visual acceptance evidence", 1)[1]
+    assert "if: always()" in evidence
+    assert "actions/upload-artifact@" in evidence
+    assert "docs/screenshots/ui-qa/*.png" in evidence
+    assert "docs/screenshots/ui-qa/failure-evidence.json" in evidence
+    assert "github.run_attempt" in evidence

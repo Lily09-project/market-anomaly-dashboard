@@ -141,6 +141,16 @@ jobs:
         run: python scripts/ui_qa.py --url http://127.0.0.1:8765 --theme-mode "$UI_THEME"
       - name: Run extended 200% text browser QA
         run: python scripts/ui_qa.py --url http://127.0.0.1:8765 --extended --text-scale --theme-mode "$UI_THEME"
+      - name: Retain browser visual acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: streamlit-ui-${{ matrix.theme }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            docs/screenshots/ui-qa/*.png
+            docs/screenshots/ui-qa/failure-evidence.json
+          if-no-files-found: warn
+          retention-days: 14
 
   # Independent and mandatory: audit failure must not hide source validation.
   dependency-audit:
