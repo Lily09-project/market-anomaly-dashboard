@@ -6,6 +6,8 @@ from pathlib import Path
 
 from scripts.ui_qa import (
     focus_issues,
+    capture_scroll_evidence,
+    SCROLL_EVIDENCE_MAX_SEGMENTS,
     CORE_VIEWPORTS,
     EXTENDED_VIEWPORTS,
     MIN_INTERACTIVE_TARGET_PX,
@@ -172,3 +174,75 @@ def test_browser_ci_retains_candidate_visual_evidence() -> None:
     assert "docs/screenshots/ui-qa/*.png" in evidence
     assert "docs/screenshots/ui-qa/failure-evidence.json" in evidence
     assert "github.run_attempt" in evidence
+
+
+class _ScrollPage:
+    def __init__(self, total: int = 2100, top: int = 170) -> None:
+        self.total = total
+        self.top = top
+        self.behavior = "smooth"
+        self.shots = []
+
+    def evaluate(self, script, command):
+        assert '[data-testid="stMain"]' in script
+        previous = self.behavior
+        if command["action"] == "start":
+            self.behavior = "auto"
+        elif command["action"] in {"move", "restore"}:
+            self.top = min(command["top"], max(0, self.total - 1000))
+        if command["action"] == "restore":
+            self.behavior = command["behavior"]
+        return {"top": self.top, "height": 1000, "total": self.total,
+                "behavior": previous}
+
+    def wait_for_timeout(self, duration):
+        assert duration == 150
+
+    def screenshot(self, *, path, full_page):
+        assert full_page is False
+        self.shots.append(path)
+
+
+def test_scroll_evidence_reaches_bottom_and_restores_original_position(tmp_path: Path) -> None:
+    page = _ScrollPage()
+    assert capture_scroll_evidence(page, tmp_path, "route-desktop") == []
+    report = json.loads((tmp_path / "route-desktop-scroll.json").read_text())
+    assert report["complete"] is True
+    assert report["manual_visual_acceptance"] == "pending"
+    assert [part["top"] for part in report["segments"]] == [0, 800, 1100]
+    assert page.top == 170
+    assert page.behavior == "smooth"
+    assert len(page.shots) == 3
+
+
+def test_scroll_evidence_handles_pages_shorter_than_the_viewport(tmp_path: Path) -> None:
+    page = _ScrollPage(total=600, top=0)
+    assert capture_scroll_evidence(page, tmp_path, "short") == []
+    assert len(page.shots) == 1
+    assert json.loads((tmp_path / "short-scroll.json").read_text())["complete"] is True
+
+
+def test_scroll_evidence_limit_is_an_explicit_failure_not_silent_truncation(tmp_path: Path) -> None:
+    page = _ScrollPage(total=1_000_000)
+    issues = capture_scroll_evidence(page, tmp_path, "long")
+    assert issues == ["scroll evidence limit reached before the page bottom"]
+    assert len(page.shots) == SCROLL_EVIDENCE_MAX_SEGMENTS
+    assert json.loads((tmp_path / "long-scroll.json").read_text())["complete"] is False
+    assert page.top == 170
+    assert page.behavior == "smooth"
+
+
+def test_scroll_evidence_restores_scrollport_when_screenshot_fails(tmp_path: Path) -> None:
+    import pytest
+
+    page = _ScrollPage()
+
+    def fail(**kwargs):
+        raise RuntimeError("Screenshot failed")
+
+    page.screenshot = fail
+    with pytest.raises(RuntimeError, match="Screenshot failed"):
+        capture_scroll_evidence(page, tmp_path, "failure")
+    assert page.top == 170
+    assert page.behavior == "smooth"
+    assert json.loads((tmp_path / "failure-scroll.json").read_text())["complete"] is False
