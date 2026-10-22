@@ -204,6 +204,8 @@ class _ScrollPage:
 
 
 def test_scroll_evidence_reaches_bottom_and_restores_original_position(tmp_path: Path) -> None:
+    workflow = (ROOT / ".github/workflows/security.yml").read_text(encoding="utf-8")
+    assert "docs/screenshots/ui-qa/*-scroll.json" in workflow
     page = _ScrollPage()
     assert capture_scroll_evidence(page, tmp_path, "route-desktop") == []
     report = json.loads((tmp_path / "route-desktop-scroll.json").read_text())

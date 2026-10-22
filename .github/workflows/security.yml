@@ -149,6 +149,7 @@ jobs:
           path: |
             docs/screenshots/ui-qa/*.png
             docs/screenshots/ui-qa/failure-evidence.json
+            docs/screenshots/ui-qa/*-scroll.json
           if-no-files-found: warn
           retention-days: 14
 
