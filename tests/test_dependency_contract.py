@@ -30,3 +30,22 @@ def test_runtime_requirements_match_the_reproducible_lock(lock_path):
         assert requirement.specifier.contains(pins[0].version), (
             f"{lock_path}: {name} {pins[0].version} violates {requirement.specifier}"
         )
+
+@pytest.mark.parametrize("lock_path", LOCK_FILES)
+@pytest.mark.parametrize(
+    ("name", "floor", "unsafe_version"),
+    [("streamlit", "1.66.1", "1.66.0"), ("pillow", "13.0.0", "12.3.0")],
+)
+def test_security_floors_cannot_regress(lock_path, name, floor, unsafe_version):
+    direct = {
+        canonicalize_name(item.name): item for item in read_requirements("requirements.txt")
+    }
+    locked = {
+        canonicalize_name(item.name): item for item in read_requirements(lock_path)
+    }
+    assert name in direct, f"Missing explicit security floor for {name}"
+    assert direct[name].specifier.contains(floor)
+    assert not direct[name].specifier.contains(unsafe_version)
+    pins = list(locked[name].specifier)
+    assert len(pins) == 1 and pins[0].operator == "=="
+    assert Requirement(f"{name}>={floor}").specifier.contains(pins[0].version)
