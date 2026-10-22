@@ -454,12 +454,12 @@ def inject_global_css(theme: dict) -> None:
             scroll-margin-top: 1rem;
         }}
 
-        [data-testid="stSidebar"][aria-expanded="false"] {{
+        [data-testid="stSidebar"][data-collapsed="true"] {{
             visibility: hidden !important;
         }}
-        body:has([data-testid="stSidebar"][aria-expanded="false"])
+        body:has([data-testid="stSidebar"][data-collapsed="true"])
         button[aria-label="Help for 技術指標"],
-        body:has([data-testid="stSidebar"][aria-expanded="false"])
+        body:has([data-testid="stSidebar"][data-collapsed="true"])
         button[aria-label="Help for 自訂股票代號"] {{
             visibility: hidden !important;
         }}
@@ -2651,10 +2651,10 @@ def inject_global_css(theme: dict) -> None:
             /* Streamlit leaves a 20px collapsed-sidebar rail in the flow.  Move
                the closed rail fully off-canvas so headings and controls keep a
                predictable 16px gutter on 320–414px screens. */
-            [data-testid="stSidebar"][aria-expanded="false"] {{
+            [data-testid="stSidebar"][data-collapsed="true"] {{
                 transform: translateX(-100%) !important;
             }}
-            [data-testid="stSidebar"][aria-expanded="true"] {{
+            [data-testid="stSidebar"][data-collapsed="false"] {{
                 left: 0 !important;
                 width: min(21rem, 100vw) !important;
                 max-width: 100vw !important;
@@ -2941,8 +2941,8 @@ def inject_global_css(theme: dict) -> None:
             .data-rail .status-pill {{ width: fit-content; max-width: 100%; }}
         }}
         @media (max-width: 760px) {{
-            [data-testid="stSidebar"][aria-expanded="false"] {{ transform: translateX(-100%) !important; }}
-            [data-testid="stSidebar"][aria-expanded="true"] {{ left: 0 !important; width: min(21rem, 100vw) !important; max-width: 100vw !important; transform: translateX(0) !important; }}
+            [data-testid="stSidebar"][data-collapsed="true"] {{ transform: translateX(-100%) !important; }}
+            [data-testid="stSidebar"][data-collapsed="false"] {{ left: 0 !important; width: min(21rem, 100vw) !important; max-width: 100vw !important; transform: translateX(0) !important; }}
             [data-testid="stAppViewContainer"],
             [data-testid="stAppViewContainer"] > .main,
             [data-testid="stAppViewBlockContainer"] {{ margin-left: 0 !important; padding-left: 0 !important; }}
@@ -2987,20 +2987,20 @@ def inject_global_css(theme: dict) -> None:
             border-radius: .6rem !important;
         }}
         /* Do not leave invisible sidebar controls in the keyboard sequence. */
-        [data-testid="stSidebar"][aria-expanded="false"] {{
+        [data-testid="stSidebar"][data-collapsed="true"] {{
             visibility: hidden !important;
             pointer-events: none !important;
         }}
-        [data-testid="stSidebar"][aria-expanded="true"] {{
+        [data-testid="stSidebar"][data-collapsed="false"] {{
             visibility: visible !important;
             pointer-events: auto !important;
         }}
-        body:has([data-testid="stSidebar"][aria-expanded="false"]) [data-testid="stSidebarCollapseButton"] {{
+        body:has([data-testid="stSidebar"][data-collapsed="true"]) [data-testid="stSidebarCollapseButton"] {{
             display: none !important;
             visibility: hidden !important;
             pointer-events: none !important;
         }}
-        body:has([data-testid="stSidebar"][aria-expanded="true"]) [data-testid="stExpandSidebarButton"] {{
+        body:has([data-testid="stSidebar"][data-collapsed="false"]) [data-testid="stExpandSidebarButton"] {{
             display: none !important;
             visibility: hidden !important;
             pointer-events: none !important;
@@ -3025,7 +3025,7 @@ def inject_global_css(theme: dict) -> None:
                 min-height: 44px !important;
                 height: 44px !important;
             }}
-            body:has([data-testid="stSidebar"][aria-expanded="true"]) [data-testid="stSidebarCollapseButton"] {{
+            body:has([data-testid="stSidebar"][data-collapsed="false"]) [data-testid="stSidebarCollapseButton"] {{
                 position: fixed !important;
                 top: 0 !important;
                 left: 0 !important;
@@ -3038,7 +3038,7 @@ def inject_global_css(theme: dict) -> None:
                 z-index: 1000002 !important;
                 pointer-events: auto !important;
             }}
-            body:has([data-testid="stSidebar"][aria-expanded="true"]) [data-testid="stSidebarCollapseButton"] [data-testid="stBaseButton-headerNoPadding"] {{
+            body:has([data-testid="stSidebar"][data-collapsed="false"]) [data-testid="stSidebarCollapseButton"] [data-testid="stBaseButton-headerNoPadding"] {{
                 position: fixed !important;
                 top: max(.75rem, env(safe-area-inset-top, 0px)) !important;
                 left: max(0px, min(17.25rem, calc(100vw - 44px))) !important;
@@ -3051,7 +3051,7 @@ def inject_global_css(theme: dict) -> None:
             }}
         }}
         /* Keep hidden sidebar descendants out of the keyboard sequence. */
-        [data-testid="stSidebar"][aria-expanded="false"] * {{
+        [data-testid="stSidebar"][data-collapsed="true"] * {{
             visibility: hidden !important;
             pointer-events: none !important;
         }}

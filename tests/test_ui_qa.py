@@ -150,7 +150,7 @@ def test_focus_audit_validates_radio_proxy_and_mobile_controls() -> None:
     assert 'data-testid="stExpandSidebarButton"' in styles
     assert 'data-testid="stSidebarCollapseButton"' in styles
     assert 'visibility: hidden !important;' in styles
-    assert '[data-testid="stSidebar"][aria-expanded="false"] *' in styles
+    assert '[data-testid="stSidebar"][data-collapsed="true"] *' in styles
 
 
 def test_browser_failure_evidence_is_structured_and_atomic(tmp_path: Path) -> None:

@@ -331,13 +331,13 @@ def interaction_smoke(page, base_url: str) -> list[str]:
         expand.first.click()
         page.wait_for_timeout(350)
         sidebar = page.locator('[data-testid="stSidebar"]')
-        if sidebar.get_attribute("aria-expanded") != "true":
+        if sidebar.get_attribute("data-collapsed") != "false":
             failures.append("sidebar did not open from the compact control")
         close = page.locator('[data-testid="stSidebarCollapseButton"] button')
         if close.count():
             close.first.click()
             page.wait_for_timeout(350)
-        if sidebar.get_attribute("aria-expanded") != "false":
+        if sidebar.get_attribute("data-collapsed") != "true":
             failures.append("sidebar did not close cleanly")
     overflow = page.evaluate("document.documentElement.scrollWidth - window.innerWidth")
     if overflow > 4:
@@ -415,7 +415,7 @@ def apply_theme_mode(
         raise ValueError("theme_mode must be light or dark")
     if selector_label is not None:
         sidebar = page.locator('[data-testid="stSidebar"]')
-        if sidebar.get_attribute("aria-expanded") != "true":
+        if sidebar.get_attribute("data-collapsed") != "false":
             expand_control = page.locator('[data-testid="stExpandSidebarButton"]')
             expand_button = expand_control.locator("button")
             if expand_button.count():
@@ -428,7 +428,7 @@ def apply_theme_mode(
         page.get_by_role("combobox", name=selector_label).click(timeout=15_000)
         page.get_by_role("option", name=option_label, exact=True).click(timeout=15_000)
         collapse_button = page.locator('[data-testid="stSidebarCollapseButton"] button')
-        if sidebar.get_attribute("aria-expanded") == "true" and collapse_button.count():
+        if sidebar.get_attribute("data-collapsed") == "false" and collapse_button.count():
             collapse_button.click(timeout=15_000)
     page.wait_for_function(
         "expected => getComputedStyle(document.documentElement).colorScheme === expected",
@@ -457,12 +457,12 @@ def download_payload(page, label: str, suffix: str) -> bytes:
 
 def open_sidebar(page) -> None:
     sidebar = page.locator('[data-testid="stSidebar"]')
-    if sidebar.get_attribute("aria-expanded") != "true":
+    if sidebar.get_attribute("data-collapsed") != "false":
         control = page.locator('[data-testid="stExpandSidebarButton"]')
         button = control.locator("button")
         (button if button.count() else control).click(timeout=15_000)
     page.wait_for_function(
-        "() => document.querySelector('[data-testid=stSidebar]')?.getAttribute('aria-expanded') === 'true'",
+        "() => document.querySelector('[data-testid=stSidebar]')?.getAttribute('data-collapsed') === 'false'",
         timeout=15_000,
     )
 
