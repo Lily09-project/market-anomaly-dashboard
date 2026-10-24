@@ -210,6 +210,10 @@ def analyse_backtest(dates: list[str], prices: np.ndarray) -> dict[str, Any]:
     }
 
 
+# Rounded so BLAS/SIMD last-bit differences between platforms cannot change the export.
+PARITY_DIGITS = 12
+
+
 def stress_parity(symbol: str, returns: np.ndarray) -> list[dict[str, Any]]:
     """Reference results the browser engine must reproduce."""
     cases = []
@@ -222,11 +226,11 @@ def stress_parity(symbol: str, returns: np.ndarray) -> list[dict[str, Any]]:
                 "block": block,
                 "paths": paths,
                 "seed": seed,
-                "var95": summary["var95"],
-                "cvar95": summary["cvar95"],
-                "var99": summary["var99"],
-                "cvar99": summary["cvar99"],
-                "median_last": summary["fan"]["0.5"][-1],
+                "var95": _num(summary["var95"], PARITY_DIGITS),
+                "cvar95": _num(summary["cvar95"], PARITY_DIGITS),
+                "var99": _num(summary["var99"], PARITY_DIGITS),
+                "cvar99": _num(summary["cvar99"], PARITY_DIGITS),
+                "median_last": _num(summary["fan"]["0.5"][-1], PARITY_DIGITS),
             }
         )
     return cases
