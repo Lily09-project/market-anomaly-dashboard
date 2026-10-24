@@ -331,13 +331,13 @@ def interaction_smoke(page, base_url: str) -> list[str]:
         expand.first.click()
         page.wait_for_timeout(350)
         sidebar = page.locator('[data-testid="stSidebar"]')
-        if sidebar.get_attribute("aria-expanded") != "true":
+        if sidebar.get_attribute("data-collapsed") != "false":
             failures.append("sidebar did not open from the compact control")
         close = page.locator('[data-testid="stSidebarCollapseButton"] button')
         if close.count():
             close.first.click()
             page.wait_for_timeout(350)
-        if sidebar.get_attribute("aria-expanded") != "false":
+        if sidebar.get_attribute("data-collapsed") != "true":
             failures.append("sidebar did not close cleanly")
     overflow = page.evaluate("document.documentElement.scrollWidth - window.innerWidth")
     if overflow > 4:
@@ -415,7 +415,7 @@ def apply_theme_mode(
         raise ValueError("theme_mode must be light or dark")
     if selector_label is not None:
         sidebar = page.locator('[data-testid="stSidebar"]')
-        if sidebar.get_attribute("aria-expanded") != "true":
+        if sidebar.get_attribute("data-collapsed") != "false":
             expand_control = page.locator('[data-testid="stExpandSidebarButton"]')
             expand_button = expand_control.locator("button")
             if expand_button.count():
@@ -428,7 +428,7 @@ def apply_theme_mode(
         page.get_by_role("combobox", name=selector_label).click(timeout=15_000)
         page.get_by_role("option", name=option_label, exact=True).click(timeout=15_000)
         collapse_button = page.locator('[data-testid="stSidebarCollapseButton"] button')
-        if sidebar.get_attribute("aria-expanded") == "true" and collapse_button.count():
+        if sidebar.get_attribute("data-collapsed") == "false" and collapse_button.count():
             collapse_button.click(timeout=15_000)
     page.wait_for_function(
         "expected => getComputedStyle(document.documentElement).colorScheme === expected",
@@ -457,12 +457,12 @@ def download_payload(page, label: str, suffix: str) -> bytes:
 
 def open_sidebar(page) -> None:
     sidebar = page.locator('[data-testid="stSidebar"]')
-    if sidebar.get_attribute("aria-expanded") != "true":
+    if sidebar.get_attribute("data-collapsed") != "false":
         control = page.locator('[data-testid="stExpandSidebarButton"]')
         button = control.locator("button")
         (button if button.count() else control).click(timeout=15_000)
     page.wait_for_function(
-        "() => document.querySelector('[data-testid=stSidebar]')?.getAttribute('aria-expanded') === 'true'",
+        "() => document.querySelector('[data-testid=stSidebar]')?.getAttribute('data-collapsed') === 'false'",
         timeout=15_000,
     )
 
@@ -510,6 +510,58 @@ def functional_download_smoke(page, base_url: str, theme_mode: str | None) -> No
     page.get_by_text("目前快照：快照完整性驗證失敗；內容可能已被修改。", exact=True).wait_for(timeout=30_000)
     if page.get_by_role("button", name="下載比較 JSON", exact=True).count():
         raise RuntimeError("tampered snapshot still permits a comparison download")
+
+
+
+SCROLL_EVIDENCE_VIEWPORTS = {"desktop", "small-mobile"}
+SCROLL_EVIDENCE_MAX_SEGMENTS = 80
+
+
+def capture_scroll_evidence(page, screenshot_dir: Path, stem: str) -> list[str]:
+    """Capture the actual Streamlit scrollport, not just the document viewport."""
+    script = """({action, top, behavior}) => {
+        const root = document.querySelector('[data-testid="stMain"]')
+            || document.scrollingElement;
+        if (!root || root.clientHeight <= 0) throw new Error('Missing visible scrollport');
+        const previousBehavior = root.style.scrollBehavior;
+        if (action === 'start') root.style.scrollBehavior = 'auto';
+        if (action === 'move' || action === 'restore') root.scrollTop = top;
+        if (action === 'restore') root.style.scrollBehavior = behavior;
+        return {top: root.scrollTop, height: root.clientHeight,
+            total: root.scrollHeight, behavior: previousBehavior};
+    }"""
+    original = page.evaluate(script, {"action": "start", "top": 0, "behavior": ""})
+    screenshots = []
+    issues = []
+    complete = False
+    target = 0
+    try:
+        for index in range(SCROLL_EVIDENCE_MAX_SEGMENTS):
+            page.evaluate(script, {"action": "move", "top": target, "behavior": ""})
+            page.wait_for_timeout(150)
+            state = page.evaluate(script, {"action": "read", "top": 0, "behavior": ""})
+            filename = f"{stem}-scroll-{index:02d}.png"
+            page.screenshot(path=str(screenshot_dir / filename), full_page=False)
+            screenshots.append({"file": filename, "top": state["top"],
+                                "height": state["height"], "total": state["total"]})
+            if abs(state["top"] - target) > 3 and target < state["total"] - state["height"]:
+                issues.append("scrollport did not reach the requested evidence position")
+                break
+            if state["top"] + state["height"] >= state["total"] - 2:
+                complete = True
+                break
+            target = min(state["total"] - state["height"],
+                         state["top"] + max(1, int(state["height"] * 0.8)))
+        if not complete and not issues:
+            issues.append("scroll evidence limit reached before the page bottom")
+    finally:
+        page.evaluate(script, {"action": "restore", "top": original["top"],
+                               "behavior": original["behavior"]})
+        (screenshot_dir / f"{stem}-scroll.json").write_text(json.dumps({
+            "schema_version": 1, "complete": complete, "segments": screenshots,
+            "manual_visual_acceptance": "pending",
+        }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return issues
 
 
 def run_browser_checks(
@@ -616,6 +668,11 @@ def run_browser_checks(
                         path=str(screenshot_dir / f"{route}-{name}{suffix}.png"),
                         full_page=True,
                     )
+                    if name in SCROLL_EVIDENCE_VIEWPORTS:
+                        for issue in capture_scroll_evidence(
+                            page, screenshot_dir, f"{route}-{name}{suffix}"
+                        ):
+                            failures.append(f"{name}/{route}: {issue}")
                 except PlaywrightError as exc:
                     failures.append(f"{name}/{route}: browser error: {exc}")
                     try:

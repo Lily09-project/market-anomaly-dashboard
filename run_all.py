@@ -18,6 +18,7 @@ def run_pipeline(mode: str = "sample") -> None:
     ensure_project_dirs(config)
     print(f"Project root: {PROJECT_ROOT}")
     print(f"Run mode: {mode}")
+    market_path = fx_path = None
     if mode == "api":
         market_path = fetch_market_data(config)
         fx_path = fetch_fx_data(config)
@@ -27,7 +28,7 @@ def run_pipeline(mode: str = "sample") -> None:
     else:
         generate_sample_data(config)
 
-    cleaned = preprocess_data(config)
+    cleaned = preprocess_data(config, mode=mode, market_path=market_path, fx_path=fx_path)
     features = build_features(config)
     model = train_anomaly_model(config)
     summary = evaluate_model(config)

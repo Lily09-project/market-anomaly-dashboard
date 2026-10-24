@@ -2,7 +2,8 @@ pandas>=3.0.5,<4
 numpy>=1.26,<3
 requests>=2.34.2,<3
 scikit-learn>=1.9.0,<2
-streamlit>=1.58,<2
+streamlit>=1.66.1,<2
+Pillow>=13.0.0,<14
 gitpython>=3.1.61,<4
 plotly>=5.24,<7
 matplotlib>=3.8,<4
@@ -11,3 +12,5 @@ pyyaml>=6.0.3,<7
 yfinance>=0.2.54,<2
 # Security floor for requests' HTTP transport dependency.
 urllib3>=2.8.0,<3
+
+certifi>=2026.10.19

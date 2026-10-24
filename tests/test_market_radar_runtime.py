@@ -28,7 +28,7 @@ def test_public_radar_route_renders_explainable_ranking(monkeypatch) -> None:
 
     assert not app.exception
     assert app.radio[0].value == "市場雷達"
-    assert app.query_params["page"] == ["radar"]
+    assert _query_values(app, "page") == ["radar"]
     assert {item.label for item in app.selectbox} >= {"產業篩選", "研究配置", "候選池規模"}
     assert {item.label for item in app.slider} >= {"最低證據分數"}
     assert any("研究優先序" in item.value for item in app.markdown)
@@ -67,10 +67,10 @@ def test_radar_query_parameters_restore_and_update_filters(monkeypatch) -> None:
     app.slider[0].set_value(70)
     app.run(timeout=120)
 
-    assert app.query_params["profile"] == ["trend"]
-    assert app.query_params["min_score"] == ["70"]
-    assert app.query_params["industry"] == ["ETF"]
-    assert app.query_params["pool_size"] == ["6"]
+    assert _query_values(app, "profile") == ["trend"]
+    assert _query_values(app, "min_score") == ["70"]
+    assert _query_values(app, "industry") == ["ETF"]
+    assert _query_values(app, "pool_size") == ["6"]
 
 
 def test_invalid_radar_query_parameters_fall_back_to_safe_defaults(monkeypatch) -> None:
@@ -94,3 +94,15 @@ def test_invalid_radar_query_parameters_fall_back_to_safe_defaults(monkeypatch) 
     assert controls["研究配置"].value == "balanced"
     assert controls["候選池規模"].value == 10
     assert app.slider[0].value == 100
+
+
+def _query_values(app: AppTest, key: str) -> list[str]:
+    """Preserve exact multivalue assertions across AppTest query APIs."""
+    params = app.query_params
+    if hasattr(params, "get_all"):
+        return params.get_all(key)
+    value = params[key]
+    if isinstance(value, str):
+        return [value]
+    assert isinstance(value, list) and all(isinstance(item, str) for item in value)
+    return value
