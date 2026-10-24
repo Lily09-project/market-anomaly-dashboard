@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 from io import StringIO
 from pathlib import Path
@@ -72,7 +73,7 @@ def _parse_response(response) -> pd.DataFrame:
 
 def fetch_market_data(config: dict | None = None) -> Path | None:
     cfg = config or load_config()
-    url = cfg["api"].get("market_url", "")
+    url = cfg["api"].get("market_url") or os.getenv("MARKET_API_URL", "")
     if requests is None:
         print("requests is not installed; market fallback will be used.")
         return None

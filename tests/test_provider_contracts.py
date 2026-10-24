@@ -4,7 +4,7 @@ import json
 
 import pandas as pd
 
-from src import fetch_fx_data, fetch_market_data, market_api
+from src import fetch_market_data, fetch_yfinance
 
 
 class _Response:
@@ -24,51 +24,69 @@ class _Response:
 
 def _config(tmp_path):
     return {
-        "api": {
-            "market_url": "https://example.test/market",
-            "fx_url": "https://example.test/fx",
-        },
-        "data": {"raw_dir": tmp_path, "currency_pair": "USD_TWD"},
+        "api": {"market_url": "https://example.test/market"},
+        "data": {"raw_dir": tmp_path, "start_date": "2026-01-01", "end_date": "2026-02-01"},
     }
 
 
+def test_yfinance_symbols_use_the_taiwan_suffix() -> None:
+    assert fetch_yfinance.to_yfinance_symbol("2330") == "2330.TW"
+    assert fetch_yfinance.to_yfinance_symbol(" aapl ") == "AAPL"
+
+
 def test_yfinance_normalization_coerces_numeric_values_and_deduplicates_dates() -> None:
-    dates = pd.to_datetime(["2026-01-03", "2026-01-02", "2026-01-02"])
     raw = pd.DataFrame(
         {
-            "Date": dates,
+            "Date": pd.to_datetime(["2026-01-03", "2026-01-02", "2026-01-02"]),
             "Open": ["101.0", "100.0", "100.5"],
             "High": ["103.0", "102.0", "102.5"],
             "Low": ["99.0", "98.0", "98.5"],
             "Close": ["102.0", "101.0", "101.5"],
             "Volume": ["1,000", "900", "950"],
         }
-    )
-
-    normalized = market_api._normalize_yfinance_download(raw, "2330.TW")
-
-    assert len(normalized) == 2
-    assert normalized["date"].tolist() == list(pd.to_datetime(["2026-01-02", "2026-01-03"]))
+    ).set_index("Date")
+    normalized = fetch_yfinance.normalize_download(raw, "2330.TW", "2330")
+    assert normalized["date"].tolist() == ["2026-01-02", "2026-01-03"]
     assert normalized["close"].tolist() == [101.5, 102.0]
-    assert normalized["volume"].dtype.kind in "fi"
+    assert set(normalized["symbol"]) == {"2330"}
+    assert fetch_yfinance.normalize_download(None, "2330.TW", "2330").empty
+    assert fetch_yfinance.normalize_download(pd.DataFrame({"x": [1]}), "2330.TW", "2330").empty
 
 
-def test_twse_dataset_rejects_non_record_payload(monkeypatch, tmp_path) -> None:
-    class Requests:
+def test_yfinance_multi_index_download_is_split_per_ticker(tmp_path) -> None:
+    index = pd.Index(pd.to_datetime(["2026-01-02", "2026-01-05"]), name="Date")
+    columns = pd.MultiIndex.from_product([["2330.TW", "0050.TW"], ["Open", "High", "Low", "Close", "Volume"]])
+    frame = pd.DataFrame([[1, 2, 0.5, 1.5, 10] * 2, [2, 3, 1.5, 2.5, 20] * 2], index=index, columns=columns)
+
+    class FakeYf:
+        calls: list[dict] = []
+
+        @classmethod
+        def download(cls, tickers, **kwargs):
+            cls.calls.append({"tickers": tickers, **kwargs})
+            return frame
+
+    path = fetch_yfinance.fetch_yfinance(_config(tmp_path), ["2330", "0050"], module=FakeYf)
+    saved = pd.read_csv(path, dtype={"symbol": "string"})
+    assert sorted(saved["symbol"].unique()) == ["0050", "2330"]
+    assert FakeYf.calls[0]["tickers"] == ["2330.TW", "0050.TW"]
+    assert FakeYf.calls[0]["start"] == "2026-01-01"
+
+
+def test_yfinance_failures_fall_back(tmp_path, capsys) -> None:
+    class Broken:
         @staticmethod
-        def get(url, **kwargs):
-            return _Response({"unexpected": [1, 2, 3]})
+        def download(*args, **kwargs):
+            raise RuntimeError("network down token=secret")
 
-    monkeypatch.setattr(market_api, "requests", Requests)
-    data, source = market_api._fetch_twse_dataset(
-        "https://example.test/twse",
-        tmp_path / "twse.csv",
-        1,
-    )
+    class Empty:
+        @staticmethod
+        def download(*args, **kwargs):
+            return pd.DataFrame()
 
-    assert data.empty
-    assert source == "unavailable"
-    assert not (tmp_path / "twse.csv").exists()
+    assert fetch_yfinance.fetch_yfinance(_config(tmp_path), ["2330"], module=Broken) is None
+    assert fetch_yfinance.fetch_yfinance(_config(tmp_path), ["2330"], module=Empty) is None
+    assert "falling back" in capsys.readouterr().out
 
 
 def test_market_fetcher_does_not_replace_cache_with_empty_response(monkeypatch, tmp_path) -> None:
@@ -85,15 +103,18 @@ def test_market_fetcher_does_not_replace_cache_with_empty_response(monkeypatch, 
     assert "2026-01-02" in existing.read_text(encoding="utf-8")
 
 
-def test_fx_fetcher_does_not_replace_cache_with_empty_response(monkeypatch, tmp_path) -> None:
-    existing = tmp_path / "fx_raw.csv"
-    existing.write_text("date,currency_pair,exchange_rate\n2026-01-02,USD_TWD,32.5\n", encoding="utf-8")
+def test_market_url_can_come_from_the_environment(monkeypatch, tmp_path) -> None:
+    seen: list[str] = []
 
     class Requests:
         @staticmethod
         def get(url, **kwargs):
-            return _Response({"records": []})
+            seen.append(url)
+            return _Response({"data": []})
 
-    monkeypatch.setattr(fetch_fx_data, "requests", Requests)
-    assert fetch_fx_data.fetch_fx_data(_config(tmp_path)) is None
-    assert "2026-01-02" in existing.read_text(encoding="utf-8")
+    monkeypatch.setattr(fetch_market_data, "requests", Requests)
+    monkeypatch.setenv("MARKET_API_URL", "https://example.test/from-env")
+    config = _config(tmp_path)
+    config["api"]["market_url"] = ""
+    assert fetch_market_data.fetch_market_data(config) is None
+    assert seen == ["https://example.test/from-env"]

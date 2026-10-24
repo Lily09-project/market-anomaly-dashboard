@@ -1,55 +1,50 @@
 from __future__ import annotations
 
-from run_all import run_pipeline
-from src.smoke_test import assert_bat_files_are_valid
-from src.utils import load_config, project_path
+from pathlib import Path
+
+import run_all
 
 
-def test_run_all_sample_mode_outputs_required_files() -> None:
-    run_pipeline("sample")
-    cfg = load_config()
-    required = [
-        "run_all.py",
-        "run_project.bat",
-        cfg["data"]["features_path"],
-        cfg["data"]["results_path"],
-        cfg["model"]["path"],
-        cfg["reports"]["evaluation_summary_path"],
-    ]
-    for path in required:
-        assert project_path(path).exists(), f"Missing {path}"
+def _patch(monkeypatch, calls: list[str], config: dict) -> None:
+    monkeypatch.setattr(run_all, "load_config", lambda: config)
+    monkeypatch.setattr(run_all, "ensure_project_dirs", lambda _config: None)
+    monkeypatch.setattr(run_all, "generate_sample_data", lambda _config: calls.append("sample"))
+    monkeypatch.setattr(run_all, "preprocess_data", lambda _config, mode, market_path: calls.append(f"preprocess:{mode}:{market_path}") or Path("clean.csv"))
+    monkeypatch.setattr(run_all, "export", lambda target, cleaned_path: calls.append(f"export:{target.name}") or {"overview.json": "x"})
 
 
-def test_bat_files_are_valid() -> None:
-    assert_bat_files_are_valid()
-    bat = project_path("run_project.bat").read_text(encoding="utf-8")
-    assert 'findstr /R /C:":%STREAMLIT_PORT% .*LISTENING"' in bat
-    assert "[ERROR] Port %STREAMLIT_PORT% is already in use." in bat
+def test_sample_mode_never_calls_an_api(monkeypatch, tmp_path) -> None:
+    calls: list[str] = []
+    _patch(monkeypatch, calls, {"api": {"provider": "url"}})
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("sample mode must not fetch")
+
+    monkeypatch.setattr(run_all, "fetch_market_data", forbidden)
+    monkeypatch.setattr(run_all, "fetch_yfinance", forbidden)
+    assert run_all.run("sample", out_dir=tmp_path / "out") == {"overview.json": "x"}
+    assert calls == ["sample", "preprocess:sample:None", "export:out"]
 
 
-def test_windows_launcher_has_complete_fail_closed_validation_mode() -> None:
-    bat = project_path("run_project.bat").read_text(encoding="utf-8")
+def test_api_failure_falls_back_to_sample(monkeypatch, tmp_path) -> None:
+    calls: list[str] = []
+    _patch(monkeypatch, calls, {"api": {"provider": "url"}})
+    monkeypatch.setattr(run_all, "fetch_market_data", lambda _config: None)
+    run_all.run("api", out_dir=tmp_path / "out")
+    assert calls == ["sample", "preprocess:sample:None", "export:out"]
 
-    for command in (
-        "chcp 65001 >nul",
-        'set "PYTHONUTF8=1"',
-        'set "PYTHONIOENCODING=utf-8"',
-        '"%VENV_PY%" -m pip install --upgrade "pip>=26.2"',
-        '"%VENV_PY%" -W error -m pytest',
-        '"%VENV_PY%" -m compileall -q app.py src scripts tests',
-        '"%VENV_PY%" -m pip check',
-        '"%VENV_PY%" scripts\\verify_release.py',
-        '"%VENV_PY%" -m bandit -q -r app.py src scripts',
-        '"%VENV_PY%" -m pip_audit --strict --progress-spinner off',
-    ):
-        assert command in bat
-    assert 'if /I "%~1"=="--validate"' in bat
-    assert 'if /I "%~1"=="--validate" goto :port_ready' in bat
-    assert ":port_ready" in bat
-    assert 'if exist "%CD%\\.venv\\Scripts\\python.exe"' in bat
-    assert 'if defined PY_EXE goto :python_ready' in bat
-    assert "%userprofile%\\.cache\\" not in bat.lower()
-    assert 'if /I "%~1"=="--help" goto :usage' in bat
-    assert "[ERROR] Unsupported argument: %~1" in bat
-    assert "exit /b 2" in bat
-    assert "Validation completed successfully. Streamlit launch skipped." in bat
+
+def test_yfinance_provider_is_used_when_configured(monkeypatch, tmp_path) -> None:
+    calls: list[str] = []
+    _patch(monkeypatch, calls, {"api": {"provider": "yfinance", "symbols": ["2330"]}})
+    monkeypatch.setattr(run_all, "fetch_yfinance", lambda _config, symbols: calls.append(f"yf:{symbols}") or Path("raw.csv"))
+    run_all.run("api", out_dir=tmp_path / "out")
+    assert calls == ["yf:['2330']", "preprocess:api:raw.csv", "export:out"]
+
+
+def test_cli_parses_the_mode(monkeypatch) -> None:
+    seen: list[str] = []
+    monkeypatch.setattr(run_all, "run", lambda mode: seen.append(mode))
+    monkeypatch.setattr("sys.argv", ["run_all.py", "--mode", "api"])
+    run_all.main()
+    assert seen == ["api"]

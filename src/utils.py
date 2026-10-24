@@ -23,49 +23,21 @@ CONFIG_PATH = PROJECT_ROOT / "config.yaml"
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "project": {
-        "name": "Taiwan Stock and Exchange Rate Anomaly Detection Dashboard",
+        "name": "Market Regime Lab",
         "short_name": "market-anomaly-dashboard",
         "random_state": 42,
-        "sample_mode": True,
-        "disclaimer": "本專案僅供資料分析與技術展示，不構成任何投資建議。",
+        "disclaimer": "本專案僅供研究與技術展示，使用合成資料，不構成任何投資建議。",
     },
     "data": {
-        "stock_symbols": ["0050", "2330", "2317"],
-        "currency_pair": "USD_TWD",
         "start_date": "2021-01-01",
         "end_date": "2025-12-31",
         "raw_dir": "data/raw",
         "sample_dir": "data/sample",
         "processed_dir": "data/processed",
         "sample_market_path": "data/sample/sample_market.csv",
-        "sample_fx_path": "data/sample/sample_fx.csv",
         "cleaned_path": "data/processed/market_cleaned.csv",
-        "features_path": "data/processed/market_features.csv",
-        "results_path": "data/processed/market_anomaly_results.csv",
     },
-    "model": {
-        "path": "models/market_anomaly_detector.joblib",
-        "anomaly_contamination": 0.06,
-        "random_state": 42,
-    },
-    "reports": {
-        "metrics_dir": "reports/metrics",
-        "figures_dir": "reports/figures",
-        "anomaly_metrics_path": "reports/metrics/anomaly_metrics.json",
-        "evaluation_summary_path": "reports/metrics/evaluation_summary.json",
-    },
-    "api": {
-        "timeout_seconds": 15,
-        "market_url": "",
-        "fx_url": "",
-        "twse_company_profile_url": "https://openapi.twse.com.tw/v1/opendata/t187ap03_L",
-        "twse_esg_legal_url": "https://openapi.twse.com.tw/v1/opendata/t187ap46_L_20",
-    },
-    "dashboard": {
-        "theme_name": "charcoal_orange",
-        "dark_theme_name": "charcoal_orange",
-        "light_theme_name": "paper_orange",
-    },
+    "api": {"provider": "url", "symbols": ["0050", "2330", "2317"], "timeout_seconds": 15, "market_url": ""},
 }
 
 
@@ -191,9 +163,6 @@ def ensure_project_dirs(config: dict[str, Any] | None = None) -> None:
     cfg = config or load_config()
     for key in ["raw_dir", "sample_dir", "processed_dir"]:
         project_path(cfg["data"][key]).mkdir(parents=True, exist_ok=True)
-    project_path("models").mkdir(parents=True, exist_ok=True)
-    project_path(cfg["reports"]["metrics_dir"]).mkdir(parents=True, exist_ok=True)
-    project_path(cfg["reports"]["figures_dir"]).mkdir(parents=True, exist_ok=True)
 
 
 def clean_numeric(value: Any) -> float | None:
