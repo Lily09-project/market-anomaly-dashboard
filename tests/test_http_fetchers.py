@@ -4,7 +4,7 @@ import json
 
 import pandas as pd
 
-from src import fetch_fx_data, fetch_market_data
+from src import fetch_market_data
 
 
 class JsonResponse:
@@ -28,8 +28,8 @@ class JsonResponse:
 
 def _base_config(tmp_path):
     return {
-        "api": {"market_url": "https://example.test/market?api_key=private", "fx_url": "https://example.test/fx"},
-        "data": {"raw_dir": tmp_path, "currency_pair": "USD_TWD"},
+        "api": {"market_url": "https://example.test/market?api_key=private"},
+        "data": {"raw_dir": tmp_path},
     }
 
 
@@ -66,23 +66,6 @@ def test_market_fetcher_streams_and_normalizes_json(monkeypatch, tmp_path) -> No
     assert calls["kwargs"]["allow_redirects"] is False
     assert response.closed is True
 
-
-def test_fx_fetcher_streams_and_normalizes_json(monkeypatch, tmp_path) -> None:
-    response = JsonResponse(
-        {"records": [{"date": "2026-01-02", "currency_pair": "USD_TWD", "exchange_rate": "32.5"}]}
-    )
-
-    class Requests:
-        @staticmethod
-        def get(url, **kwargs):
-            return response
-
-    monkeypatch.setattr(fetch_fx_data, "requests", Requests)
-    output = fetch_fx_data.fetch_fx_data(_base_config(tmp_path))
-
-    assert output == tmp_path / "fx_raw.csv"
-    assert pd.read_csv(output).iloc[0]["exchange_rate"] == 32.5
-    assert response.closed is True
 
 
 def test_market_fetcher_does_not_print_url_credentials_on_failure(monkeypatch, tmp_path, capsys) -> None:

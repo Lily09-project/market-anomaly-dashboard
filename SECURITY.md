@@ -15,6 +15,10 @@ Security fixes are applied to the current `main` branch.
 
 ## Application hardening
 
-The snapshot comparison endpoint treats uploaded JSON as untrusted input. It enforces a 2 MiB file limit, rejects excessive nesting, duplicate keys, non-standard numeric constants, invalid schema, cross-symbol comparisons, and failed SHA-256 integrity checks. Configured market／FX／TWSE HTTP reads require HTTPS, reject redirects, validate response origin, and are timeout-bounded and response-size limited; the TWSE wrappers allowlist the official host and error messages redact credential-like URL query values. External numeric/date normalization also rejects non-scalar values, malformed dates, oversized numeric text, invalid numeric syntax, and non-finite results. Dynamic dashboard/export HTML escapes external asset and source text before rendering.
+The site is static: it makes no third-party requests at runtime, ships a strict Content-Security-Policy with no inline scripts, and the container serves it from an unprivileged nginx (UID 101) with `nosniff`, `frame-ancestors 'none'` and a no-referrer policy.
 
-The project has no authentication or authorization layer. Public deployments must add TLS, edge rate limiting, platform firewall controls, health monitoring, and a logging policy that excludes uploaded content and credential-bearing query strings.
+Research snapshots uploaded for comparison are treated as untrusted input and never leave the browser. Files over 64 KB are rejected before they are read; the JSON must be an object of the expected kind and version, every field is type-checked (the symbol must match `^[A-Za-z0-9._-]{1,16}$`), and the SHA-256 fingerprint over the canonical JSON must match, otherwise the file is rejected with a stated reason. Uploaded text is only ever rendered as text.
+
+The optional API mode (`--mode api`) requires HTTPS, rejects redirects, validates the response origin, bounds timeouts and response size, and redacts credential-like query values from error messages. CSV exports neutralise spreadsheet formulas.
+
+The project has no authentication layer. A public deployment beyond static hosting must add TLS, edge rate limiting and a logging policy that excludes credential-bearing query strings.

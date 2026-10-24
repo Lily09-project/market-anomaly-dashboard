@@ -1,0 +1,53 @@
+
+.hash {
+  max-width: 34ch;
+}
+
+
+.check-ok {
+  background: var(--teal-soft);
+  border-color: transparent;
+}
+
+.check-failed {
+  background: var(--accent-soft);
+  color: var(--bad);
+}
+
+.sources,
+.artifacts {
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.sources a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  font-weight: 650;
+}
+
+.artifacts li {
+  display: grid;
+  gap: 0;
+}
+
+.fingerprints {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-4) 0 0;
+}
+
+.fingerprints dd {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .fingerprints {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

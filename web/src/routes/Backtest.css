@@ -1,0 +1,76 @@
+.heat-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+@media (max-width: 900px) {
+  .heat-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.heat {
+  border-collapse: separate;
+  border-spacing: 2px;
+  width: 100%;
+}
+
+.heat caption {
+  text-align: left;
+  font-weight: 700;
+  padding-bottom: var(--space-2);
+}
+
+.heat th {
+  font-size: var(--step--1);
+  text-align: center;
+}
+
+.heat td {
+  padding: 0;
+  text-align: center;
+  border-radius: 4px;
+}
+
+/* Saturated mid-tone hues capped at 50% keep body text above 4.5:1 in both themes. */
+.heat td[data-sign="pos"] {
+  background: color-mix(in srgb, #0d9488 calc(var(--v) * 50%), var(--bg-raised));
+}
+
+.heat td[data-sign="neg"] {
+  background: color-mix(in srgb, #c2410c calc(var(--v) * -50%), var(--bg-raised));
+}
+
+.heat button {
+  width: 100%;
+  min-width: 44px;
+  min-height: 36px;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.heat button[aria-pressed="true"] {
+  border-color: var(--ink);
+  font-weight: 800;
+}
+
+.heat button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.heat-empty {
+  color: var(--muted);
+}
+
+.selected-cell {
+  margin: var(--space-3) 0 0;
+  font-weight: 650;
+}

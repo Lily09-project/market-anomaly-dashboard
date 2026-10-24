@@ -14,3 +14,10 @@ models
 reports
 tests
 docs/superpowers
+data/sample
+web/node_modules
+web/dist
+web/public/data
+web/coverage
+web/playwright-report
+web/test-results

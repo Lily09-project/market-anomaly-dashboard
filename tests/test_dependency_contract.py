@@ -34,7 +34,7 @@ def test_runtime_requirements_match_the_reproducible_lock(lock_path):
 @pytest.mark.parametrize("lock_path", LOCK_FILES)
 @pytest.mark.parametrize(
     ("name", "floor", "unsafe_version"),
-    [("streamlit", "1.66.1", "1.66.0"), ("pillow", "13.0.0", "12.3.0")],
+    [("urllib3", "2.8.0", "2.7.0"), ("certifi", "2026.10.19", "2026.4.22")],
 )
 def test_security_floors_cannot_regress(lock_path, name, floor, unsafe_version):
     direct = {

@@ -1,3 +1,14 @@
+"""Reproducible synthetic market data with known answers.
+
+Every series is driven by one market-wide regime chain (calm / choppy /
+turbulent) so the HMM has a ground truth to recover. Each stock also gets
+injected jump days; after a negative jump the price partly rebounds over the
+next days, which the event study should find. A pure random walk is included
+as a control series: any strategy that "works" on it is overfitting.
+
+Nothing reads the wall clock, so the files are byte-for-byte identical on
+every run.
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -5,88 +16,102 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.utils import atomic_write_dataframe, ensure_parent, ensure_project_dirs, load_config
+from src.utils import atomic_write_dataframe, ensure_parent, load_config
+
+# (label, daily mean, daily volatility, probability of staying)
+REGIMES: tuple[tuple[str, float, float, float], ...] = (
+    ("calm", 0.0008, 0.006, 0.985),
+    ("choppy", 0.0, 0.013, 0.97),
+    ("turbulent", -0.002, 0.028, 0.95),
+)
+# symbol: (beta to the market, idiosyncratic volatility, starting price)
+STOCKS: dict[str, tuple[float, float, float]] = {
+    "0050": (1.0, 0.002, 120.0),
+    "2330": (1.25, 0.005, 580.0),
+    "2317": (0.9, 0.003, 105.0),
+}
+CONTROL_SYMBOL = "RANDOM"
+CONTROL_PARAMS = (0.0, 0.012, 100.0)  # (mean, volatility, starting price)
+JUMPS_PER_STOCK = 20
+JUMP_SIGMAS = 9.0
+REBOUND_DAYS = 3
+REBOUND_PER_DAY = 0.004
 
 
-def generate_sample_data(config: dict | None = None) -> tuple[Path, Path]:
+def _regime_path(rng: np.random.Generator, n: int) -> np.ndarray:
+    k = len(REGIMES)
+    states = np.empty(n, dtype=int)
+    states[0] = 0
+    for t in range(1, n):
+        stay = REGIMES[states[t - 1]][3]
+        if rng.random() < stay:
+            states[t] = states[t - 1]
+        else:
+            others = [s for s in range(k) if s != states[t - 1]]
+            states[t] = others[int(rng.integers(len(others)))]
+    return states
+
+
+def _ohlcv(rng: np.random.Generator, returns: np.ndarray, start: float) -> dict[str, np.ndarray]:
+    close = start * np.exp(np.cumsum(returns))
+    previous = np.concatenate([[start], close[:-1]])
+    open_ = previous * np.exp(rng.normal(0, 0.002, len(returns)))
+    spread = np.abs(rng.normal(0.004, 0.002, len(returns)))
+    high = np.maximum(open_, close) * (1 + spread)
+    low = np.minimum(open_, close) * (1 - spread)
+    volume = (3_000_000 * np.exp(rng.normal(0, 0.25, len(returns))) * (1 + 40 * np.abs(returns))).astype(int)
+    return {"open": open_, "high": high, "low": low, "close": close, "volume": volume}
+
+
+def simulate(config: dict) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Return (prices, regime truth, injected jumps)."""
+    rng = np.random.default_rng(int(config["project"]["random_state"]))
+    dates = pd.bdate_range(config["data"]["start_date"], config["data"]["end_date"])
+    n = len(dates)
+    states = _regime_path(rng, n)
+    mu = np.array([r[1] for r in REGIMES])[states]
+    sigma = np.array([r[2] for r in REGIMES])[states]
+    market = rng.normal(mu, sigma)
+
+    frames: list[pd.DataFrame] = []
+    jumps: list[dict[str, object]] = []
+    for symbol, (beta, idio, start) in STOCKS.items():
+        returns = beta * market + rng.normal(0, idio, n)
+        # Jumps avoid the first year (estimation window) and the last weeks (event window).
+        candidates = np.arange(260, n - 15)
+        days = np.sort(rng.choice(candidates, size=JUMPS_PER_STOCK, replace=False))
+        for day in days:
+            direction = 1 if rng.random() < 0.5 else -1
+            size = direction * JUMP_SIGMAS * float(sigma[day]) * beta
+            returns[day] += size
+            if direction < 0:
+                returns[day + 1 : day + 1 + REBOUND_DAYS] += REBOUND_PER_DAY
+            jumps.append({"date": dates[day].strftime("%Y-%m-%d"), "symbol": symbol, "direction": direction, "size": round(size, 6)})
+        frames.append(pd.DataFrame({"date": dates.strftime("%Y-%m-%d"), "symbol": symbol, **_ohlcv(rng, returns, start)}))
+
+    # The control is demeaned so its realised drift is exactly zero: there is no trend to find.
+    drift, vol, start = CONTROL_PARAMS
+    control = rng.normal(drift, vol, n)
+    control -= control.mean()
+    frames.append(pd.DataFrame({"date": dates.strftime("%Y-%m-%d"), "symbol": CONTROL_SYMBOL, **_ohlcv(rng, control, start)}))
+
+    prices = pd.concat(frames, ignore_index=True)
+    for column in ("open", "high", "low", "close"):
+        prices[column] = prices[column].round(4)
+    truth = pd.DataFrame({"date": dates.strftime("%Y-%m-%d"), "state": [REGIMES[s][0] for s in states]})
+    return prices, truth, pd.DataFrame(jumps).sort_values(["date", "symbol"]).reset_index(drop=True)
+
+
+def generate_sample_data(config: dict | None = None) -> Path:
     cfg = config or load_config()
-    ensure_project_dirs(cfg)
-    rng = np.random.default_rng(cfg["project"]["random_state"])
-    dates = pd.bdate_range(cfg["data"]["start_date"], cfg["data"]["end_date"])
-    symbols = cfg["data"]["stock_symbols"]
-    market_frames: list[pd.DataFrame] = []
-    date_strings = dates.strftime("%Y-%m-%d")
-    sample_count = len(dates)
-
-    fx_rate = 30.8
-    fx_shocks = set(rng.choice(np.arange(40, max(45, len(dates) - 20)), size=8, replace=False))
-    fx_daily_changes = rng.normal(0, 0.0018, sample_count)
-    fx_shock_values = rng.normal(0, 0.18, len(fx_shocks))
-    for position, shock in zip(sorted(fx_shocks), fx_shock_values, strict=True):
-        fx_daily_changes[position] += shock / 100
-    fx_rates: list[float] = []
-    for daily_change in fx_daily_changes:
-        fx_rate = max(26.0, fx_rate * (1 + float(daily_change)))
-        fx_rates.append(round(fx_rate, 4))
-    fx_frame = pd.DataFrame(
-        {
-            "date": date_strings,
-            "currency_pair": cfg["data"]["currency_pair"],
-            "exchange_rate": fx_rates,
-        }
-    )
-
-    anomaly_positions = set(rng.choice(np.arange(60, max(65, len(dates) - 30)), size=18, replace=False))
-    base_prices = {"0050": 120.0, "2330": 580.0, "2317": 105.0}
-    for symbol in symbols:
-        price = base_prices.get(symbol, float(rng.uniform(80, 300)))
-        base_volume = rng.integers(1_800_000, 9_000_000)
-        positions = np.arange(sample_count)
-        seasonal_volume = 1 + 0.18 * np.sin(positions / 18)
-        daily_returns = rng.normal(0.00025, 0.012, sample_count)
-        anomaly_indexes = np.array(sorted(anomaly_positions), dtype=int)
-        daily_returns[anomaly_indexes] += rng.normal(0, 0.055, len(anomaly_indexes))
-        open_noise = rng.normal(0, 0.004, sample_count)
-        high_noise = np.abs(rng.normal(0.006, 0.004, sample_count))
-        low_noise = np.abs(rng.normal(0.006, 0.004, sample_count))
-        volume_noise = rng.lognormal(0, 0.18, sample_count)
-        opens: list[float] = []
-        highs: list[float] = []
-        lows: list[float] = []
-        closes: list[float] = []
-        for i, daily_return in enumerate(daily_returns):
-            previous_close = price
-            close = max(5.0, previous_close * (1 + daily_return))
-            open_price = max(5.0, previous_close * (1 + open_noise[i]))
-            opens.append(round(open_price, 2))
-            highs.append(round(max(open_price, close) * (1 + high_noise[i]), 2))
-            lows.append(round(min(open_price, close) * (1 - low_noise[i]), 2))
-            closes.append(round(close, 2))
-            price = close
-        volume_multiplier = np.where(np.isin(positions, anomaly_indexes), 3.5, 1.0)
-        volumes = np.maximum(10_000, base_volume * seasonal_volume * volume_multiplier * volume_noise).astype(int)
-        market_frames.append(
-            pd.DataFrame(
-                {
-                    "date": date_strings,
-                    "symbol": symbol,
-                    "open": opens,
-                    "high": highs,
-                    "low": lows,
-                    "close": closes,
-                    "volume": volumes,
-                }
-            )
-        )
-
+    prices, truth, jumps = simulate(cfg)
     market_path = ensure_parent(cfg["data"]["sample_market_path"])
-    fx_path = ensure_parent(cfg["data"]["sample_fx_path"])
-    atomic_write_dataframe(pd.concat(market_frames, ignore_index=True), market_path)
-    atomic_write_dataframe(fx_frame, fx_path)
-    return market_path, fx_path
+    sample_dir = market_path.parent
+    atomic_write_dataframe(prices, market_path)
+    atomic_write_dataframe(truth, sample_dir / "regimes_truth.csv")
+    atomic_write_dataframe(jumps, sample_dir / "injected_events.csv")
+    return market_path
 
 
 if __name__ == "__main__":
-    market, fx = generate_sample_data()
-    print(f"Generated {market}")
-    print(f"Generated {fx}")
+    print(f"Generated {generate_sample_data()}")

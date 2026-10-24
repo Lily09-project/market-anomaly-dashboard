@@ -1,51 +1,36 @@
-# Deployment
+# 部署指南
 
-## Container contract
+## 本機
 
-The production image runs as the unprivileged user `appuser` (UID 10001), listens on port `8765`, disables Streamlit telemetry and file watching, and exposes `/_stcore/health` as its health check.
+需求：Python 3.12、Node.js 22。
 
-```powershell
-docker build -t research-trust-workbench .
-docker run --rm -p 8765:8765 research-trust-workbench
+```bash
+python -m venv .venv
+python -m pip install -r requirements-dev.lock.txt
+python run_all.py --mode sample
+cd web && npm ci && npm run build && npm run preview   # http://127.0.0.1:4173
 ```
 
-Open `http://localhost:8765`. A healthy container returns `ok` from:
+Windows 執行 `run_project.bat`；`run_project.bat --validate` 會跑完 pytest、Bandit、Ruff、pip-audit、TypeScript、ESLint、Vitest 覆蓋率與效能預算但不啟動網站。既有但版本不符或損壞的 `.venv` 不會被刪除，而是請使用者自行搬移；未知參數以結束碼 2 拒絕。
 
-```text
-http://localhost:8765/_stcore/health
+## 容器
+
+```bash
+docker build -t market-regime-lab .
+docker run --rm -p 8080:8080 market-regime-lab
 ```
 
-## Public hosting requirements
+多階段建置：Python 階段產生資料與匯出、Node 階段建置網站、最終映像是 `nginx-unprivileged`，以 UID 101 執行、監聽 8080，提供 `/healthz` 健康檢查，並加上 CSP、`X-Content-Type-Options: nosniff`、`frame-ancestors 'none'` 與 no-referrer 標頭。CI 的 `container-build` 工作會實際建置映像、啟動容器並檢查這些項目。
 
-- Terminate TLS at the hosting platform; do not expose an unencrypted public endpoint.
-- Keep the application stateless. Do not mount uploaded snapshots or user-specific storage.
-- Allow outbound HTTPS to Yahoo Finance and `openapi.twse.com.tw`.
-- Apply platform-level request limits and logs without recording uploaded file contents.
-- Monitor health, restart failures, and upstream error rates.
-- Preserve the visible `LIVE`, `部分連線`, `DEMO`, and `離線` states; never hide a fallback behind a live label.
+## 真實資料（選用）
 
-The checked-in `.streamlit/config.toml` remains optimized for local port `8765`. The Docker command overrides the bind address to `0.0.0.0` for container networking.
+`config.yaml` 的 `api.provider`：
 
-## Local Windows validation
+- `url`：設定 `api.market_url` 或環境變數 `MARKET_API_URL`，指向 CSV／JSON 端點（可辨識 TWSE 的中文欄位名稱）。只接受 HTTPS、拒絕 redirect、限制逾時與回應大小。
+- `yfinance`：另外安裝 `pip install yfinance`，依 `api.symbols` 下載日線。
 
-```powershell
-.\run_project.bat
-.\run_project.bat --validate
-```
+執行 `python run_all.py --mode api`；抓取失敗會退回合成資料並在網站標示。共同交易日少於 400 天時，匯出會以 `InsufficientHistoryError` 明確停止。
 
-`--validate` does not start Streamlit. It runs the sample pipeline, smoke test, zero-warning pytest, compileall, dependency consistency, public release verification, Bandit, and the strict dependency audit. Unsupported arguments fail closed instead of starting a local service.
+## 更新與回復
 
-For a machine-readable release decision, run `.venv\Scripts\python.exe quality\run_acceptance.py release`. It applies the authoritative manifest, timeout, required-gate, browser-evidence, and report-schema contract. When pipeline, AppTest, or responsive UI behavior changes, also run `.venv\Scripts\python.exe quality\run_benchmarks.py`; baseline replacement must be an explicit reviewed decision, not an automatic response to a regression.
-
-## Operational security boundary
-
-The application is intentionally stateless and has no account, session database, or permission model. Treat it as a public read-only research tool, not as a multi-tenant financial service. Before exposing it to the internet:
-
-- terminate TLS at the hosting platform;
-- enforce request and upload rate limits outside Streamlit;
-- keep the application behind a platform firewall or private network where appropriate;
-- monitor `/_stcore/health`, upstream failure rates, response latency, and container restarts;
-- do not log uploaded snapshot bodies or query strings containing credentials;
-- use dependency auditing and a reproducible build process on every release.
-
-Application-level hardening includes a 2 MiB snapshot upload limit, 64-level JSON nesting limit, duplicate-key and non-standard-number rejection, SHA-256 snapshot verification, HTTPS-only upstream URL validation, redirect rejection, response-origin checks, timeout-bounded upstream requests, and an 8 MiB streamed response limit for configurable market／FX and TWSE fetchers. These controls reduce parser and upstream failure risk; they do not replace edge rate limiting, TLS, identity, or market-data licensing.
+匯出是確定性的：相同輸入必定得到位元組相同的輸出。要回到基線，重新執行 `python run_all.py --mode sample`，或重新部署上一個成功的 `web/dist/`／映像。

@@ -16,7 +16,7 @@ concurrency:
 jobs:
   windows-launcher:
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -28,6 +28,25 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements-dev.lock.txt
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
       - name: Run actual Windows launcher acceptance
         shell: cmd
-        run: call run_project.bat --validate
+        run: |
+          call run_project.bat --validate > launcher.log 2>&1
+          set "LAUNCHER_EXIT=%ERRORLEVEL%"
+          type launcher.log
+          exit /b %LAUNCHER_EXIT%
+      - name: Surface the launcher failure as an annotation
+        if: failure()
+        shell: python
+        env:
+          PYTHONUTF8: "1"
+          PYTHONIOENCODING: utf-8
+        run: |
+          from pathlib import Path
+          tail = Path("launcher.log").read_text(encoding="utf-8", errors="replace").splitlines()[-80:]
+          body = "%0A".join(line.replace("%", "%25").replace("\r", "") for line in tail)
+          print(f"::error title=run_project.bat --validate failed::{body}")
