@@ -11,15 +11,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 REQUIRED_RUNTIME = {
     "pandas",
     "numpy",
-    "requests",
-    "scikit-learn",
-    "streamlit",
-    "gitpython",
-    "plotly",
-    "matplotlib",
-    "joblib",
     "pyyaml",
-    "yfinance",
+    "requests",
+    "urllib3",
+    "certifi",
 }
 FORBIDDEN_TRACKED_PREFIXES = (
     ".env/",
@@ -29,6 +24,10 @@ FORBIDDEN_TRACKED_PREFIXES = (
     "models/",
     "reports/metrics/",
     "reports/figures/",
+    "web/node_modules/",
+    "web/dist/",
+    "web/public/data/",
+    "data/sample/",
 )
 
 
@@ -92,14 +91,14 @@ def run_checks() -> list[str]:
         if leaked:
             failures.append("private/generated paths are tracked: " + ", ".join(leaked))
 
-    config_text = (PROJECT_ROOT / ".streamlit" / "config.toml").read_text(encoding="utf-8")
-    if "port = 8765" not in config_text:
-        failures.append("Streamlit fixed port is not 8765")
     dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
-    if "USER appuser" not in dockerfile:
+    if "USER 101" not in dockerfile:
         failures.append("Dockerfile does not drop root privileges")
     if "HEALTHCHECK" not in dockerfile:
         failures.append("Dockerfile has no healthcheck")
+    index_html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    if "Content-Security-Policy" not in index_html:
+        failures.append("web/index.html does not declare a Content-Security-Policy")
     return failures
 
 
@@ -109,7 +108,7 @@ def main() -> int:
         for failure in failures:
             print(f"[FAIL] {failure}")
         return 1
-    print("[PASS] release manifest, public-file boundary, fixed port, and container checks")
+    print("[PASS] release manifest, public-file boundary, CSP and container checks")
     return 0
 
 

@@ -6,107 +6,60 @@ from src.utils import project_path
 def test_runtime_and_development_dependencies_are_separated() -> None:
     runtime = project_path("requirements.txt").read_text(encoding="utf-8")
     development = project_path("requirements-dev.txt").read_text(encoding="utf-8")
-
-    assert "pytest" not in runtime
-    assert "bandit" not in runtime
-    assert "pip-audit" not in runtime
+    for tool in ("pytest", "bandit", "pip-audit", "ruff"):
+        assert tool not in runtime
+        assert tool in development
     assert "-r requirements.txt" in development
-    assert "pytest" in development
-    assert "bandit" in development
-    assert "pip-audit" in development
 
 
-def test_container_runs_unprivileged_with_healthcheck() -> None:
+def test_container_builds_the_site_and_serves_it_unprivileged() -> None:
     dockerfile = project_path("Dockerfile").read_text(encoding="utf-8")
-
-    assert "USER appuser" in dockerfile
-    assert "HEALTHCHECK" in dockerfile
-    assert "/_stcore/health" in dockerfile
-    assert "--server.address=0.0.0.0" in dockerfile
     assert "python run_all.py --mode sample" in dockerfile
-    assert "chown -R appuser:appuser /app" in dockerfile
-    assert dockerfile.index("python run_all.py --mode sample") < dockerfile.index("USER appuser")
-    assert dockerfile.index("USER appuser") < dockerfile.index("CMD [\"streamlit\"")
+    assert "npm run build" in dockerfile
+    assert "nginx-unprivileged" in dockerfile
+    assert "USER 101" in dockerfile
+    assert "HEALTHCHECK" in dockerfile
+    assert dockerfile.index("python run_all.py --mode sample") < dockerfile.index("npm run build") < dockerfile.index("USER 101")
+    nginx = project_path("deploy/nginx.conf").read_text(encoding="utf-8")
+    assert "Content-Security-Policy" in nginx
+    assert "frame-ancestors 'none'" in nginx
+    assert "server_tokens off" in nginx
+    assert "location = /healthz" in nginx
 
 
-def test_public_user_and_deployment_guides_cover_product_states() -> None:
-    user_guide = project_path("docs/user-guide.md").read_text(encoding="utf-8")
-    deployment = project_path("docs/deployment.md").read_text(encoding="utf-8")
-    launcher = project_path("run_project.bat").read_text(encoding="utf-8")
-
-    for state in ("LIVE", "部分連線", "DEMO", "離線"):
-        assert state in user_guide
-    assert "不寫入磁碟" in user_guide
-    assert "unprivileged" in deployment
-    assert "requirements-dev.txt" in launcher
-    assert "Operational security boundary" in deployment
-    assert "rate limits" in deployment
-    assert "2 MiB" in deployment
-
-def test_github_actions_builds_and_health_checks_container() -> None:
+def test_github_actions_build_and_check_the_container() -> None:
     workflow = project_path(".github/workflows/security.yml").read_text(encoding="utf-8")
-
     assert "container-build:" in workflow
-    assert "docker build --tag research-trust-workbench:ci ." in workflow
-    assert "docker run --detach --publish 8765:8765" in workflow
-    assert "http://127.0.0.1:8765/_stcore/health" in workflow
+    assert "docker build --tag market-regime-lab:ci ." in workflow
+    assert "http://127.0.0.1:8080/healthz" in workflow
+    assert "content-security-policy" in workflow
     assert "docker logs" in workflow
-
-
-def test_github_actions_runs_locked_release_and_browser_gates() -> None:
-    workflow = project_path(".github/workflows/security.yml").read_text(encoding="utf-8")
-
-    assert "concurrency:" in workflow
-    assert "group: security-${{ github.workflow }}-${{ github.ref }}" in workflow
-    assert "cancel-in-progress: true" in workflow
-    assert 'python -m pip install "pip>=26.2"' in workflow
-    assert "pip install --requirement requirements-dev.lock.txt" in workflow
-    assert "python scripts/verify_release.py" in workflow
-    assert "python -m pip_audit --strict --progress-spinner off" in workflow
-    assert "python -W error -m pytest" in workflow
-    assert "--requirement requirements-e2e.txt" in workflow
-    assert "python -m playwright install --with-deps chromium" in workflow
-    assert "browser-ui:" in workflow
-    assert "runs-on: ubuntu-24.04" in workflow
-    assert "MARKET_DASHBOARD_OFFLINE: \"1\"" in workflow
-    assert "python run_all.py --mode sample" in workflow
-    assert "python scripts/ui_qa.py --url http://127.0.0.1:8765" in workflow
-    assert workflow.count("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1") == 5
+    assert "npm audit --audit-level=high" in workflow
     assert "gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e" in workflow
 
-    e2e_requirements = project_path("requirements-e2e.txt").read_text(encoding="utf-8")
-    assert "playwright==1.58.0" in e2e_requirements
-    dockerfile = project_path("Dockerfile").read_text(encoding="utf-8")
-    assert 'python -m pip install --no-cache-dir "pip>=26.2"' in dockerfile
-    gitignore = project_path(".gitignore").read_text(encoding="utf-8")
-    assert "docs/screenshots/ui-qa/" in gitignore
-    assert ".review-*-tmp/" in gitignore
-    assert ".env.*" in gitignore
-    assert "!.env.example" in gitignore
-    assert "*.pem" in gitignore
-    assert "*.key" in gitignore
-    assert "credentials*.json" in gitignore
+
+def test_quality_gate_runs_python_and_web_acceptance() -> None:
+    workflow = project_path(".github/workflows/quality.yml").read_text(encoding="utf-8")
+    for step in ("--cov-fail-under=90", "diff -r", "npm run typecheck", "npm run lint", "npm run coverage", "npm run size", "npm run e2e"):
+        assert step in workflow, step
+    pages = project_path(".github/workflows/pages.yml").read_text(encoding="utf-8")
+    assert "path: web/dist" in pages
+    assert "smoke:" in pages
 
 
-def test_runtime_and_development_locks_include_transitive_dependencies() -> None:
+def test_locks_pin_every_transitive_dependency() -> None:
     runtime_lock = project_path("requirements-runtime.lock.txt").read_text(encoding="utf-8")
     dev_lock = project_path("requirements-dev.lock.txt").read_text(encoding="utf-8")
-
-    for token in (
-        "altair==",
-        "certifi==",
-        "pyarrow==",
-        "scipy==",
-        "urllib3==",
-    ):
+    for token in ("certifi==", "numpy==", "pandas==", "urllib3==", "python-dateutil=="):
         assert token in runtime_lock
         assert token in dev_lock
-    for token in ("bandit==", "pip_audit==", "pip==26.2.1", "pytest=="):
+    for token in ("bandit==", "pip-audit==", "pytest==", "pytest-cov==", "ruff=="):
         assert token in dev_lock
+    for lock in (runtime_lock, dev_lock):
+        assert all("==" in line for line in lock.splitlines() if line.strip() and not line.startswith("#"))
 
 
-def test_streamlit_telemetry_is_disabled_for_reproducible_ui_qa() -> None:
-    config = project_path(".streamlit/config.toml").read_text(encoding="utf-8")
-
-    assert "[browser]" in config
-    assert "gatherUsageStats = false" in config
+def test_gitignore_keeps_generated_and_secret_files_out() -> None:
+    gitignore = project_path(".gitignore").read_text(encoding="utf-8")
+    for token in ("web/node_modules/", "web/dist/", "web/public/data/", "data/sample/", ".env.*", "!.env.example", "*.pem", "*.key", "credentials*.json"):
+        assert token in gitignore, token

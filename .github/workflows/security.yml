@@ -53,17 +53,15 @@ jobs:
 
       - name: Run release gate
         run: |
-          python -m compileall -q app.py src scripts tests
+          python -m compileall -q run_all.py src scripts tests
           python scripts/verify_release.py
 
       - name: Scan Python source
-        run: python -m bandit -r app.py src scripts --exclude tests
+        run: python -m bandit -r run_all.py src scripts --exclude tests
 
       - name: Run Ruff correctness gate
-        run: python -m ruff check app.py src scripts tests
+        run: python -m ruff check run_all.py src scripts tests
 
-      - name: Run tests
-        run: python -W error -m pytest -q -p no:cacheprovider
   container-build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -75,15 +73,19 @@ jobs:
           persist-credentials: false
 
       - name: Build production image
-        run: docker build --tag research-trust-workbench:ci .
+        run: docker build --tag market-regime-lab:ci .
 
-      - name: Verify container health
+      - name: Verify container health and security headers
         shell: bash
         run: |
-          container_id="$(docker run --detach --publish 8765:8765 research-trust-workbench:ci)"
+          container_id="$(docker run --detach --publish 8080:8080 market-regime-lab:ci)"
           trap 'docker rm --force "$container_id" >/dev/null 2>&1 || true' EXIT
           for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:8765/_stcore/health | grep --quiet ok; then
+            if curl --fail --silent http://127.0.0.1:8080/healthz | grep --quiet ok; then
+              curl --fail --silent --show-error http://127.0.0.1:8080/ | grep --quiet "Market Regime Lab"
+              curl --fail --silent --show-error http://127.0.0.1:8080/data/manifest.json | grep --quiet '"schema_version":"2.0"'
+              curl --silent --head http://127.0.0.1:8080/ | grep --quiet --ignore-case "content-security-policy"
+              test "$(docker inspect --format '{{.Config.User}}' "$container_id")" = "101"
               exit 0
             fi
             sleep 2
@@ -91,67 +93,21 @@ jobs:
           docker logs "$container_id"
           exit 1
 
-  browser-ui:
-    name: Browser UI (${{ matrix.theme }})
-    strategy:
-      fail-fast: false
-      matrix:
-        theme: [light, dark]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    env:
-      MARKET_DASHBOARD_OFFLINE: "1"
-      UI_THEME: ${{ matrix.theme }}
-
+  web-dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          python-version: "3.12"
-          cache: "pip"
-
-      - name: Install browser QA dependencies
-        run: python -m pip install --requirement requirements-e2e.txt
-
-      - name: Install Chromium
-        run: python -m playwright install --with-deps chromium
-
-      - name: Prepare deterministic demo data
-        run: python run_all.py --mode sample
-
-      - name: Start Streamlit
-        shell: bash
-        run: |
-          nohup python -m streamlit run app.py --server.address 127.0.0.1 --server.port 8765 --theme.base "$UI_THEME" > streamlit-ui-qa.log 2>&1 &
-          for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:8765/_stcore/health | grep --quiet ok; then
-              exit 0
-            fi
-            sleep 2
-          done
-          cat streamlit-ui-qa.log
-          exit 1
-
-      - name: Run responsive browser QA
-        run: python scripts/ui_qa.py --url http://127.0.0.1:8765 --theme-mode "$UI_THEME"
-      - name: Run extended 200% text browser QA
-        run: python scripts/ui_qa.py --url http://127.0.0.1:8765 --extended --text-scale --theme-mode "$UI_THEME"
-      - name: Retain browser visual acceptance evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: streamlit-ui-${{ matrix.theme }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            docs/screenshots/ui-qa/*.png
-            docs/screenshots/ui-qa/failure-evidence.json
-            docs/screenshots/ui-qa/*-scroll.json
-          if-no-files-found: warn
-          retention-days: 14
+          node-version: "22"
+      - name: Audit locked web dependencies
+        working-directory: web
+        run: npm audit --audit-level=high
 
   # Independent and mandatory: audit failure must not hide source validation.
   dependency-audit:
