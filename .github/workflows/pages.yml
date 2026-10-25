@@ -88,3 +88,24 @@ jobs:
           done
           curl --fail --silent --show-error "$base/" | grep -q "Market Regime Lab"
           curl --fail --silent --show-error "$base/data/manifest.json" | grep -q '"schema_version":"2.1"'
+          curl --fail --silent --show-error "$base/data/provenance.json" --output "$RUNNER_TEMP/provenance.json"
+          python - "$RUNNER_TEMP/provenance.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          provenance = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          quality = provenance.get("source_quality")
+          assert provenance.get("provider") == "finmind"
+          assert provenance.get("data_source") == "FinMind public historical daily prices"
+          assert provenance.get("is_simulated") is False
+          assert isinstance(quality, dict)
+          usable = quality.get("usable_price_rows")
+          source = quality.get("source_row_count")
+          excluded = quality.get("excluded_no_trade_rows")
+          assert isinstance(usable, int) and not isinstance(usable, bool) and usable > 0
+          assert isinstance(source, int) and not isinstance(source, bool)
+          assert isinstance(excluded, int) and not isinstance(excluded, bool) and excluded >= 0
+          assert source == usable + excluded
+          print(f"Verified public FinMind snapshot: {usable} usable, {excluded} no-trade rows excluded")
+          PY
