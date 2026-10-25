@@ -1,6 +1,14 @@
 import { expect, expectAccessible, openRoute, test } from "./fixtures";
 
-const ROUTES = ["/", "/regimes", "/events", "/backtest", "/stress", "/snapshot", "/data"];
+const ROUTES = [
+  "/",
+  "/regimes",
+  "/events",
+  "/backtest",
+  "/stress",
+  "/snapshot",
+  "/data",
+];
 
 test.describe("Q4/Q5 navigation, keyboard and accessibility", () => {
   test("skip link, navigation and focus management work by keyboard", async ({ page }) => {
