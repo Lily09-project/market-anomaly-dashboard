@@ -20,7 +20,7 @@ from src.analytics import backtest, events, hmm, risk, stats
 from src.generate_sample_data import CONTROL_SYMBOL, JUMPS_PER_STOCK, REBOUND_DAYS, REBOUND_PER_DAY, REGIMES
 from src.utils import load_config, project_path
 
-SCHEMA_VERSION = "2.0"
+SCHEMA_VERSION = "2.1"
 DEFAULT_OUT = Path("web/public/data")
 N_STATES = 3
 STATE_LABELS = ("平穩", "震盪", "高波動")
@@ -236,6 +236,39 @@ def stress_parity(symbol: str, returns: np.ndarray) -> list[dict[str, Any]]:
     return cases
 
 
+def _finmind_source_quality(config: dict[str, Any], provider: str, simulated: bool) -> dict[str, int] | None:
+    """Bind public provenance to the validated raw FinMind snapshot and its exclusions."""
+    if simulated or provider != "finmind":
+        return None
+    metadata_path = project_path(config["data"].get("source_metadata_path", "reports/metrics/source_metadata.json"))
+    raw_path = project_path(Path(config["data"]["raw_dir"]) / "market_finmind.csv")
+    try:
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        raw_digest = hashlib.sha256(raw_path.read_bytes()).hexdigest()
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("FinMind source quality metadata is missing or unreadable.") from exc
+    if not isinstance(metadata, dict) or metadata.get("provider") != "finmind" or metadata.get("status") != "success":
+        raise ValueError("FinMind source quality metadata is invalid.")
+    if metadata.get("is_simulated_data") is not False or metadata.get("data_source") != "API Data":
+        raise ValueError("FinMind metadata does not identify a real public API source.")
+    if metadata.get("data_file_sha256") != raw_digest:
+        raise ValueError("FinMind source quality metadata does not match the raw data file.")
+    counts = ("row_count", "source_row_count", "excluded_no_trade_rows")
+    values: dict[str, int] = {}
+    for key in counts:
+        value = metadata.get(key)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError("FinMind source quality metadata contains invalid row counts.")
+        values[key] = value
+    if values["row_count"] <= 0 or values["source_row_count"] != values["row_count"] + values["excluded_no_trade_rows"]:
+        raise ValueError("FinMind source quality row counts are inconsistent.")
+    return {
+        "source_row_count": values["source_row_count"],
+        "usable_price_rows": values["row_count"],
+        "excluded_no_trade_rows": values["excluded_no_trade_rows"],
+    }
+
+
 def export(out_dir: Path, cleaned_path: Path | None = None) -> dict[str, str]:
     config = load_config()
     cleaned = pd.read_csv(cleaned_path or project_path(config["data"]["cleaned_path"]), dtype={"symbol": "string"})
@@ -245,6 +278,8 @@ def export(out_dir: Path, cleaned_path: Path | None = None) -> dict[str, str]:
         raise InsufficientHistoryError(f"Need at least {MIN_HISTORY_DAYS} common trading days; got {len(wide)}.")
     dates = list(wide.index)
     simulated = bool((cleaned.get("data_source", pd.Series(["sample"])) == "sample").all())
+    provider = str(config.get("api", {}).get("provider", "unknown"))
+    source_quality = _finmind_source_quality(config, provider, simulated)
     sample_dir = project_path(config["data"]["sample_market_path"]).parent
     truth_states = None
     truth_jumps: pd.DataFrame | None = None
@@ -319,7 +354,6 @@ def export(out_dir: Path, cleaned_path: Path | None = None) -> dict[str, str]:
     )
 
     input_bytes = Path(cleaned_path or project_path(config["data"]["cleaned_path"])).read_bytes()
-    provider = str(config.get("api", {}).get("provider", "unknown"))
     if simulated:
         source_label = "Reproducible synthetic test data"
         market_sources = [{"label": "Synthetic data generator (test fixture)", "url": "https://github.com/Lily09-project/market-anomaly-dashboard"}]
@@ -342,6 +376,7 @@ def export(out_dir: Path, cleaned_path: Path | None = None) -> dict[str, str]:
         "range": {"start": dates[0], "end": dates[-1]},
         "trading_days": len(dates),
         "symbols": list(wide.columns),
+        "source_quality": source_quality,
         "input_sha256": hashlib.sha256(input_bytes).hexdigest(),
         "truth": {"regimes": truth_states is not None, "injected_events": truth_jumps is not None},
         "disclaimer": config["project"]["disclaimer"],

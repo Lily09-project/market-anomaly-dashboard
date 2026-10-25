@@ -141,15 +141,29 @@ jobs:
       - name: Confirm the published dataset is source-backed
         run: |
           python - <<'PY'
+          import csv
+          import hashlib
           import json
           from pathlib import Path
           source = json.loads(Path("reports/metrics/source_metadata.json").read_text(encoding="utf-8"))
           public = json.loads(Path("web/public/data/provenance.json").read_text(encoding="utf-8"))
+          raw_path = Path("data/raw/market_finmind.csv")
+          raw_digest = hashlib.sha256(raw_path.read_bytes()).hexdigest()
+          with raw_path.open(encoding="utf-8", newline="") as handle:
+              rows = sum(1 for _ in csv.DictReader(handle))
           assert source["provider"] == "finmind"
           assert source["status"] == "success"
           assert source["data_source"] == "API Data"
           assert source.get("is_simulated_data") is False
           assert source.get("row_count", 0) > 0
+          assert rows == source["row_count"]
+          assert source["data_file_sha256"] == raw_digest
+          assert source["source_row_count"] == source["row_count"] + source["excluded_no_trade_rows"]
+          assert public["source_quality"] == {
+              "source_row_count": source["source_row_count"],
+              "usable_price_rows": source["row_count"],
+              "excluded_no_trade_rows": source["excluded_no_trade_rows"],
+          }
           assert public["provider"] == "finmind"
           assert public["data_source"] == "FinMind public historical daily prices"
           assert public["is_simulated"] is False

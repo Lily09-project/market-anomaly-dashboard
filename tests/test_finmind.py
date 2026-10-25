@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import date, timedelta
 
@@ -14,7 +15,7 @@ def _record(day: str, symbol: str = "2330", close: float = 100.0) -> dict:
 
 
 def _config(tmp_path, symbols=("2330",), minimum=1):
-    return {"api": {"provider": "finmind", "symbols": list(symbols), "start_date": "2026-01-01", "end_date": "2026-01-05", "minimum_history_days": minimum, "timeout_seconds": 5}, "data": {"raw_dir": tmp_path}}
+    return {"api": {"provider": "finmind", "symbols": list(symbols), "start_date": "2026-01-01", "end_date": "2026-01-05", "minimum_history_days": minimum, "timeout_seconds": 5}, "data": {"raw_dir": tmp_path / "raw", "source_metadata_path": tmp_path / "metrics" / "source_metadata.json"}}
 
 
 class _Response:
@@ -39,6 +40,36 @@ def test_finmind_field_mapping_and_numeric_rows():
     assert frame["symbol"].tolist() == ["2330", "2330"]
     assert frame["high"].tolist() == [101.0, 106.0]
     assert frame["volume"].tolist() == [1000, 1000]
+
+
+def test_finmind_excludes_only_documented_all_zero_no_trade_rows():
+    no_trade = {"date": "2026-01-05", "stock_id": "2330", "Trading_Volume": 0, "open": 0, "max": 0, "min": 0, "close": 0}
+    frame = normalize_finmind_payload(
+        {"status": 200, "data": [_record("2026-01-02"), no_trade]},
+        "2330",
+        "2026-01-01",
+        "2026-01-05",
+    )
+    assert frame["date"].tolist() == ["2026-01-02"]
+    assert frame.attrs["source_row_count"] == 2
+    assert frame.attrs["excluded_no_trade_rows"] == 1
+
+
+@pytest.mark.parametrize("overrides", [
+    {"open": 0},
+    {"close": 0},
+    {"Trading_Volume": 1, "open": 0, "max": 0, "min": 0, "close": 0},
+])
+def test_finmind_rejects_partial_or_traded_zero_price_rows(overrides):
+    record = {**_record("2026-01-02"), **overrides}
+    with pytest.raises(ValueError, match="inconsistent OHLCV"):
+        normalize_finmind_payload({"status": 200, "data": [record]}, "2330", "2026-01-01", "2026-01-05")
+
+
+def test_finmind_rejects_payload_with_only_no_trade_rows():
+    no_trade = {"date": "2026-01-05", "stock_id": "2330", "Trading_Volume": 0, "open": 0, "max": 0, "min": 0, "close": 0}
+    with pytest.raises(ValueError, match="no usable priced records"):
+        normalize_finmind_payload({"status": 200, "data": [no_trade]}, "2330", "2026-01-01", "2026-01-05")
 
 
 def test_finmind_rejects_non_finite_price_values():
@@ -77,7 +108,7 @@ def test_fetch_finmind_uses_fixed_public_host_no_token_and_writes_atomically(tmp
             return _Response({"status": 200, "data": [_record(d.isoformat(), symbol) for d in dates]})
 
     path = fetch_finmind(_config(tmp_path, ("2330", "0050"), 2), client=Client)
-    assert path == tmp_path / "market_finmind.csv"
+    assert path == tmp_path / "raw" / "market_finmind.csv"
     assert len(seen) == 2
     for url, kwargs in seen:
         assert url == API_URL
@@ -88,8 +119,36 @@ def test_fetch_finmind_uses_fixed_public_host_no_token_and_writes_atomically(tmp
     assert set(saved["symbol"]) == {"2330", "0050"}
 
 
+def test_fetch_finmind_records_excluded_no_trade_rows_and_raw_hash(tmp_path):
+    dates = [date(2026, 1, 2), date(2026, 1, 5)]
+
+    class Client:
+        @staticmethod
+        def get(url, **kwargs):
+            symbol = kwargs["params"]["data_id"]
+            return _Response({"status": 200, "data": [
+                _record(dates[0].isoformat(), symbol),
+                {"date": dates[1].isoformat(), "stock_id": symbol, "Trading_Volume": 0, "open": 0, "max": 0, "min": 0, "close": 0},
+            ]})
+
+    path = fetch_finmind(_config(tmp_path, ("2330", "0050"), 1), client=Client)
+    metadata_path = tmp_path / "metrics" / "source_metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert path == tmp_path / "raw" / "market_finmind.csv"
+    assert metadata["provider"] == "finmind"
+    assert metadata["status"] == "success"
+    assert metadata["row_count"] == 2
+    assert metadata["source_row_count"] == 4
+    assert metadata["excluded_no_trade_rows"] == 2
+    assert metadata["data_file_sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+    saved = pd.read_csv(path, dtype={"symbol": "string"})
+    assert len(saved) == 2
+
+
 def test_fetch_finmind_does_not_replace_existing_data_on_partial_failure(tmp_path):
-    target = tmp_path / "market_finmind.csv"
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    target = raw_dir / "market_finmind.csv"
     target.write_text("previous verified data", encoding="utf-8")
     calls = 0
 

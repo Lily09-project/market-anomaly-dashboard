@@ -57,7 +57,13 @@ function Trust({ provenance, regimes, events }: { provenance: Provenance; regime
           <p className="stat-value" data-testid="data-source">
             {provenance.is_simulated ? "合成資料" : provenance.data_source}
           </p>
-          <span className="muted small">{provenance.is_simulated ? `測試種子 ${provenance.seed}` : "公開歷史日資料 · 非即時"}</span>
+          <span className="muted small">
+            {provenance.is_simulated
+              ? `測試種子 ${provenance.seed}`
+              : provenance.provider === "finmind"
+                ? `公開歷史日資料 · 非即時 · 排除零成交 ${provenance.source_quality?.excluded_no_trade_rows ?? 0} 筆`
+                : "公開歷史日資料 · 非即時"}
+          </span>
         </div>
         <div className="card">
           <span className="stat-label">涵蓋範圍</span>

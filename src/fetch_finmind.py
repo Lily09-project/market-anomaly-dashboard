@@ -6,6 +6,7 @@ URL or token.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
@@ -22,7 +23,7 @@ except Exception:
 
 from src.fetch_market_data import normalize_market_columns
 from src.request_policy import RequestBudget, request_with_retry, validate_response_origin, validate_upstream_url
-from src.utils import atomic_write_dataframe, ensure_parent, load_config, normalize_http_timeout, read_http_response_bytes, safe_exception_message
+from src.utils import atomic_write_dataframe, ensure_parent, load_config, normalize_http_timeout, read_http_response_bytes, safe_exception_message, write_json
 
 API_URL = "https://api.finmindtrade.com/api/v4/data"
 API_HOSTS = {"api.finmindtrade.com"}
@@ -68,12 +69,17 @@ def normalize_finmind_payload(payload: Any, symbol: str, start_date: str, end_da
     finite = frame[numeric].apply(lambda column: column.map(math.isfinite))
     if not finite.all().all():
         raise ValueError("FinMind returned non-finite numeric price fields.")
-    bad_price = (frame[["open", "high", "low", "close"]] <= 0).any(axis=1)
+    ohlc = ["open", "high", "low", "close"]
+    # FinMind documents all-zero OHLC as a day with no announced transaction price.
+    # Only the exact all-zero OHLC + zero-volume row is excluded from price analysis.
+    no_trade = frame[ohlc].eq(0).all(axis=1) & frame["volume"].eq(0)
+    bad_price = (frame[ohlc] <= 0).any(axis=1) & ~no_trade
     bad_volume = frame["volume"] < 0
     bad_range = (
         (frame["high"] < frame[["open", "close", "low"]].max(axis=1))
         | (frame["low"] > frame[["open", "close", "high"]].min(axis=1))
     )
+    duplicate = frame.duplicated(["date", "symbol"], keep=False)
     invalid = bad_price | bad_volume | bad_range
     if invalid.any():
         sample = frame.loc[invalid, ["symbol", "date"]].drop_duplicates().head(5)
@@ -86,7 +92,17 @@ def normalize_finmind_payload(payload: Any, symbol: str, start_date: str, end_da
         if bad_range.any():
             reasons.append("OHLC range")
         raise ValueError(f"FinMind returned inconsistent OHLCV values ({', '.join(reasons)}): {dates}")
-    return frame.sort_values("date", kind="stable").drop_duplicates(["date", "symbol"], keep="last").reset_index(drop=True)
+    if duplicate.any():
+        raise ValueError("FinMind returned duplicate symbol/date price records.")
+    source_row_count = len(frame)
+    excluded_no_trade_rows = int(no_trade.sum())
+    frame = frame.loc[~no_trade].copy()
+    if frame.empty:
+        raise ValueError("FinMind returned no usable priced records after excluding documented no-trade rows.")
+    frame = frame.sort_values("date", kind="stable").reset_index(drop=True)
+    frame.attrs["source_row_count"] = source_row_count
+    frame.attrs["excluded_no_trade_rows"] = excluded_no_trade_rows
+    return frame
 
 
 def fetch_finmind(config: dict[str, Any] | None = None, *, client: Any = None) -> Path | None:
@@ -109,6 +125,8 @@ def fetch_finmind(config: dict[str, Any] | None = None, *, client: Any = None) -
         timeout = normalize_http_timeout(api.get("timeout_seconds"), default=20.0)
         budget = RequestBudget(max_requests=len(symbols) * 2)
         frames: list[pd.DataFrame] = []
+        source_row_count = 0
+        excluded_no_trade_rows = 0
         for symbol in symbols:
             params = {"dataset": "TaiwanStockPrice", "data_id": symbol, "start_date": start, "end_date": end}
             response, _attempts = request_with_retry(
@@ -122,7 +140,10 @@ def fetch_finmind(config: dict[str, Any] | None = None, *, client: Any = None) -
                 validate_response_origin(response, API_URL, allowed_hosts=API_HOSTS)
                 response.raise_for_status()
                 payload = json.loads(read_http_response_bytes(response).decode("utf-8-sig"))
-                frames.append(normalize_finmind_payload(payload, symbol, start, end))
+                normalized = normalize_finmind_payload(payload, symbol, start, end)
+                source_row_count += int(normalized.attrs["source_row_count"])
+                excluded_no_trade_rows += int(normalized.attrs["excluded_no_trade_rows"])
+                frames.append(normalized)
             finally:
                 close = getattr(response, "close", None)
                 if callable(close):
@@ -136,7 +157,23 @@ def fetch_finmind(config: dict[str, Any] | None = None, *, client: Any = None) -
         if len(common_dates) < minimum:
             raise ValueError("FinMind symbols do not share enough trading dates for comparison.")
         target = ensure_parent(Path(cfg["data"]["raw_dir"]) / "market_finmind.csv")
-        return atomic_write_dataframe(combined, target)
+        written = atomic_write_dataframe(combined, target)
+        write_json(
+            {
+                "provider": "finmind",
+                "status": "success",
+                "data_source": "API Data",
+                "is_simulated_data": False,
+                "row_count": int(len(combined)),
+                "source_row_count": source_row_count,
+                "excluded_no_trade_rows": excluded_no_trade_rows,
+                "data_file_sha256": hashlib.sha256(written.read_bytes()).hexdigest(),
+                "symbols": symbols,
+                "range": {"start": start, "end": end},
+            },
+            cfg["data"].get("source_metadata_path", "reports/metrics/source_metadata.json"),
+        )
+        return written
     except Exception as exc:
         print(f"FinMind fetch failed; no release data written: {safe_exception_message(exc)}")
         return None

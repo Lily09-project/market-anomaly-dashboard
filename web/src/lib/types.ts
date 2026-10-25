@@ -144,6 +144,7 @@ export interface Provenance {
   range: { start: string; end: string };
   trading_days: number;
   symbols: string[];
+  source_quality: { source_row_count: number; usable_price_rows: number; excluded_no_trade_rows: number } | null;
   input_sha256: string;
   truth: { regimes: boolean; injected_events: boolean };
   disclaimer: string;

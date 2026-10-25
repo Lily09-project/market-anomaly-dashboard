@@ -9,6 +9,7 @@ data:
   start_date: "2021-01-01"
   end_date: "2025-12-31"
   raw_dir: data/raw
+  source_metadata_path: reports/metrics/source_metadata.json
   sample_dir: data/sample
   processed_dir: data/processed
   sample_market_path: data/sample/sample_market.csv
