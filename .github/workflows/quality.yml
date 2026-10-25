@@ -131,6 +131,9 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
       - name: Install locked Python dependencies
         run: |
           python -m pip install --upgrade "pip>=26.2"
@@ -171,3 +174,18 @@ jobs:
           assert public["input_sha256"] == cleaned_digest
           print(f"Verified {source['row_count']} source rows from {source['provider']}")
           PY
+
+      - name: Install locked web dependencies for live-data acceptance
+        working-directory: web
+        run: npm ci --no-audit --no-fund
+      - name: Build the web app with real public data
+        working-directory: web
+        run: npm run typecheck && npm run build && npm run size
+      - name: Install Chromium for live-data acceptance
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+      - name: Verify real-data user paths across viewports
+        working-directory: web
+        env:
+          CI: "1"
+        run: npm run e2e -- e2e/production-data.spec.ts

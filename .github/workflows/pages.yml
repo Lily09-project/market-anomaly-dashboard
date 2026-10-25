@@ -50,6 +50,16 @@ jobs:
           npm ci --no-audit --no-fund
           npm run build
           npm run size
+      - name: Install Chromium for live public-data acceptance
+        if: github.event_name != 'pull_request'
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+      - name: Verify live public-data user paths before deployment
+        if: github.event_name != 'pull_request'
+        working-directory: web
+        env:
+          CI: "1"
+        run: npm run e2e -- e2e/production-data.spec.ts
       - name: Upload only the built static site
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
