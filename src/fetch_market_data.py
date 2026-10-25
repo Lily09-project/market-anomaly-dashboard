@@ -28,7 +28,7 @@ MARKET_COLUMN_ALIASES = {
     "high": ["high", "max", "最高價", "最高"],
     "low": ["low", "min", "最低價", "最低"],
     "close": ["close", "收盤價", "收盤"],
-    "volume": ["volume", "trading_volume", "成交股數", "成交量"],
+    "volume": ["volume", "trading_volume", "Trading_Volume", "成交股數", "成交量"],
 }
 
 
