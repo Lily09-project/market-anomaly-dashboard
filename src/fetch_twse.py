@@ -13,6 +13,7 @@ import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import urljoin, urlsplit
 
 import pandas as pd
 
@@ -31,7 +32,7 @@ SYMBOL_PATTERN = re.compile(r"^[0-9]{4,6}$")
 MAX_SYMBOLS = 8
 MAX_HISTORY_MONTHS = 120
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
-MIN_REQUEST_INTERVAL_SECONDS = 0.15
+MIN_REQUEST_INTERVAL_SECONDS = 0.5
 REQUIRED_FIELDS = {"日期", "成交股數", "開盤價", "最高價", "最低價", "收盤價"}
 
 
@@ -59,6 +60,24 @@ def _month_starts(start: date, end: date) -> list[date]:
         date(start.year + (start.month - 1 + offset) // 12, (start.month - 1 + offset) % 12 + 1, 1)
         for offset in range(count)
     ]
+
+
+def _safe_redirect_target(response: Any) -> str:
+    """Describe a redirect without logging its query string or credentials."""
+    headers = getattr(response, "headers", {}) or {}
+    location = headers.get("location") or headers.get("Location")
+    if not location:
+        return "unknown destination"
+    try:
+        parsed = urlsplit(urljoin(API_URL, str(location)))
+        host = (parsed.hostname or "").lower()
+        if parsed.scheme != "https" or parsed.port not in (None, 443) or not host:
+            return "non-HTTPS destination"
+        if host not in API_HOSTS:
+            return f"https://{host}/"
+        return f"https://{host}{parsed.path[:120]}"
+    except (TypeError, ValueError):
+        return "invalid destination"
 
 
 def _empty_frame() -> pd.DataFrame:
@@ -203,7 +222,16 @@ def fetch_twse(
                 )
                 request_count += 1
                 try:
-                    validate_response_origin(response, API_URL, allowed_hosts=API_HOSTS)
+                    try:
+                        validate_response_origin(response, API_URL, allowed_hosts=API_HOSTS)
+                    except ValueError as exc:
+                        status = getattr(response, "status_code", None)
+                        if status is not None and 300 <= int(status) < 400:
+                            raise ValueError(
+                                f"TWSE redirected request {request_count} for {symbol}/{month:%Y-%m} "
+                                f"to {_safe_redirect_target(response)}; redirects are rejected."
+                            ) from exc
+                        raise
                     response.raise_for_status()
                     payload = json.loads(read_http_response_bytes(response, MAX_RESPONSE_BYTES).decode("utf-8-sig"))
                     normalized = normalize_twse_payload(payload, symbol, start, end, month)

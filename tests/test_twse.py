@@ -187,10 +187,16 @@ def test_twse_does_not_replace_existing_data_after_partial_failure(tmp_path):
     assert target.read_text(encoding="utf-8") == "previous valid snapshot\n"
 
 
-def test_twse_rejects_redirects_and_invalid_symbols(tmp_path):
+def test_twse_rejects_redirects_and_invalid_symbols(tmp_path, capsys):
     class RedirectClient:
         def get(self, _url, **_kwargs):
-            return _Response(_payload(), status_code=302, url="https://example.test/redirect")
+            response = _Response(_payload(), status_code=302, url=API_URL)
+            response.headers["Location"] = "https://example.test/continue?token=secret"
+            return response
 
     assert fetch_twse(_config(tmp_path), client=RedirectClient(), sleep=lambda _seconds: None) is None
+    message = capsys.readouterr().out
+    assert "2330/2026-01" in message
+    assert "https://example.test/" in message
+    assert "token=secret" not in message
     assert fetch_twse(_config(tmp_path, ("2330?token=secret",)), client=RedirectClient(), sleep=lambda _seconds: None) is None
