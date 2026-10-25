@@ -149,6 +149,7 @@ jobs:
           public = json.loads(Path("web/public/data/provenance.json").read_text(encoding="utf-8"))
           raw_path = Path("data/raw/market_finmind.csv")
           raw_digest = hashlib.sha256(raw_path.read_bytes()).hexdigest()
+          cleaned_digest = hashlib.sha256(Path("data/processed/market_cleaned.csv").read_bytes()).hexdigest()
           with raw_path.open(encoding="utf-8", newline="") as handle:
               rows = sum(1 for _ in csv.DictReader(handle))
           assert source["provider"] == "finmind"
@@ -167,6 +168,6 @@ jobs:
           assert public["provider"] == "finmind"
           assert public["data_source"] == "FinMind public historical daily prices"
           assert public["is_simulated"] is False
-          assert public["input_sha256"] == source["data_file_sha256"]
+          assert public["input_sha256"] == cleaned_digest
           print(f"Verified {source['row_count']} source rows from {source['provider']}")
           PY

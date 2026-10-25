@@ -83,7 +83,7 @@ jobs:
           for attempt in {1..30}; do
             if curl --fail --silent http://127.0.0.1:8080/healthz | grep --quiet ok; then
               curl --fail --silent --show-error http://127.0.0.1:8080/ | grep --quiet "Market Regime Lab"
-              curl --fail --silent --show-error http://127.0.0.1:8080/data/manifest.json | grep --quiet '"schema_version":"2.0"'
+              curl --fail --silent --show-error http://127.0.0.1:8080/data/manifest.json | grep --quiet '"schema_version":"2.1"'
               curl --silent --head http://127.0.0.1:8080/ | grep --quiet --ignore-case "content-security-policy"
               test "$(docker inspect --format '{{.Config.User}}' "$container_id")" = "101"
               exit 0
