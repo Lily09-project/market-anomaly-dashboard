@@ -10,7 +10,7 @@ COPY src ./src
 RUN python run_all.py --mode api --require-api
 
 # Stage 2: build the static site.
-FROM node:22-slim AS web
+FROM node:26-slim AS web
 WORKDIR /app/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
