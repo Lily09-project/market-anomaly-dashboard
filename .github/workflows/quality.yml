@@ -108,7 +108,7 @@ jobs:
       - name: End-to-end journeys, accessibility and security (Q4, Q5, Q8)
         env:
           CI: "1"
-        run: npm run e2e
+        run: npm run e2e -- --grep-invert "正式公開"
       - name: Upload E2E report
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -119,3 +119,73 @@ jobs:
             web/test-results
           if-no-files-found: ignore
           retention-days: 7
+
+  public-api-integration:
+    name: Live no-auth public API integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - name: Install locked Python dependencies
+        run: |
+          python -m pip install --upgrade "pip>=26.2"
+          python -m pip install -r requirements-runtime.lock.txt
+          python -m pip check
+      - name: Fetch and process real public data without credentials
+        run: python run_all.py --mode api --require-api
+      - name: Confirm the published dataset is source-backed
+        run: |
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          from pathlib import Path
+          source = json.loads(Path("reports/metrics/source_metadata.json").read_text(encoding="utf-8"))
+          public = json.loads(Path("web/public/data/provenance.json").read_text(encoding="utf-8"))
+          raw_path = Path("data/raw/market_finmind.csv")
+          raw_digest = hashlib.sha256(raw_path.read_bytes()).hexdigest()
+          cleaned_digest = hashlib.sha256(Path("data/processed/market_cleaned.csv").read_bytes()).hexdigest()
+          with raw_path.open(encoding="utf-8", newline="") as handle:
+              rows = sum(1 for _ in csv.DictReader(handle))
+          assert source["provider"] == "finmind"
+          assert source["status"] == "success"
+          assert source["data_source"] == "API Data"
+          assert source.get("is_simulated_data") is False
+          assert source.get("row_count", 0) > 0
+          assert rows == source["row_count"]
+          assert source["data_file_sha256"] == raw_digest
+          assert source["source_row_count"] == source["row_count"] + source["excluded_no_trade_rows"]
+          assert public["source_quality"] == {
+              "source_row_count": source["source_row_count"],
+              "usable_price_rows": source["row_count"],
+              "excluded_no_trade_rows": source["excluded_no_trade_rows"],
+          }
+          assert public["provider"] == "finmind"
+          assert public["data_source"] == "FinMind public historical daily prices"
+          assert public["is_simulated"] is False
+          assert public["input_sha256"] == cleaned_digest
+          print(f"Verified {source['row_count']} source rows from {source['provider']}")
+          PY
+
+      - name: Install locked web dependencies for live-data acceptance
+        working-directory: web
+        run: npm ci --no-audit --no-fund
+      - name: Build the web app with real public data
+        working-directory: web
+        run: npm run typecheck && npm run build && npm run size
+      - name: Install Chromium for live-data acceptance
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+      - name: Verify real-data user paths across viewports
+        working-directory: web
+        env:
+          CI: "1"
+        run: npm run e2e -- e2e/production-data.spec.ts

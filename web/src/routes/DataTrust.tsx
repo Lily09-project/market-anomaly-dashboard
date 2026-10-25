@@ -43,7 +43,9 @@ function Trust({ provenance, regimes, events }: { provenance: Provenance; regime
         <p className="lede">
           {provenance.is_simulated
             ? "展示站使用固定種子的合成行情：每次重跑都得到位元組完全相同的結果，而且我們知道「正確答案」，因此能檢查每個方法是否真的找得到它。"
-            : "這份資料來自設定的市場資料來源，以下是它的指紋。"}
+            : provenance.provider === "finmind"
+              ? "網站資料來自 FinMind 免登入公開 API 的臺股日行情快照；資料不是即時報價，涵蓋範圍與指紋列於下方。"
+              : "這份資料來自設定的市場資料來源，以下是它的指紋。"}
         </p>
       </header>
 
@@ -55,7 +57,13 @@ function Trust({ provenance, regimes, events }: { provenance: Provenance; regime
           <p className="stat-value" data-testid="data-source">
             {provenance.is_simulated ? "合成資料" : provenance.data_source}
           </p>
-          <span className="muted small">種子 {provenance.seed}</span>
+          <span className="muted small">
+            {provenance.is_simulated
+              ? `測試種子 ${provenance.seed}`
+              : provenance.provider === "finmind"
+                ? `公開歷史日資料 · 非即時 · 排除零成交 ${provenance.source_quality?.excluded_no_trade_rows ?? 0} 筆`
+                : "公開歷史日資料 · 非即時"}
+          </span>
         </div>
         <div className="card">
           <span className="stat-label">涵蓋範圍</span>
@@ -166,7 +174,7 @@ function Trust({ provenance, regimes, events }: { provenance: Provenance; regime
         <p>區塊 bootstrap 在 Web Worker 中執行，使用與 Python 參考實作逐位相同的 mulberry32 亂數；VaR 為損失分位數，CVaR 為超過 VaR 的平均損失。</p>
         <h3>不應該怎麼用</h3>
         <ul>
-          <li>不是投資建議，也不是交易訊號；合成資料上的結果不代表任何真實股票。</li>
+          <li>不是投資建議，也不是交易訊號；測試用合成資料不代表真實市場表現。</li>
           <li>回測忽略滑價、流動性、稅與融資限制；樣本外表現差，正是這一頁想教的事。</li>
           <li>VaR 只描述歷史報酬重組後的分布，無法涵蓋歷史上沒出現過的危機。</li>
         </ul>
@@ -185,7 +193,7 @@ function Trust({ provenance, regimes, events }: { provenance: Provenance; regime
           ))}
         </ul>
         <p>
-          在專案根目錄執行 <code>python run_all.py --mode sample</code> 會重新產生資料與全部匯出檔，雜湊應與上表完全相同。
+          <code>python run_all.py --mode sample</code> 只產生可重現的測試資料；正式網站使用上列公開歷史行情，部署時若來源不可用會停止，不以合成資料替代。
         </p>
       </section>
     </div>

@@ -1,7 +1,7 @@
-"""One command from data to the files the web app reads.
+"""Build data files consumed by the static website.
 
-    python run_all.py --mode sample   # reproducible synthetic data (default)
-    python run_all.py --mode api      # api.provider (url or yfinance), falls back to sample data
+    python run_all.py --mode sample                 # reproducible test fixtures
+    python run_all.py --mode api --require-api      # public historical data; fail closed
 """
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import argparse
 from pathlib import Path
 
 from src.export_web import DEFAULT_OUT, export
+from src.fetch_finmind import fetch_finmind
 from src.fetch_market_data import fetch_market_data
 from src.fetch_yfinance import fetch_yfinance
 from src.generate_sample_data import generate_sample_data
@@ -16,17 +17,24 @@ from src.preprocess import preprocess_data
 from src.utils import ensure_project_dirs, load_config, project_path
 
 
-def run(mode: str = "sample", out_dir: Path | None = None) -> dict[str, str]:
+def run(mode: str = "sample", out_dir: Path | None = None, *, require_api: bool = False) -> dict[str, str]:
+    if require_api and mode != "api":
+        raise ValueError("--require-api can only be used with --mode api")
     config = load_config()
     ensure_project_dirs(config)
     market_path = None
     if mode == "api":
         api = config.get("api", {})
-        if api.get("provider") == "yfinance":
+        provider = api.get("provider", "url")
+        if provider == "finmind":
+            market_path = fetch_finmind(config)
+        elif provider == "yfinance":
             market_path = fetch_yfinance(config, list(api.get("symbols", [])))
         else:
             market_path = fetch_market_data(config)
         if market_path is None:
+            if require_api:
+                raise RuntimeError("Required market API data is unavailable; refusing to build a sample-data release.")
             print("API mode could not fetch prices; falling back to sample data.")
     if market_path is None:
         generate_sample_data(config)
@@ -41,8 +49,12 @@ def run(mode: str = "sample", out_dir: Path | None = None) -> dict[str, str]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", choices=["sample", "api"], default="sample")
+    parser.add_argument("--require-api", action="store_true", help="fail instead of falling back when API data is unavailable")
     args = parser.parse_args()
-    run(args.mode)
+    if args.require_api:
+        run(args.mode, require_api=True)
+    else:
+        run(args.mode)
 
 
 if __name__ == "__main__":

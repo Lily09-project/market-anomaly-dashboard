@@ -25,10 +25,10 @@ MARKET_COLUMN_ALIASES = {
     "date": ["date", "日期", "交易日期"],
     "symbol": ["symbol", "stock_id", "證券代號", "代號"],
     "open": ["open", "開盤價", "開盤"],
-    "high": ["high", "最高價", "最高"],
-    "low": ["low", "最低價", "最低"],
+    "high": ["high", "max", "最高價", "最高"],
+    "low": ["low", "min", "最低價", "最低"],
     "close": ["close", "收盤價", "收盤"],
-    "volume": ["volume", "成交股數", "成交量"],
+    "volume": ["volume", "trading_volume", "Trading_Volume", "成交股數", "成交量"],
 }
 
 

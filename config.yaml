@@ -2,22 +2,24 @@ project:
   name: Market Regime Lab
   short_name: market-anomaly-dashboard
   random_state: 42
-  disclaimer: 本專案僅供研究與技術展示，使用合成資料，不構成任何投資建議。
+  disclaimer: 本專案僅供研究與技術展示，不構成任何投資建議。
 
 data:
   # Fixed range keeps the synthetic data byte-for-byte reproducible.
   start_date: "2021-01-01"
   end_date: "2025-12-31"
   raw_dir: data/raw
+  source_metadata_path: reports/metrics/source_metadata.json
   sample_dir: data/sample
   processed_dir: data/processed
   sample_market_path: data/sample/sample_market.csv
   cleaned_path: data/processed/market_cleaned.csv
 
 api:
-  # "url": a CSV/JSON endpoint (TWSE-style Chinese column names are recognised);
-  # "yfinance": daily prices via the optional yfinance package.
-  provider: url
+  # FinMind public TaiwanStockPrice daily data requires no token.
+  provider: finmind
   symbols: ["0050", "2330", "2317"]
-  timeout_seconds: 15
+  start_date: "2021-01-01"
+  minimum_history_days: 400
+  timeout_seconds: 20
   market_url: ""
