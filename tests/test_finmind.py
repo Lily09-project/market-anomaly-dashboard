@@ -41,6 +41,18 @@ def test_finmind_field_mapping_and_numeric_rows():
     assert frame["volume"].tolist() == [1000, 1000]
 
 
+def test_finmind_rejects_non_finite_price_values():
+    payload = {"status": 200, "data": [{**_record("2026-01-02"), "open": float("inf"), "max": float("inf"), "close": float("inf")}]}
+    with pytest.raises(ValueError):
+        normalize_finmind_payload(payload, "2330", "2026-01-01", "2026-01-05")
+
+
+def test_finmind_rejects_dropped_incomplete_source_rows():
+    payload = {"status": 200, "data": [_record("2026-01-02"), {**_record("2026-01-05"), "close": None}]}
+    with pytest.raises(ValueError, match="incomplete or invalid"):
+        normalize_finmind_payload(payload, "2330", "2026-01-01", "2026-01-05")
+
+
 @pytest.mark.parametrize(("payload", "symbol", "message"), [
     ({"status": 403, "data": []}, "2330", "unsuccessful"),
     ({"status": 200, "data": []}, "2330", "no price records"),

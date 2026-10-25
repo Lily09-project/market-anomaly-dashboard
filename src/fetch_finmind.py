@@ -49,6 +49,8 @@ def normalize_finmind_payload(payload: Any, symbol: str, start_date: str, end_da
     if not isinstance(records, list) or not records:
         raise ValueError("FinMind returned no price records.")
     frame = normalize_market_columns(pd.DataFrame(records))
+    if len(frame) != len(records):
+        raise ValueError("FinMind returned incomplete or invalid price records.")
     if frame.empty:
         raise ValueError("FinMind returned no usable price records.")
     frame["date"] = pd.to_datetime(frame["date"], errors="coerce")
@@ -63,7 +65,8 @@ def normalize_finmind_payload(payload: Any, symbol: str, start_date: str, end_da
     frame[numeric] = frame[numeric].apply(lambda column: pd.to_numeric(column, errors="coerce"))
     if frame[numeric].isna().any().any():
         raise ValueError("FinMind returned invalid numeric price fields.")
-    if not frame[numeric].map(lambda column: column.map(math.isfinite)).all().all():
+    finite = frame[numeric].apply(lambda column: column.map(math.isfinite))
+    if not finite.all().all():
         raise ValueError("FinMind returned non-finite numeric price fields.")
     bad_price = (frame[["open", "high", "low", "close"]] <= 0).any(axis=1)
     bad_volume = frame["volume"] < 0
