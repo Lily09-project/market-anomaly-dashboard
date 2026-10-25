@@ -46,38 +46,6 @@ export function useRoute(): [Route, (route: Route, options?: { replace?: boolean
   return [parseRoute(hash), navigate];
 }
 
-export type ThemeChoice = "system" | "light" | "dark";
-const THEME_KEY = "market-regime-lab-theme";
-
-function readTheme(): ThemeChoice {
-  try {
-    const stored = window.localStorage.getItem(THEME_KEY);
-    return stored === "light" || stored === "dark" ? stored : "system";
-  } catch {
-    return "system";
-  }
-}
-
-export function applyTheme(choice: ThemeChoice): void {
-  const root = document.documentElement;
-  if (choice === "system") delete root.dataset.theme;
-  else root.dataset.theme = choice;
-}
-
-export function useTheme(): [ThemeChoice, (choice: ThemeChoice) => void] {
-  const [theme, setTheme] = useState<ThemeChoice>(readTheme);
-  useEffect(() => {
-    applyTheme(theme);
-    try {
-      if (theme === "system") window.localStorage.removeItem(THEME_KEY);
-      else window.localStorage.setItem(THEME_KEY, theme);
-    } catch {
-      // Storage may be unavailable (private mode); the theme still applies for this visit.
-    }
-  }, [theme]);
-  return [theme, setTheme];
-}
-
 /** True when the viewer asked the OS to minimise motion. */
 export function usePrefersReducedMotion(): boolean {
   const query = "(prefers-reduced-motion: reduce)";

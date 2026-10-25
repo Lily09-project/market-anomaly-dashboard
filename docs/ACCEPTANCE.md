@@ -65,8 +65,8 @@
 | Q1 | Python 測試 | `pytest -W error` 全數通過；`src/analytics/` 行覆蓋率 ≥ 90%；ruff、bandit、pip-audit 無問題 |
 | Q2 | 前端靜態檢查 | `tsc --noEmit` 0 錯誤；ESLint 0 錯誤 |
 | Q3 | 前端單元測試 | Vitest 全數通過；`web/src/lib/` 行覆蓋率 ≥ 85% |
-| Q4 | E2E 使用者旅程 | Playwright 覆蓋 F1–F7，在 390／768／1440px 與淺色／深色下通過；0 個 console error、0 個失敗請求 |
-| Q5 | 無障礙 | axe-core 每頁、兩種主題 0 個 serious/critical；所有旅程可純鍵盤完成；圖表提供文字／表格替代 |
+| Q4 | E2E 使用者旅程 | Playwright 覆蓋 F1–F7，在 390／768／1440px 與系統淺／深色偏好下通過；網站維持固定品牌配色；0 個 console error、0 個失敗請求 |
+| Q5 | 無障礙 | axe-core 每頁在系統淺／深色偏好下皆 0 個 serious/critical；所有旅程可純鍵盤完成；圖表提供文字／表格替代 |
 | Q6 | 效能 | 初始 JS gzip ≤ 200 KB；首屏資料 ≤ 800 KB；主要內容 1.5 秒內出現；模擬不阻塞主執行緒 |
 | Q7 | 可重現 | 合成資料、管線與匯出連跑兩次，SHA-256 完全相同；模擬固定種子可重現 |
 | Q8 | 安全 | CSP、無 inline script、執行期無第三方請求、快照匯入有大小與結構驗證 |

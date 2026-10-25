@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useDataset, useRoute, useTheme, type ThemeChoice } from "../app/hooks";
+import { useDataset, useRoute } from "../app/hooks";
 import { routeToHash, type Route } from "../lib/router";
 import "./Shell.css";
 
@@ -16,15 +16,8 @@ function navItems(symbol: string | undefined): { route: Route; label: string; ma
   ];
 }
 
-const THEMES: { value: ThemeChoice; label: string }[] = [
-  { value: "system", label: "跟隨系統" },
-  { value: "light", label: "淺色" },
-  { value: "dark", label: "深色" },
-];
-
 export function Shell({ children }: { children: ReactNode }) {
   const [route] = useRoute();
-  const [theme, setTheme] = useTheme();
   const provenance = useDataset("provenance.json");
   const simulated = provenance.status === "ready" ? provenance.data.is_simulated : null;
   const symbol = "symbol" in route ? route.symbol : undefined;
@@ -60,16 +53,6 @@ export function Shell({ children }: { children: ReactNode }) {
                 {simulated ? "合成資料" : "市場資料"}
               </a>
             )}
-            <label className="theme-picker">
-              <span className="visually-hidden">介面主題</span>
-              <select className="input" value={theme} onChange={(e) => setTheme(e.target.value as ThemeChoice)} aria-label="介面主題">
-                {THEMES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </label>
           </div>
         </div>
       </header>

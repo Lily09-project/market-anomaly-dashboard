@@ -47,11 +47,7 @@
     <td><img src="docs/screenshots/backtest.png" alt="樣本內與樣本外 Sharpe 熱力圖" /></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/events.png" alt="負向與正向衝擊後的累積異常報酬（深色主題）" /></td>
-    <td><img src="docs/screenshots/stress.png" alt="區塊 bootstrap 扇形圖與期末報酬分布" /></td>
-  </tr>
-  <tr>
-    <td colspan="2"><img src="docs/screenshots/pages-mobile.png" alt="手機版總覽（深色主題）" width="260" /></td>
+    <td colspan="2"><img src="docs/screenshots/stress.png" alt="區塊 bootstrap 扇形圖與期末報酬分布" /></td>
   </tr>
 </table>
 
@@ -70,7 +66,7 @@ flowchart LR
 
 - **資料科學**：所有演算法在 `src/analytics/` 以 numpy 自行實作（不使用 hmmlearn、statsmodels 等黑盒），每個都有手算小例子與「能否找回已知答案」的測試。
 - **後端工程**：一條指令完成資料、分析與匯出；匯出不讀系統時間、固定種子、鍵排序；多階段 Docker 映像以非 root nginx 提供網站並附健康檢查與安全標頭。
-- **前端**：React 19 + TypeScript + Vite、d3-scale 手寫 SVG（依容器寬度量測）、可點選的參數熱力圖、Web Worker 模擬可取消並顯示進度、Hash 路由保存標的與參數、淺色／深色主題；首屏 JS 86 KB（gzip）。
+- **前端**：React 19 + TypeScript + Vite、d3-scale 手寫 SVG（依容器寬度量測）、可點選的參數熱力圖、Web Worker 模擬可取消並顯示進度、Hash 路由保存標的與參數、固定淺色配色，不隨系統外觀偏好切換；首屏 JS 86 KB（gzip）。
 - **可及性與安全**：每張圖都有等價資料表、熱力圖格子是可聚焦的按鈕、axe-core 零 serious/critical；嚴格 CSP、無 inline script、執行期不呼叫第三方；快照匯入有大小、結構與指紋驗證。
 
 ## 本機啟動
@@ -108,7 +104,7 @@ docker build -t market-regime-lab . && docker run --rm -p 8080:8080 market-regim
 | --- | --- | --- |
 | Python 分析 | `python -W error -m pytest -q --cov=src.analytics --cov=src.export_web --cov-fail-under=90` | 全數通過；覆蓋率 ≥ 90%（目前 99%） |
 | 前端邏輯 | `npm run typecheck && npm run lint && npm run coverage` | 0 錯誤；`web/src/lib` 覆蓋率 ≥ 85%；含 TS／Python 壓力測試一致性與快照竄改測試 |
-| 端對端 | `npm run e2e` | 4 種組合（1440 淺色／深色、768、390）× F1–F7 旅程與品質檢查，含 axe、鍵盤、0 console error |
+| 端對端 | `npm run e2e` | 4 種視窗／系統色彩組合（1440 淺色與深色偏好、768 平板、390 手機）× F1–F7 旅程；檢查固定品牌配色、axe、鍵盤及 0 console error |
 | 效能 | `npm run size` | 首屏 JS ≤ 200 KB、首屏資料 ≤ 800 KB |
 | 安全與容器 | `ruff`、`bandit`、`pip-audit`、`npm audit`、gitleaks、CI 建置映像並檢查健康與 CSP 標頭 | 無問題 |
 
