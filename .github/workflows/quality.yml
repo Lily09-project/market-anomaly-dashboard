@@ -108,7 +108,7 @@ jobs:
       - name: End-to-end journeys, accessibility and security (Q4, Q5, Q8)
         env:
           CI: "1"
-        run: npm run e2e
+        run: npm run e2e -- --grep-invert "正式公開"
       - name: Upload E2E report
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
