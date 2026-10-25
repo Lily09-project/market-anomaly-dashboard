@@ -16,8 +16,6 @@ function navItems(symbol: string | undefined): { route: Route; label: string; ma
   ];
 }
 
-
-
 export function Shell({ children }: { children: ReactNode }) {
   const [route] = useRoute();
   const provenance = useDataset("provenance.json");
