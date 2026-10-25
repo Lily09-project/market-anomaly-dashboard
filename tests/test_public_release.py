@@ -12,14 +12,16 @@ def test_runtime_and_development_dependencies_are_separated() -> None:
     assert "-r requirements.txt" in development
 
 
-def test_container_builds_the_site_and_serves_it_unprivileged() -> None:
+def test_container_uses_source_backed_data_and_serves_it_unprivileged() -> None:
     dockerfile = project_path("Dockerfile").read_text(encoding="utf-8")
-    assert "python run_all.py --mode sample" in dockerfile
+    release_data_command = "python run_all.py --mode api --require-api"
+    assert release_data_command in dockerfile
+    assert "python run_all.py --mode sample" not in dockerfile
     assert "npm run build" in dockerfile
     assert "nginx-unprivileged" in dockerfile
     assert "USER 101" in dockerfile
     assert "HEALTHCHECK" in dockerfile
-    assert dockerfile.index("python run_all.py --mode sample") < dockerfile.index("npm run build") < dockerfile.index("USER 101")
+    assert dockerfile.index(release_data_command) < dockerfile.index("npm run build") < dockerfile.index("USER 101")
     nginx = project_path("deploy/nginx.conf").read_text(encoding="utf-8")
     assert "Content-Security-Policy" in nginx
     assert "frame-ancestors 'none'" in nginx
@@ -34,6 +36,9 @@ def test_github_actions_build_and_check_the_container() -> None:
     assert "http://127.0.0.1:8080/healthz" in workflow
     assert "content-security-policy" in workflow
     assert "docker logs" in workflow
+    assert "/data/provenance.json" in workflow
+    assert 'provenance.get("provider") == "finmind"' in workflow
+    assert 'provenance.get("is_simulated") is False' in workflow
     assert "npm audit --audit-level=high" in workflow
     assert "gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e" in workflow
 

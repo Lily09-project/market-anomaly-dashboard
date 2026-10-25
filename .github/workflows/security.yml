@@ -84,6 +84,8 @@ jobs:
             if curl --fail --silent http://127.0.0.1:8080/healthz | grep --quiet ok; then
               curl --fail --silent --show-error http://127.0.0.1:8080/ | grep --quiet "Market Regime Lab"
               curl --fail --silent --show-error http://127.0.0.1:8080/data/manifest.json | grep --quiet '"schema_version":"2.1"'
+              curl --fail --silent --show-error http://127.0.0.1:8080/data/provenance.json --output "$RUNNER_TEMP/provenance.json"
+              python -c 'import json,sys; from pathlib import Path; provenance=json.loads(Path(sys.argv[1]).read_text(encoding="utf-8")); assert provenance.get("provider") == "finmind"; assert provenance.get("data_source") == "FinMind public historical daily prices"; assert provenance.get("is_simulated") is False; assert provenance.get("input_sha256"); print("Verified source-backed FinMind data in production container")' "$RUNNER_TEMP/provenance.json"
               curl --silent --head http://127.0.0.1:8080/ | grep --quiet --ignore-case "content-security-policy"
               test "$(docker inspect --format '{{.Config.User}}' "$container_id")" = "101"
               exit 0

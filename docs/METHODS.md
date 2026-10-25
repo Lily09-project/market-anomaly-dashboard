@@ -2,7 +2,11 @@
 
 所有方法在 `src/analytics/`，測試在 `tests/test_analytics.py`（手算小例子與合成資料驗證）與 `tests/test_export_web.py`（整條管線）。
 
-## 資料（`src/generate_sample_data.py`）
+## 正式資料與合成測試資料
+
+正式 Pages 與 Docker 建置使用 FinMind 公開歷史日行情，並以 provenance 記錄來源及非合成狀態；資料在建置時取得，網站執行時不即時連線。以下固定種子行情與其已知市場狀態是方法驗證用的合成 fixture，不是正式網站資料或真實股票績效描述。合成資料只用於本機／CI 方法測試與 PR 預覽。
+
+## 合成資料設定（`src/generate_sample_data.py`）
 
 | 項目 | 設定 |
 | --- | --- |
