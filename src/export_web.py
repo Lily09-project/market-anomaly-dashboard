@@ -319,8 +319,24 @@ def export(out_dir: Path, cleaned_path: Path | None = None) -> dict[str, str]:
     )
 
     input_bytes = Path(cleaned_path or project_path(config["data"]["cleaned_path"])).read_bytes()
+    provider = str(config.get("api", {}).get("provider", "unknown"))
+    if simulated:
+        source_label = "Reproducible synthetic test data"
+        market_sources = [{"label": "Synthetic data generator (test fixture)", "url": "https://github.com/Lily09-project/market-anomaly-dashboard"}]
+    elif provider == "finmind":
+        source_label = "FinMind public historical daily prices"
+        market_sources = [
+            {"label": "FinMind API documentation (no-token public access)", "url": "https://finmind.github.io/quickstart/"},
+            {"label": "TaiwanStockPrice dataset fields and coverage", "url": "https://finmind.github.io/tutor/TaiwanMarket/Technical/"},
+            {"label": "TWSE daily transaction dataset and open-data terms", "url": "https://data.gov.tw/dataset/11549"},
+            {"label": "Government Open Data License 1.0", "url": "https://data.gov.tw/license"},
+        ]
+    else:
+        source_label = "Configured market data API"
+        market_sources = []
     provenance = {
-        "data_source": "Sample Data" if simulated else "API Data",
+        "data_source": source_label,
+        "provider": provider,
         "is_simulated": simulated,
         "seed": int(config["project"]["random_state"]),
         "range": {"start": dates[0], "end": dates[-1]},
@@ -329,8 +345,7 @@ def export(out_dir: Path, cleaned_path: Path | None = None) -> dict[str, str]:
         "input_sha256": hashlib.sha256(input_bytes).hexdigest(),
         "truth": {"regimes": truth_states is not None, "injected_events": truth_jumps is not None},
         "disclaimer": config["project"]["disclaimer"],
-        "sources": [
-            {"label": "臺灣證券交易所 OpenAPI", "url": "https://openapi.twse.com.tw/"},
+        "sources": market_sources + [
             {"label": "Bailey et al. (2017) The Probability of Backtest Overfitting", "url": "https://doi.org/10.21314/JCF.2016.322"},
             {"label": "Bailey & López de Prado (2014) The Deflated Sharpe Ratio", "url": "https://doi.org/10.3905/jpm.2014.40.5.094"},
         ],

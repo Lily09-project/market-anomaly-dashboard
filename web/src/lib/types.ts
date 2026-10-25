@@ -138,6 +138,7 @@ export interface Stress {
 
 export interface Provenance {
   data_source: string;
+  provider: string;
   is_simulated: boolean;
   seed: number;
   range: { start: string; end: string };

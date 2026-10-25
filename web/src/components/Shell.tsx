@@ -20,6 +20,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const [route] = useRoute();
   const provenance = useDataset("provenance.json");
   const simulated = provenance.status === "ready" ? provenance.data.is_simulated : null;
+  const provider = provenance.status === "ready" ? provenance.data.provider : null;
   const symbol = "symbol" in route ? route.symbol : undefined;
 
   return (
@@ -50,7 +51,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className="site-tools">
             {simulated !== null && (
               <a className="data-badge" href={routeToHash({ name: "data" })} data-simulated={simulated} data-testid="data-badge">
-                {simulated ? "合成資料" : "市場資料"}
+                {simulated ? "測試資料" : provider === "finmind" ? "FinMind 日資料" : "市場資料"}
               </a>
             )}
           </div>
@@ -65,7 +66,7 @@ export function Shell({ children }: { children: ReactNode }) {
             {provenance.status === "ready" && (
               <>
                 資料期間 {provenance.data.range.start} 至 {provenance.data.range.end}，共 {provenance.data.trading_days} 個交易日
-                {provenance.data.is_simulated ? "（固定種子的合成行情，含已知答案供驗證）" : ""}。
+                {provenance.data.is_simulated ? "（測試用合成資料）" : provider === "finmind" ? "（歷史快照，非即時）" : ""}。
               </>
             )}
             本站僅供研究與教學，不構成任何投資建議；所有績效與風險數字都是歷史或模擬結果，不代表未來表現。
