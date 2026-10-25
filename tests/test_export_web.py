@@ -98,25 +98,25 @@ def test_stress_parity_cases_reproduce(exported: Path) -> None:
         assert summary["cvar99"] == pytest.approx(case["cvar99"], abs=1e-12)
 
 
-def test_finmind_source_quality_requires_matching_real_source_metadata(tmp_path: Path) -> None:
+def test_twse_source_quality_requires_matching_real_source_metadata(tmp_path: Path) -> None:
     raw_dir = tmp_path / "raw"
     raw_dir.mkdir()
-    raw_path = raw_dir / "market_finmind.csv"
+    raw_path = raw_dir / "market_twse.csv"
     raw_path.write_text("date,symbol,close\\n2026-01-02,2330,100\\n", encoding="utf-8")
     digest = hashlib.sha256(raw_path.read_bytes()).hexdigest()
     metadata_path = tmp_path / "source_metadata.json"
     metadata_path.write_text(json.dumps({
-        "provider": "finmind", "status": "success", "data_source": "API Data",
+        "provider": "twse", "status": "success", "data_source": "TWSE public daily transaction data",
         "is_simulated_data": False, "row_count": 1, "source_row_count": 2,
         "excluded_no_trade_rows": 1, "data_file_sha256": digest,
     }), encoding="utf-8")
     config = {"data": {"raw_dir": raw_dir, "source_metadata_path": metadata_path}}
-    assert export_web._finmind_source_quality(config, "finmind", False) == {
+    assert export_web._twse_source_quality(config, "twse", False) == {
         "source_row_count": 2, "usable_price_rows": 1, "excluded_no_trade_rows": 1,
     }
     raw_path.write_text("tampered", encoding="utf-8")
     with pytest.raises(ValueError, match="does not match"):
-        export_web._finmind_source_quality(config, "finmind", False)
+        export_web._twse_source_quality(config, "twse", False)
 
 
 def test_provenance_marks_simulated_data(exported: Path) -> None:

@@ -15,12 +15,12 @@ interface Overview {
 }
 
 test.describe("正式公開行情資料", () => {
-  test("the public site renders verified FinMind data and its provenance", async ({ page }) => {
+  test("the public site renders verified TWSE data and its provenance", async ({ page }) => {
     const provenance = await fetchJson<Provenance>(page, "provenance.json");
     const overview = await fetchJson<Overview>(page, "overview.json");
 
-    expect(provenance.provider).toBe("finmind");
-    expect(provenance.data_source).toBe("FinMind public historical daily prices");
+    expect(provenance.provider).toBe("twse");
+    expect(provenance.data_source).toBe("TWSE public daily transaction data");
     expect(provenance.is_simulated).toBe(false);
     expect(provenance.trading_days).toBeGreaterThanOrEqual(400);
     expect(provenance.symbols.slice().sort()).toEqual(["0050", "2317", "2330"]);
@@ -42,8 +42,9 @@ test.describe("正式公開行情資料", () => {
     await expectAccessible(page);
 
     await openRoute(page, "/data");
-    await expect(page.getByTestId("data-source")).toHaveText("FinMind public historical daily prices");
+    await expect(page.getByTestId("data-source")).toHaveText("TWSE public daily transaction data");
     await expect(page.getByTestId("integrity-summary")).toHaveText("6/6");
+    await expect(page.getByTestId("data-attribution")).toContainText("11549");
     await expectAccessible(page);
   });
 });

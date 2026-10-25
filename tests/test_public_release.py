@@ -37,7 +37,7 @@ def test_github_actions_build_and_check_the_container() -> None:
     assert "content-security-policy" in workflow
     assert "docker logs" in workflow
     assert "/data/provenance.json" in workflow
-    assert 'provenance.get("provider") == "finmind"' in workflow
+    assert 'provenance.get("provider") == "twse"' in workflow
     assert 'provenance.get("is_simulated") is False' in workflow
     assert "npm audit --audit-level=high" in workflow
     assert "gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e" in workflow

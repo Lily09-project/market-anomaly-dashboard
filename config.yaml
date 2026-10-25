@@ -16,8 +16,8 @@ data:
   cleaned_path: data/processed/market_cleaned.csv
 
 api:
-  # FinMind public TaiwanStockPrice daily data requires no token.
-  provider: finmind
+  # Public TWSE historical JSON data requires no API key; release snapshots are source-backed.
+  provider: twse
   symbols: ["0050", "2330", "2317"]
   start_date: "2021-01-01"
   minimum_history_days: 400

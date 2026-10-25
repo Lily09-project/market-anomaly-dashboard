@@ -106,8 +106,8 @@ jobs:
 
           provenance = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
           quality = provenance.get("source_quality")
-          assert provenance.get("provider") == "finmind"
-          assert provenance.get("data_source") == "FinMind public historical daily prices"
+          assert provenance.get("provider") == "twse"
+          assert provenance.get("data_source") == "TWSE public daily transaction data"
           assert provenance.get("is_simulated") is False
           assert isinstance(quality, dict)
           usable = quality.get("usable_price_rows")
@@ -117,5 +117,5 @@ jobs:
           assert isinstance(source, int) and not isinstance(source, bool)
           assert isinstance(excluded, int) and not isinstance(excluded, bool) and excluded >= 0
           assert source == usable + excluded
-          print(f"Verified public FinMind snapshot: {usable} usable, {excluded} no-trade rows excluded")
+          print(f"Verified public TWSE snapshot: {usable} usable, {excluded} zero-trade rows excluded")
           PY

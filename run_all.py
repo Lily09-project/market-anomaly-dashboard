@@ -9,7 +9,7 @@ import argparse
 from pathlib import Path
 
 from src.export_web import DEFAULT_OUT, export
-from src.fetch_finmind import fetch_finmind
+from src.fetch_twse import fetch_twse
 from src.fetch_market_data import fetch_market_data
 from src.fetch_yfinance import fetch_yfinance
 from src.generate_sample_data import generate_sample_data
@@ -26,8 +26,8 @@ def run(mode: str = "sample", out_dir: Path | None = None, *, require_api: bool 
     if mode == "api":
         api = config.get("api", {})
         provider = api.get("provider", "url")
-        if provider == "finmind":
-            market_path = fetch_finmind(config)
+        if provider == "twse":
+            market_path = fetch_twse(config)
         elif provider == "yfinance":
             market_path = fetch_yfinance(config, list(api.get("symbols", [])))
         else:

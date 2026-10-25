@@ -236,32 +236,32 @@ def stress_parity(symbol: str, returns: np.ndarray) -> list[dict[str, Any]]:
     return cases
 
 
-def _finmind_source_quality(config: dict[str, Any], provider: str, simulated: bool) -> dict[str, int] | None:
-    """Bind public provenance to the validated raw FinMind snapshot and its exclusions."""
-    if simulated or provider != "finmind":
+def _twse_source_quality(config: dict[str, Any], provider: str, simulated: bool) -> dict[str, int] | None:
+    """Bind public provenance to the validated raw TWSE snapshot and its exclusions."""
+    if simulated or provider != "twse":
         return None
     metadata_path = project_path(config["data"].get("source_metadata_path", "reports/metrics/source_metadata.json"))
-    raw_path = project_path(Path(config["data"]["raw_dir"]) / "market_finmind.csv")
+    raw_path = project_path(Path(config["data"]["raw_dir"]) / "market_twse.csv")
     try:
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         raw_digest = hashlib.sha256(raw_path.read_bytes()).hexdigest()
     except (OSError, json.JSONDecodeError) as exc:
-        raise ValueError("FinMind source quality metadata is missing or unreadable.") from exc
-    if not isinstance(metadata, dict) or metadata.get("provider") != "finmind" or metadata.get("status") != "success":
-        raise ValueError("FinMind source quality metadata is invalid.")
-    if metadata.get("is_simulated_data") is not False or metadata.get("data_source") != "API Data":
-        raise ValueError("FinMind metadata does not identify a real public API source.")
+        raise ValueError("TWSE source quality metadata is missing or unreadable.") from exc
+    if not isinstance(metadata, dict) or metadata.get("provider") != "twse" or metadata.get("status") != "success":
+        raise ValueError("TWSE source quality metadata is invalid.")
+    if metadata.get("is_simulated_data") is not False or metadata.get("data_source") != "TWSE public daily transaction data":
+        raise ValueError("TWSE metadata does not identify a real public API source.")
     if metadata.get("data_file_sha256") != raw_digest:
-        raise ValueError("FinMind source quality metadata does not match the raw data file.")
+        raise ValueError("TWSE source quality metadata does not match the raw data file.")
     counts = ("row_count", "source_row_count", "excluded_no_trade_rows")
     values: dict[str, int] = {}
     for key in counts:
         value = metadata.get(key)
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-            raise ValueError("FinMind source quality metadata contains invalid row counts.")
+            raise ValueError("TWSE source quality metadata contains invalid row counts.")
         values[key] = value
     if values["row_count"] <= 0 or values["source_row_count"] != values["row_count"] + values["excluded_no_trade_rows"]:
-        raise ValueError("FinMind source quality row counts are inconsistent.")
+        raise ValueError("TWSE source quality row counts are inconsistent.")
     return {
         "source_row_count": values["source_row_count"],
         "usable_price_rows": values["row_count"],
@@ -279,7 +279,7 @@ def export(out_dir: Path, cleaned_path: Path | None = None) -> dict[str, str]:
     dates = list(wide.index)
     simulated = bool((cleaned.get("data_source", pd.Series(["sample"])) == "sample").all())
     provider = str(config.get("api", {}).get("provider", "unknown"))
-    source_quality = _finmind_source_quality(config, provider, simulated)
+    source_quality = _twse_source_quality(config, provider, simulated)
     sample_dir = project_path(config["data"]["sample_market_path"]).parent
     truth_states = None
     truth_jumps: pd.DataFrame | None = None
@@ -357,13 +357,12 @@ def export(out_dir: Path, cleaned_path: Path | None = None) -> dict[str, str]:
     if simulated:
         source_label = "Reproducible synthetic test data"
         market_sources = [{"label": "Synthetic data generator (test fixture)", "url": "https://github.com/Lily09-project/market-anomaly-dashboard"}]
-    elif provider == "finmind":
-        source_label = "FinMind public historical daily prices"
+    elif provider == "twse":
+        source_label = "TWSE public daily transaction data"
         market_sources = [
-            {"label": "FinMind API documentation (no-token public access)", "url": "https://finmind.github.io/quickstart/"},
-            {"label": "TaiwanStockPrice dataset fields and coverage", "url": "https://finmind.github.io/tutor/TaiwanMarket/Technical/"},
-            {"label": "TWSE daily transaction dataset and open-data terms", "url": "https://data.gov.tw/dataset/11549"},
-            {"label": "Government Open Data License 1.0", "url": "https://data.gov.tw/license"},
+            {"label": "TWSE historical daily JSON query (public, no key)", "url": "https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY"},
+            {"label": "Listed-stock daily transaction dataset (data.gov.tw 11549)", "url": "https://data.gov.tw/dataset/11549"},
+            {"label": "Open Government Data License, version 1.0", "url": "https://data.gov.tw/license"},
         ]
     else:
         source_label = "Configured market data API"

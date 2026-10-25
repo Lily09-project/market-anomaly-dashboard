@@ -43,12 +43,19 @@ function Trust({ provenance, regimes, events }: { provenance: Provenance; regime
         <p className="lede">
           {provenance.is_simulated
             ? "展示站使用固定種子的合成行情：每次重跑都得到位元組完全相同的結果，而且我們知道「正確答案」，因此能檢查每個方法是否真的找得到它。"
-            : provenance.provider === "finmind"
-              ? "網站資料來自 FinMind 免登入公開 API 的臺股日行情快照；資料不是即時報價，涵蓋範圍與指紋列於下方。"
+            : provenance.provider === "twse"
+              ? "網站使用 TWSE 免登入、免 API key 的公開 JSON 歷史日成交資料；不是即時報價，涵蓋範圍與指紋列於下方。"
               : "這份資料來自設定的市場資料來源，以下是它的指紋。"}
         </p>
       </header>
 
+      {provenance.provider === "twse" && (
+        <p className="muted small" data-testid="data-attribution">
+          提供機關：金融監督管理委員會證券期貨局；原始來源：臺灣證券交易所；資料集：上市個股日成交資訊（11549，2017）。依
+          <a href="https://data.gov.tw/license" target="_blank" rel="noopener noreferrer">政府資料開放授權條款第 1 版</a>
+          使用；本網站已整理與分析。
+        </p>
+      )}
       <p className="notice">{provenance.disclaimer}</p>
 
       <section className="grid grid-3">
@@ -60,7 +67,7 @@ function Trust({ provenance, regimes, events }: { provenance: Provenance; regime
           <span className="muted small">
             {provenance.is_simulated
               ? `測試種子 ${provenance.seed}`
-              : provenance.provider === "finmind"
+              : provenance.provider === "twse"
                 ? `公開歷史日資料 · 非即時 · 排除零成交 ${provenance.source_quality?.excluded_no_trade_rows ?? 0} 筆`
                 : "公開歷史日資料 · 非即時"}
           </span>

@@ -7,11 +7,11 @@
 
 | 項目 | 決策 |
 | --- | --- |
-| 資料 | 正式 Pages 與 Docker 僅發布經驗證的 FinMind 公開歷史行情；使用 `--mode api --require-api`，來源或資料驗證失敗即停止。固定種子合成資料只供本機研究、方法測試與 PR 預覽。 |
+| 資料 | 正式 Pages 與 Docker 僅發布經驗證的 TWSE 公開 JSON 歷史日成交資料；使用 `--mode api --require-api`，來源或資料驗證失敗即停止。固定種子合成資料只供本機研究、方法測試與 PR 預覽。 |
 | 分析核心 | Python（`src/`），新增 `src/analytics/`，以 numpy 自行實作演算法（不依賴黑盒套件），全部可離線、可重現 |
 | 前端 | 全新 React + TypeScript + Vite 靜態網站（`web/`），部署於 GitHub Pages |
 | 舊版 Streamlit | 移除，由新網站與新測試取代 |
-| 誠實標示 | 正式資料標明 FinMind 與非即時歷史行情；合成預覽清楚標記模擬資料；全站標示研究用途與非投資建議，並呈現樣本外結果 |
+| 誠實標示 | 正式資料標明 TWSE 與非即時歷史日成交資料；合成預覽清楚標記模擬資料；全站標示研究用途與非投資建議，並呈現樣本外結果 |
 
 ## 1. 功能驗收（創新功能）
 
@@ -70,7 +70,7 @@
 | Q6 | 效能 | 初始 JS gzip ≤ 200 KB；首屏資料 ≤ 800 KB；主要內容 1.5 秒內出現；模擬不阻塞主執行緒 |
 | Q7 | 可重現 | 合成資料、管線與匯出連跑兩次，SHA-256 完全相同；模擬固定種子可重現 |
 | Q8 | 安全 | CSP、無 inline script、執行期無第三方請求、快照匯入有大小與結構驗證 |
-| Q9 | CI／部署 | PR CI 通過；公開 API 整合、Docker 建置與容器 smoke 均驗證 FinMind 且非合成；正式 Pages 的 strict API 建置、真實資料 E2E 與部署 smoke 通過 |
+| Q9 | CI／部署 | PR CI 通過；公開 API 整合、Docker 建置與容器 smoke 均驗證 TWSE 且非合成；正式 Pages 的 strict API 建置、真實資料 E2E 與部署 smoke 通過 |
 | Q10 | 文件 | README 說明問題、創新點、截圖、架構圖、執行方式、測試證據；方法說明含限制 |
 
 ## 3. 完成定義
