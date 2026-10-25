@@ -1,4 +1,4 @@
-# Stage 1: generate the reproducible analysis.
+# Stage 1: fetch and validate real public market data for the production snapshot.
 FROM python:3.12-slim AS data
 ENV PYTHONDONTWRITEBYTECODE=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /app
@@ -7,7 +7,7 @@ RUN python -m pip install --no-cache-dir "pip>=26.2" \
     && python -m pip install --no-cache-dir -r requirements-runtime.lock.txt
 COPY config.yaml run_all.py ./
 COPY src ./src
-RUN python run_all.py --mode sample
+RUN python run_all.py --mode api --require-api
 
 # Stage 2: build the static site.
 FROM node:22-slim AS web

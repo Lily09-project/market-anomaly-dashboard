@@ -7,11 +7,11 @@
 
 | 項目 | 決策 |
 | --- | --- |
-| 資料 | 預設使用可重現的合成行情（固定種子），以已知的市場狀態切換（平穩／高波動／趨勢）產生，方便驗證演算法；保留 yfinance／TWSE adapter，但展示站不依賴它 |
+| 資料 | 正式 Pages 與 Docker 僅發布經驗證的 FinMind 公開歷史行情；使用 `--mode api --require-api`，來源或資料驗證失敗即停止。固定種子合成資料只供本機研究、方法測試與 PR 預覽。 |
 | 分析核心 | Python（`src/`），新增 `src/analytics/`，以 numpy 自行實作演算法（不依賴黑盒套件），全部可離線、可重現 |
 | 前端 | 全新 React + TypeScript + Vite 靜態網站（`web/`），部署於 GitHub Pages |
 | 舊版 Streamlit | 移除，由新網站與新測試取代 |
-| 誠實標示 | 全站標示「合成資料、研究用途、非投資建議」；所有績效數字同時呈現樣本外結果 |
+| 誠實標示 | 正式資料標明 FinMind 與非即時歷史行情；合成預覽清楚標記模擬資料；全站標示研究用途與非投資建議，並呈現樣本外結果 |
 
 ## 1. 功能驗收（創新功能）
 
@@ -65,12 +65,12 @@
 | Q1 | Python 測試 | `pytest -W error` 全數通過；`src/analytics/` 行覆蓋率 ≥ 90%；ruff、bandit、pip-audit 無問題 |
 | Q2 | 前端靜態檢查 | `tsc --noEmit` 0 錯誤；ESLint 0 錯誤 |
 | Q3 | 前端單元測試 | Vitest 全數通過；`web/src/lib/` 行覆蓋率 ≥ 85% |
-| Q4 | E2E 使用者旅程 | Playwright 覆蓋 F1–F7，在 390／768／1440px 與系統淺／深色偏好下通過；網站維持固定品牌配色；0 個 console error、0 個失敗請求 |
+| Q4 | E2E 使用者旅程 | Playwright 覆蓋 F1–F7，在 390／768／1440px 與固定品牌配色下通過；0 個 console error、0 個失敗請求 |
 | Q5 | 無障礙 | axe-core 每頁在系統淺／深色偏好下皆 0 個 serious/critical；所有旅程可純鍵盤完成；圖表提供文字／表格替代 |
 | Q6 | 效能 | 初始 JS gzip ≤ 200 KB；首屏資料 ≤ 800 KB；主要內容 1.5 秒內出現；模擬不阻塞主執行緒 |
 | Q7 | 可重現 | 合成資料、管線與匯出連跑兩次，SHA-256 完全相同；模擬固定種子可重現 |
 | Q8 | 安全 | CSP、無 inline script、執行期無第三方請求、快照匯入有大小與結構驗證 |
-| Q9 | CI／部署 | PR 所有 GitHub Actions 通過；Docker 映像建置通過；合併後 Pages 部署成功，線上冒煙測試通過 |
+| Q9 | CI／部署 | PR CI 通過；公開 API 整合、Docker 建置與容器 smoke 均驗證 FinMind 且非合成；正式 Pages 的 strict API 建置、真實資料 E2E 與部署 smoke 通過 |
 | Q10 | 文件 | README 說明問題、創新點、截圖、架構圖、執行方式、測試證據；方法說明含限制 |
 
 ## 3. 完成定義

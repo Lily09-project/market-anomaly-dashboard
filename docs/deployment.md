@@ -1,6 +1,6 @@
 # 部署指南
 
-## 本機
+## 本機預覽
 
 需求：Python 3.12、Node.js 22。
 
@@ -8,29 +8,34 @@
 python -m venv .venv
 python -m pip install -r requirements-dev.lock.txt
 python run_all.py --mode sample
-cd web && npm ci && npm run build && npm run preview   # http://127.0.0.1:4173
+cd web && npm ci && npm run build && npm run preview
 ```
 
-Windows 執行 `run_project.bat`；`run_project.bat --validate` 會跑完 pytest、Bandit、Ruff、pip-audit、TypeScript、ESLint、Vitest 覆蓋率與效能預算但不啟動網站。既有但版本不符或損壞的 `.venv` 不會被刪除，而是請使用者自行搬移；未知參數以結束碼 2 拒絕。
+`--mode sample` 會產生固定種子的合成測試資料，只供本機離線研究與預覽，不是正式產品資料。若要在本機產生真實來源快照，使用：
 
-## 容器
+```bash
+python run_all.py --mode api --require-api
+```
+
+產品正式資料使用不需 token 的 FinMind 公開歷史行情 API。嚴格模式在 API 不可用、資料不完整或驗證失敗時會停止，不輸出合成資料。不要在正式發布流程使用未加 `--require-api` 的一般 API 模式，因該模式可能回退到 sample。
+
+Windows 執行 `run_project.bat`；`run_project.bat --validate` 會跑 pytest、Bandit、Ruff、pip-audit、TypeScript、ESLint、Vitest 覆蓋率與效能預算，但不啟動網站。
+
+## Docker 正式映像
 
 ```bash
 docker build -t market-regime-lab .
 docker run --rm -p 8080:8080 market-regime-lab
 ```
 
-多階段建置：Python 階段產生資料與匯出、Node 階段建置網站、最終映像是 `nginx-unprivileged`，以 UID 101 執行、監聽 8080，提供 `/healthz` 健康檢查，並加上 CSP、`X-Content-Type-Options: nosniff`、`frame-ancestors 'none'` 與 no-referrer 標頭。CI 的 `container-build` 工作會實際建置映像、啟動容器並檢查這些項目。
+Docker build 需要網路連線，會在建置階段執行 `python run_all.py --mode api --require-api` 並取得經驗證的 FinMind 快照；來源失敗會讓建置失敗。映像包含建置當時的靜態資料，執行時不連線至 FinMind；要更新資料需重新建置映像。
 
-## 真實資料（選用）
+最終映像使用 `nginx-unprivileged`、UID 101、8080 port、`/healthz`，並提供 CSP、`X-Content-Type-Options: nosniff`、`frame-ancestors 'none'` 與 no-referrer 標頭。CI 會建置並啟動容器，檢查健康端點、安全標頭及 FinMind 非合成 provenance。
 
-`config.yaml` 的 `api.provider`：
+## GitHub Pages
 
-- `url`：設定 `api.market_url` 或環境變數 `MARKET_API_URL`，指向 CSV／JSON 端點（可辨識 TWSE 的中文欄位名稱）。只接受 HTTPS、拒絕 redirect、限制逾時與回應大小。
-- `yfinance`：另外安裝 `pip install yfinance`，依 `api.symbols` 下載日線。
+PR 只用固定種子資料建立預覽；main、排程及手動正式部署必須成功取得並驗證 FinMind 資料，再執行真實資料 E2E 與部署 smoke。API 失敗不會回退至 sample。部署後網站以同源靜態快照運作，不需要使用者瀏覽器連接資料 API。
 
-執行 `python run_all.py --mode api`；抓取失敗會退回合成資料並在網站標示。共同交易日少於 400 天時，匯出會以 `InsufficientHistoryError` 明確停止。
+## 回復與更新
 
-## 更新與回復
-
-匯出是確定性的：相同輸入必定得到位元組相同的輸出。要回到基線，重新執行 `python run_all.py --mode sample`，或重新部署上一個成功的 `web/dist/`／映像。
+資料快照由建置輸入決定。正式回復應重新部署上一個已驗證的來源資料版本；sample 輸出僅供預覽，不可作為正式回復版本。
