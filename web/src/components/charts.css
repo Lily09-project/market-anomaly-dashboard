@@ -1,0 +1,148 @@
+.chart-frame {
+  margin: 0;
+  min-width: 0;
+}
+
+.chart-title {
+  font-weight: 700;
+  margin-bottom: var(--space-2);
+}
+
+.chart-box {
+  width: 100%;
+  min-width: 0;
+}
+
+.chart .row-label {
+  fill: var(--ink-soft);
+  font-size: 13px;
+}
+
+.chart .value-label {
+  fill: var(--ink);
+  font-weight: 700;
+}
+
+.chart .stripe {
+  fill: var(--state-soft);
+}
+
+.chart .series {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+/* Colour and dash differ, so lines stay distinguishable without colour. */
+.series-1 {
+  stroke: var(--chart-1);
+}
+.series-2 {
+  stroke: var(--chart-2);
+  stroke-dasharray: 7 4;
+}
+.series-3 {
+  stroke: var(--chart-3);
+  stroke-dasharray: 2 3;
+}
+.series-4 {
+  stroke: var(--chart-4);
+  stroke-dasharray: 10 3 2 3;
+}
+
+.chart .band {
+  opacity: 0.18;
+}
+.band-1 {
+  fill: var(--chart-1);
+}
+.band-2 {
+  fill: var(--chart-2);
+}
+.band-3 {
+  fill: var(--chart-3);
+}
+.band-4 {
+  fill: var(--chart-4);
+}
+
+.chart .reference-line {
+  stroke: var(--muted);
+  stroke-width: 1.25;
+  stroke-dasharray: 4 4;
+}
+
+.chart .reference-label {
+  fill: var(--muted);
+  font-size: 12px;
+}
+
+.chart .marker-line {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+
+.fan-chart .fan-outer {
+  fill: var(--chart-1);
+  opacity: 0.14;
+}
+
+.fan-chart .fan-inner {
+  fill: var(--chart-1);
+  opacity: 0.28;
+}
+
+.histogram .bar {
+  fill: var(--line-strong);
+}
+
+.histogram .bar-tail {
+  fill: var(--bad);
+}
+
+.diverging .zero {
+  stroke: var(--line-strong);
+  stroke-dasharray: 4 4;
+}
+
+.diverging .pos {
+  fill: var(--chart-3);
+}
+
+.diverging .neg {
+  fill: var(--chart-2);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.legend line {
+  fill: none;
+  stroke-width: 2.5;
+}
+
+.legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--state-soft);
+  border: 2px solid var(--state);
+}
+
+.timeline .timeline-cell {
+  fill: var(--state);
+}

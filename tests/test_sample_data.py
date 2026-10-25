@@ -1,25 +1,42 @@
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
-from src.generate_sample_data import generate_sample_data
+from src.generate_sample_data import CONTROL_SYMBOL, JUMPS_PER_STOCK, REGIMES, STOCKS, generate_sample_data, simulate
 from src.utils import load_config
 
 
-def test_sample_data_can_be_generated() -> None:
-    cfg = load_config()
-    market_path, fx_path = generate_sample_data(cfg)
-    assert market_path.exists()
-    assert fx_path.exists()
+def test_simulation_is_deterministic_and_complete() -> None:
+    config = load_config()
+    first, truth, jumps = simulate(config)
+    again, truth_again, jumps_again = simulate(config)
+    pd.testing.assert_frame_equal(first, again)
+    pd.testing.assert_frame_equal(truth, truth_again)
+    pd.testing.assert_frame_equal(jumps, jumps_again)
+    assert sorted(first["symbol"].unique()) == sorted([*STOCKS, CONTROL_SYMBOL])
+    assert first.groupby("symbol").size().nunique() == 1
+    assert (first["high"] >= first[["open", "close"]].max(axis=1)).all()
+    assert (first["low"] <= first[["open", "close"]].min(axis=1)).all()
+    assert set(truth["state"]) == {r[0] for r in REGIMES}
+    assert len(jumps) == JUMPS_PER_STOCK * len(STOCKS)
+    assert set(jumps["symbol"]) == set(STOCKS)
 
-    market = pd.read_csv(market_path)
-    fx = pd.read_csv(fx_path)
-    assert {"date", "symbol", "open", "high", "low", "close", "volume"} <= set(market.columns)
-    assert {"date", "currency_pair", "exchange_rate"} <= set(fx.columns)
-    assert len(market) > 0
-    assert len(fx) > 0
-    assert pd.to_datetime(market["date"], errors="coerce").notna().all()
-    assert pd.to_numeric(market["close"], errors="coerce").notna().all()
-    assert pd.to_numeric(market["volume"], errors="coerce").notna().all()
-    assert pd.to_numeric(fx["exchange_rate"], errors="coerce").notna().all()
 
+def test_control_series_has_no_drift_and_no_regimes() -> None:
+    prices, _, _ = simulate(load_config())
+    close = prices.loc[prices["symbol"] == CONTROL_SYMBOL, "close"].to_numpy()
+    # Demeaned log returns: the path ends where it started (up to rounding).
+    assert abs(np.log(close[-1] / 100.0)) < 1e-3
+
+
+def test_generate_writes_prices_and_answer_keys(tmp_path) -> None:
+    config = load_config()
+    config["data"] = {**config["data"], "sample_market_path": str(tmp_path / "sample" / "market.csv")}
+    path = generate_sample_data(config)
+    assert path.exists()
+    assert (tmp_path / "sample" / "regimes_truth.csv").exists()
+    assert (tmp_path / "sample" / "injected_events.csv").exists()
+    first = path.read_bytes()
+    generate_sample_data(config)
+    assert path.read_bytes() == first

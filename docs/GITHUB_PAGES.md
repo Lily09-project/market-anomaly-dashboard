@@ -1,26 +1,19 @@
 # GitHub Pages
 
-[開啟展示網站](https://lily09-project.github.io/market-anomaly-dashboard/)
+[開啟 Market Regime Lab](https://lily09-project.github.io/market-anomaly-dashboard/)
 
-GitHub Pages 使用可重現的合成行情，不是即時行情、交易訊號或投資建議。模型分數不是機率或投資勝率。Python／Streamlit 另提供完整研究流程。
+## 發布流程
 
-## 操作
+`.github/workflows/pages.yml`：
 
-- 選擇標的與期間，查看收盤價、原始 20 日波動率及模型標記日期。
-- 日期紀錄與明細連動，保留成交量、日報酬及原始模型分數。
-- 完整紀錄可篩選、排序、比較和下載；兩份 JSON 快照在瀏覽器本地驗證與比較。
+1. 安裝鎖定的執行期依賴，`python run_all.py --mode sample` 產生合成資料、分析並寫出 `web/public/data/`。
+2. `npm ci && npm run build && npm run size` 建置網站並檢查效能預算。
+3. 只上傳 `web/dist/`。
+4. 合併到 `main` 後部署，並以 `curl` 對線上網址做冒煙測試（首頁標題與 `manifest.json` 的 schema 版本）。
 
-完整資料入口保留搜尋、分類、日期或最低樣本、排序、分頁、原始欄位及下載。既有 `?view=` 分享網址繼續提供紀錄視圖；新版主要頁面使用獨立的 `screen` 參數，不占用原本的分頁 `page`。
+## 網站邊界
 
-## 發布
-
-Pages 只部署 `scripts/build_pages.py` 產生的 `pages-dist/`，不發布儲存庫根目錄。公開資產清單、欄位 allowlist、CSP、完整性檢查及 CSV 公式注入防護均保留。上傳快照僅在本地瀏覽器處理，不傳送到伺服器。
-
-PR 先通過建置、安全與瀏覽器檢查；合併至 `main` 後，由 Static Pages 工作流程部署。GitHub Pages 提供靜態網站，作者電腦或手機不必保持執行，但它不會執行 Python／Streamlit 後端。
-
-## 邊界
-
-- 網站各自採固定配色，沒有深淺主題切換。
-- 圖示保留文字標籤；動畫短暫、可中斷，不使用持續閃動或自動播放。
-- 目前不依作業系統的 reduced-motion 偏好停用動畫，因此不宣稱完整動態無障礙合規。
-- 自動化瀏覽器與字級放大測試不等同真人使用者、實機或螢幕閱讀器驗收。
+- 純靜態：沒有後端，壓力測試與快照驗證都在瀏覽器執行。
+- 執行期不呼叫任何第三方服務；CSP 只允許同源資源。
+- 每個資料檔載入時以 SHA-256 與 manifest 比對。
+- 支援淺色／深色主題、純鍵盤操作；所有圖表都有等價資料表。

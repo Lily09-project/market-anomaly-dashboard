@@ -36,3 +36,13 @@ docs/screenshots/ui-qa-review/
 pages-dist/
 reports/pages-qa/
 first-build.sha256
+
+# Web app and generated sample data.
+web/node_modules/
+web/dist/
+web/public/data/
+web/coverage/
+web/playwright-report/
+web/test-results/
+data/sample/
+.coverage

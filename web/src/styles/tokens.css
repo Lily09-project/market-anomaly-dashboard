@@ -1,0 +1,133 @@
+/* Design tokens for Market Regime Lab. Light is the default; dark follows the OS unless the
+   viewer picks a theme explicitly (stored on <html data-theme>). */
+:root {
+  color-scheme: light;
+  --font-sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Noto Serif TC", "Songti TC", "PMingLiU", Georgia, serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --bg: #f4f4f7;
+  --bg-raised: #ffffff;
+  --bg-sunken: #e9e9f0;
+  --ink: #15151c;
+  --ink-soft: #33343f;
+  --muted: #5a5b68;
+  --line: #d6d7e0;
+  --line-strong: #adafbe;
+  --accent: #3a45b5;
+  --accent-ink: #ffffff;
+  --accent-soft: #e0e3fa;
+  --teal: #0f6e6a;
+  --teal-soft: #d5ebe8;
+  --gold: #8a5a00;
+  --good: #1f6f3d;
+  --bad: #b3261e;
+  --chart-1: #3a45b5;
+  --chart-2: #c2410c;
+  --chart-3: #0f766e;
+  --chart-4: #6b7280;
+  --chart-grid: #e3e4ec;
+  --focus: #1d4ed8;
+  --shadow: 0 1px 2px rgb(17 25 29 / 6%), 0 8px 24px rgb(17 25 29 / 6%);
+
+  /* Market states: calm, choppy, turbulent. Bands use the soft variants. */
+  --state-0: #1f7a4d;
+  --state-0-soft: #d6efe1;
+  --state-1: #a16207;
+  --state-1-soft: #f7ead0;
+  --state-2: #b42345;
+  --state-2-soft: #f8d9e0;
+
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --radius-l: 16px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --step--1: clamp(0.82rem, 0.8rem + 0.1vw, 0.88rem);
+  --step-0: clamp(0.98rem, 0.95rem + 0.15vw, 1.05rem);
+  --step-1: clamp(1.15rem, 1.08rem + 0.35vw, 1.35rem);
+  --step-2: clamp(1.4rem, 1.25rem + 0.7vw, 1.85rem);
+  --step-3: clamp(1.8rem, 1.5rem + 1.4vw, 2.75rem);
+  --content: 1180px;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration: 220ms;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --state-0: #5fd39a;
+  --state-0-soft: #143524;
+  --state-1: #f2c14e;
+  --state-1-soft: #3a2f12;
+  --state-2: #ff7a98;
+  --state-2-soft: #431a25;
+  --bg: #0f1016;
+  --bg-raised: #171822;
+  --bg-sunken: #0a0b10;
+  --ink: #ececf3;
+  --ink-soft: #cfd0dc;
+  --muted: #9c9eae;
+  --line: #2b2c3a;
+  --line-strong: #454759;
+  --accent: #9aa4ff;
+  --accent-ink: #0d1030;
+  --accent-soft: #22264a;
+  --teal: #5fd3c8;
+  --teal-soft: #12302d;
+  --gold: #e9b44c;
+  --good: #6ad08f;
+  --bad: #ff8a7a;
+  --chart-1: #9aa4ff;
+  --chart-2: #fb923c;
+  --chart-3: #5eead4;
+  --chart-4: #a1a1aa;
+  --chart-grid: #232433;
+  --focus: #8ab4ff;
+  --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 35%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --state-0: #5fd39a;
+    --state-0-soft: #143524;
+    --state-1: #f2c14e;
+    --state-1-soft: #3a2f12;
+    --state-2: #ff7a98;
+    --state-2-soft: #431a25;
+    --bg: #0f1016;
+    --bg-raised: #171822;
+    --bg-sunken: #0a0b10;
+    --ink: #ececf3;
+    --ink-soft: #cfd0dc;
+    --muted: #9c9eae;
+    --line: #2b2c3a;
+    --line-strong: #454759;
+    --accent: #9aa4ff;
+    --accent-ink: #0d1030;
+    --accent-soft: #22264a;
+    --teal: #5fd3c8;
+    --teal-soft: #12302d;
+    --gold: #e9b44c;
+    --good: #6ad08f;
+    --bad: #ff8a7a;
+    --chart-1: #9aa4ff;
+    --chart-2: #fb923c;
+    --chart-3: #5eead4;
+    --chart-4: #a1a1aa;
+    --chart-grid: #232433;
+    --focus: #8ab4ff;
+    --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 35%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration: 0ms;
+  }
+}

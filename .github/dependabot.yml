@@ -7,6 +7,14 @@ updates:
     open-pull-requests-limit: 3
     # Keep Python updates isolated: the locked environment and browser gate
     # should review one dependency change at a time.
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      web-patch-minor:
+        update-types: ["minor", "patch"]
   - package-ecosystem: docker
     directory: /
     schedule:
