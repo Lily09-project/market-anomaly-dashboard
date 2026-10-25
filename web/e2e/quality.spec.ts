@@ -9,6 +9,8 @@ const ROUTES = [
   "/snapshot",
   "/data",
 ];
+const FIXED_BACKGROUND = "#f4f4f7";
+const LEGACY_THEME_KEY = "market-regime-lab-theme";
 
 test.describe("Q4/Q5 navigation, keyboard and accessibility", () => {
   test("skip link, navigation and focus management work by keyboard", async ({ page }) => {
@@ -33,24 +35,37 @@ test.describe("Q4/Q5 navigation, keyboard and accessibility", () => {
     await expect(page.getByRole("radio", { name: /2330/ })).toBeChecked();
   });
 
-  test("every page passes axe in both themes", async ({ page }) => {
-    for (const theme of ["light", "dark"] as const) {
-      await page.emulateMedia({ colorScheme: theme });
+  test("every page keeps one palette under both system color preferences", async ({ page }) => {
+    await page.addInitScript((key) => {
+      try {
+        window.localStorage.setItem(key, "dark");
+      } catch {
+        // Storage restrictions must not change the fixed site palette.
+      }
+    }, LEGACY_THEME_KEY);
+
+    for (const colorScheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme });
       for (const route of ROUTES) {
         await openRoute(page, route);
         await page.locator(".state-loading").waitFor({ state: "detached" });
+        await expect(page.getByLabel("介面主題")).toHaveCount(0);
+        const appearance = await page.locator("html").evaluate((root) => ({
+          dataTheme: root.getAttribute("data-theme"),
+          colorScheme: getComputedStyle(root).colorScheme,
+          background: getComputedStyle(root).getPropertyValue("--bg").trim(),
+        }));
+        expect(appearance).toEqual({
+          dataTheme: null,
+          colorScheme: "light",
+          background: FIXED_BACKGROUND,
+        });
         await expectAccessible(page);
       }
     }
   });
 
-  test("theme choice is applied and remembered", async ({ page }) => {
-    await openRoute(page, "/");
-    await page.getByLabel("介面主題").selectOption("dark");
-    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-    await page.reload();
-    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  });
+
 
   test("unknown routes render a helpful page", async ({ page }) => {
     await page.goto("./#/nowhere");

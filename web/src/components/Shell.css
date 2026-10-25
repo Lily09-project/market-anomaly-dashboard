@@ -110,10 +110,6 @@
   color: var(--gold);
 }
 
-.theme-picker select {
-  width: auto;
-}
-
 main:focus {
   outline: none;
 }
