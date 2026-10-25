@@ -119,3 +119,40 @@ jobs:
             web/test-results
           if-no-files-found: ignore
           retention-days: 7
+
+  public-api-integration:
+    name: Live no-auth public API integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Install locked Python dependencies
+        run: |
+          python -m pip install --upgrade "pip>=26.2"
+          python -m pip install -r requirements-runtime.lock.txt
+          python -m pip check
+      - name: Fetch and process real public data without credentials
+        run: python run_all.py --mode api --require-api
+      - name: Confirm the published dataset is source-backed
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          source = json.loads(Path("reports/metrics/source_metadata.json").read_text(encoding="utf-8"))
+          public = json.loads(Path("web/public/data/provenance.json").read_text(encoding="utf-8"))
+          assert source["provider"] == "finmind"
+          assert source["status"] == "success"
+          assert source["data_source"] == "API Data"
+          assert source.get("is_simulated_data") is False
+          assert source.get("row_count", 0) > 0
+          assert public["provider"] == "finmind"
+          assert public["data_source"] == "FinMind public historical daily prices"
+          assert public["is_simulated"] is False
+          assert public["input_sha256"] == source["data_file_sha256"]
+          print(f"Verified {source['row_count']} source rows from {source['provider']}")
+          PY
