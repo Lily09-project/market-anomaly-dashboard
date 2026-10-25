@@ -19,7 +19,7 @@ COPY --from=data /app/web/public/data ./public/data
 RUN npm run build && npm run size
 
 # Stage 3: serve it from an unprivileged nginx.
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginx/nginx-unprivileged:1.30.6-alpine
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=web /app/web/dist /usr/share/nginx/html
 USER 101
