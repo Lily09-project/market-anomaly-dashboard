@@ -7,6 +7,7 @@ URL or token.
 from __future__ import annotations
 
 import json
+import math
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -59,18 +60,29 @@ def normalize_finmind_payload(payload: Any, symbol: str, start_date: str, end_da
     if (frame["date"] < start_date).any() or (frame["date"] > end_date).any():
         raise ValueError("FinMind returned data outside the requested date range.")
     numeric = ["open", "high", "low", "close", "volume"]
-    if not frame[numeric].apply(lambda column: pd.to_numeric(column, errors="coerce").notna().all()).all():
+    frame[numeric] = frame[numeric].apply(lambda column: pd.to_numeric(column, errors="coerce"))
+    if frame[numeric].isna().any().any():
         raise ValueError("FinMind returned invalid numeric price fields.")
-    if (
-        (frame["open"] <= 0).any()
-        or (frame["high"] <= 0).any()
-        or (frame["low"] <= 0).any()
-        or (frame["close"] <= 0).any()
-        or (frame["volume"] < 0).any()
-        or (frame["high"] < frame[["open", "close", "low"]].max(axis=1)).any()
-        or (frame["low"] > frame[["open", "close", "high"]].min(axis=1)).any()
-    ):
-        raise ValueError("FinMind returned inconsistent OHLCV values.")
+    if not frame[numeric].map(lambda column: column.map(math.isfinite)).all().all():
+        raise ValueError("FinMind returned non-finite numeric price fields.")
+    bad_price = (frame[["open", "high", "low", "close"]] <= 0).any(axis=1)
+    bad_volume = frame["volume"] < 0
+    bad_range = (
+        (frame["high"] < frame[["open", "close", "low"]].max(axis=1))
+        | (frame["low"] > frame[["open", "close", "high"]].min(axis=1))
+    )
+    invalid = bad_price | bad_volume | bad_range
+    if invalid.any():
+        sample = frame.loc[invalid, ["symbol", "date"]].drop_duplicates().head(5)
+        dates = ", ".join(f"{row.symbol} {row.date}" for row in sample.itertuples(index=False))
+        reasons = []
+        if bad_price.any():
+            reasons.append("non-positive price")
+        if bad_volume.any():
+            reasons.append("negative volume")
+        if bad_range.any():
+            reasons.append("OHLC range")
+        raise ValueError(f"FinMind returned inconsistent OHLCV values ({', '.join(reasons)}): {dates}")
     return frame.sort_values("date", kind="stable").drop_duplicates(["date", "symbol"], keep="last").reset_index(drop=True)
 
 
