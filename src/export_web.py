@@ -28,7 +28,7 @@ N_STATES = 3
 STATE_LABELS = ("平穩", "震盪", "高波動")
 EVENT_Z = 5.0
 IS_SHARE = 0.6
-MIN_HISTORY_DAYS = 400
+MIN_HISTORY_DAYS = backtest.WALK_FORWARD_TRAIN + backtest.WALK_FORWARD_TEST + 1
 STRESS_DEFAULTS = {"horizon": 60, "block": 10, "paths": 2000, "seed": 20261024}
 NAMES = {"0050": "元大台灣50", "2330": "台積電", "2317": "鴻海", CONTROL_SYMBOL: "隨機漫步對照組"}
 
@@ -190,6 +190,10 @@ def _equity(returns: np.ndarray, step: int = 5) -> list[float | None]:
 
 
 def analyse_backtest(dates: list[str], prices: np.ndarray) -> dict[str, Any]:
+    if len(prices) < MIN_HISTORY_DAYS:
+        raise InsufficientHistoryError(
+            f"Need at least {MIN_HISTORY_DAYS} prices for a complete walk-forward test fold; got {len(prices)}."
+        )
     grid = backtest.parameter_grid()
     matrix = backtest.returns_matrix(prices, grid)
     split = int(len(matrix) * IS_SHARE)
@@ -200,7 +204,8 @@ def analyse_backtest(dates: list[str], prices: np.ndarray) -> dict[str, Any]:
     best_full = int(np.argmax(full))
     fast, slow = grid[best_full]
     backtest.assert_causal(lambda p: backtest.crossover_positions(p, fast, slow), prices)
-    folds, oos = backtest.walk_forward(matrix)
+    positions = np.column_stack([backtest.crossover_positions(prices, f, s)[:-1] for f, s in grid])
+    folds, oos = backtest.walk_forward(matrix, positions=positions)
     pbo, logits = backtest.cscv_pbo(matrix)
     dsr = backtest.deflated_sharpe(matrix[:, best_full], full)
     asset = np.diff(prices) / prices[:-1]

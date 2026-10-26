@@ -24,6 +24,8 @@ from src.analytics.stats import TRADING_DAYS, kurtosis, normal_cdf, normal_ppf, 
 FAST = (5, 10, 15, 20, 30, 40, 50)
 SLOW = (20, 30, 50, 75, 100, 150, 200, 250)
 COST_PER_TRADE = 0.001
+WALK_FORWARD_TRAIN = 504
+WALK_FORWARD_TEST = 126
 EULER_GAMMA = 0.5772156649015329
 
 Strategy = Callable[[np.ndarray], np.ndarray]
@@ -83,8 +85,25 @@ class Fold:
     test_sharpe: float
 
 
-def walk_forward(matrix: np.ndarray, train: int = 504, test: int = 126) -> tuple[list[Fold], np.ndarray]:
-    """Rolling non-overlapping test windows; returns the folds and the stitched out-of-sample returns."""
+def walk_forward(
+    matrix: np.ndarray,
+    train: int = WALK_FORWARD_TRAIN,
+    test: int = WALK_FORWARD_TEST,
+    *,
+    positions: np.ndarray | None = None,
+    cost: float = COST_PER_TRADE,
+) -> tuple[list[Fold], np.ndarray]:
+    """Select on past returns, then stitch OOS holdings with actual boundary costs.
+
+    Positions align with return rows (the holdings earning each row's return).
+    Without positions, the caller's matrix is treated as already-accounted returns.
+    """
+    holdings = None if positions is None else np.asarray(positions, dtype=float)
+    if holdings is not None and (
+        holdings.shape != matrix.shape or not np.isfinite(holdings).all()
+    ):
+        raise ValueError("positions must be finite and align with the returns matrix")
+    previous_holding = 0.0
     folds: list[Fold] = []
     oos: list[np.ndarray] = []
     start = 0
@@ -93,7 +112,16 @@ def walk_forward(matrix: np.ndarray, train: int = 504, test: int = 126) -> tuple
         te = (start + train, start + train + test)
         in_sample = [sharpe(matrix[tr[0] : tr[1], j]) for j in range(matrix.shape[1])]
         chosen = int(np.argmax(in_sample))
-        test_returns = matrix[te[0] : te[1], chosen]
+        test_returns = matrix[te[0] : te[1], chosen].copy()
+        if holdings is not None:
+            current_holding = float(holdings[te[0], chosen])
+            variant_previous = float(holdings[te[0] - 1, chosen]) if te[0] else 0.0
+            # Undo the standalone variant's boundary cost, then charge the
+            # actual account's entry or switch from the previous OOS fold.
+            test_returns[0] += cost * (
+                abs(current_holding - variant_previous) - abs(current_holding - previous_holding)
+            )
+            previous_holding = float(holdings[te[1] - 1, chosen])
         folds.append(Fold(tr, te, chosen, in_sample[chosen], sharpe(test_returns)))
         oos.append(test_returns)
         start += test

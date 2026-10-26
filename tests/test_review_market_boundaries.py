@@ -74,3 +74,21 @@ def test_walk_forward_first_fold_enters_from_cash(monkeypatch):
     earned[0] -= result["cost_per_trade"]
     expected = np.round(np.cumprod(1 + earned)[::5], 4)
     np.testing.assert_allclose(result["equity"]["walk_forward"], expected, atol=1e-4, rtol=0)
+
+
+def test_walk_forward_switch_cost_uses_previous_selected_holdings():
+    asset = np.array([0.10, -0.02, 0.03, 0.04, -0.05, 0.06, -0.07, 0.02, 0.01, -0.03, 0.01, 0.02])
+    a = np.array([1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1], dtype=float)
+    positions = np.column_stack([a, 1-a])
+    cost = 0.01
+    matrix = positions * asset[:, None] - np.abs(np.diff(np.vstack([np.zeros(2), positions]), axis=0)) * cost
+    folds, actual = backtest.walk_forward(matrix, train=4, test=2, positions=positions, cost=cost)
+    assert len({fold.chosen for fold in folds}) > 1
+    held = np.concatenate([positions[fold.test[0]:fold.test[1], fold.chosen] for fold in folds])
+    gross = np.concatenate([asset[fold.test[0]:fold.test[1]] for fold in folds])
+    expected = held * gross - np.abs(np.diff(np.r_[0.0, held])) * cost
+    np.testing.assert_allclose(actual, expected, atol=1e-12)
+    assert [fold.test_sharpe for fold in folds] == pytest.approx([
+        expected[i:i+2].mean() / expected[i:i+2].std(ddof=1) * np.sqrt(252)
+        if expected[i:i+2].std(ddof=1) else 0.0 for i in range(0, len(expected), 2)
+    ])
