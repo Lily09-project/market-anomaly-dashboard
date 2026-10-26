@@ -160,6 +160,28 @@ test.describe("F7 資料可信度", () => {
 });
 
 test("old stress results keep their own symbol, horizon, paths and baseline", async ({ page }) => {
+  // Isolate the result/label contract from the maximum-size numerical benchmark.
+  // Existing F5 and Python/TS parity tests still exercise the real worker.
+  await page.addInitScript(() => {
+    class DelayedWorker extends EventTarget {
+      postMessage(request: { id: number; params: { horizon: number; paths: number } }) {
+        const { id, params } = request;
+        setTimeout(() => {
+          const fan = Object.fromEntries(["0.05", "0.25", "0.5", "0.75", "0.95"].map(
+            (q) => [q, Array.from({ length: params.horizon }, (_, i) => Number(q) * (i + 1) / 100)],
+          ));
+          this.dispatchEvent(new MessageEvent("message", { data: {
+            id, type: "done", summary: {
+              fan, terminal: Array.from({ length: params.paths }, (_, i) => i / params.paths / 10),
+              var95: 0.1, cvar95: 0.12, var99: 0.15, cvar99: 0.17,
+            },
+          } }));
+        }, 200);
+      }
+      terminate() { /* deliberately retain already queued messages */ }
+    }
+    Object.defineProperty(window, "Worker", { value: DelayedWorker });
+  });
   await openRoute(page, "/stress?symbol=0050&horizon=20&paths=500");
   await expect(page.getByRole("button", { name: "已是最新結果" })).toBeVisible();
   const originalRisk = await page.getByTestId("risk-kpis").innerText();
