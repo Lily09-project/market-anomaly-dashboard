@@ -113,11 +113,37 @@ def analyse_regimes(returns: np.ndarray, truth: np.ndarray | None) -> tuple[dict
     return payload, model, x
 
 
+
+EVENT_WARMUP = 252
+
+
+def causal_event_scores(returns: np.ndarray, warmup: int = EVENT_WARMUP) -> tuple[np.ndarray, np.ndarray]:
+    """Freeze calibration before scoring any event; never fit on the scored interval."""
+    values = np.asarray(returns, dtype=float)
+    z = np.full(len(values), np.nan)
+    states = np.zeros(len(values), dtype=int)
+    if len(values) <= warmup:
+        return z, states
+    training = values[:warmup].copy()
+    training[events.anomaly_days(pd.Series(training)).to_numpy()] = np.nan
+    model = hmm.fit(training, N_STATES, seed=31)
+    z = hmm.predictive_z(values, model)
+    z[:warmup] = np.nan
+    filtered = model.initial.copy()
+    for index, value in enumerate(values):
+        predicted = filtered if index == 0 else filtered @ model.transition
+        states[index] = int(np.argmax(predicted))
+        likelihood = np.ones(N_STATES) if np.isnan(value) else np.maximum(
+            np.exp(-0.5 * (value-model.means)**2/model.variances) / np.sqrt(2*np.pi*model.variances), 1e-300,
+        )
+        filtered = predicted * likelihood
+        filtered /= filtered.sum()
+    return z, states
+
+
 def analyse_events(dates: list[str], returns: np.ndarray, model: hmm.HMMResult, path_states: list[list[int]], truth_dates: set[str] | None) -> tuple[dict[str, Any], list[np.ndarray], list[np.ndarray]]:
-    z = hmm.predictive_z(returns, model)
-    state_at = np.empty(len(returns), dtype=int)
-    for start, end, state in path_states:
-        state_at[start : end + 1] = state
+    # Retrospective display parameters and smoothed paths are not scoring inputs.
+    z, state_at = causal_event_scores(returns)
     found, negatives, positives = [], [], []
     for i in np.flatnonzero(np.abs(np.nan_to_num(z)) > EVENT_Z):
         date = dates[i + 1]

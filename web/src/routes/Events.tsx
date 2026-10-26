@@ -71,7 +71,7 @@ function EventsView({ overview, events, regimes, route }: { overview: Overview; 
         <span className="eyebrow">事件研究</span>
         <h1>異常事件：之後會發生什麼？</h1>
         <p className="lede">
-          「異常」是相對於當下市場狀態而言：高波動期間跌 3% 很平常，平穩期間跌 3% 就很罕見。我們以 HMM 的一步預測（只用前一天以前的資訊）計算 z 分數，|z| &gt; {events.threshold} 視為異常，再問一個誠實的問題：異常日之後，報酬可以預測嗎？
+          「異常」是相對於當下市場狀態而言：高波動期間跌 3% 很平常，平穩期間跌 3% 就很罕見。先以最早 252 個交易日校準並固定 HMM，再以此前資料的過濾狀態逐日計算 z 分數（校準期不評分），|z| &gt; {events.threshold} 視為異常，再問一個誠實的問題：異常日之後，報酬可以預測嗎？
         </p>
       </header>
 
