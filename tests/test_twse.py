@@ -213,6 +213,20 @@ def test_twse_failure_identifies_month_without_echoing_untrusted_payload(tmp_pat
     assert "115/02/02" not in message
 
 
+def test_twse_invalid_record_reports_only_safe_field_code(tmp_path, capsys):
+    row = _row("115/01/02")
+    row[3] = "raw-upstream-invalid-price"
+
+    class InvalidRecordClient:
+        def get(self, _url, **_kwargs):
+            return _Response(_payload([row]))
+
+    assert fetch_twse(_config(tmp_path), client=InvalidRecordClient(), sleep=lambda _seconds: None) is None
+    message = capsys.readouterr().out
+    assert "reason=invalid_records_open" in message
+    assert "raw-upstream-invalid-price" not in message
+
+
 def test_twse_malformed_json_reports_only_a_safe_validation_code(tmp_path, capsys):
     class InvalidJsonClient:
         def get(self, _url, **_kwargs):

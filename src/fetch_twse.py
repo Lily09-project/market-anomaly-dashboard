@@ -24,7 +24,7 @@ except Exception:
 
 from src.fetch_market_data import normalize_market_columns
 from src.request_policy import RequestBudget, request_with_retry, validate_response_origin, validate_upstream_url
-from src.utils import atomic_write_dataframe, ensure_parent, normalize_http_timeout, read_http_response_bytes, safe_exception_message, write_json
+from src.utils import atomic_write_dataframe, clean_numeric, ensure_parent, normalize_http_timeout, parse_date, read_http_response_bytes, safe_exception_message, write_json
 
 API_URL = "https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY"
 API_HOSTS = {"www.twse.com.tw"}
@@ -60,11 +60,34 @@ def _safe_validation_reason(error: BaseException) -> str:
     if isinstance(error, UnicodeError):
         return "invalid_encoding"
     message = str(error)
+    field_prefix = "TWSE returned invalid daily-price records in fields: "
+    if message.startswith(field_prefix) and message.endswith("."):
+        fields = message[len(field_prefix):-1].split(",")
+        allowed_fields = {"date", "open", "high", "low", "close", "volume"}
+        if fields and all(field in allowed_fields for field in fields):
+            return "invalid_records_" + "_".join(fields)
     if message.startswith("HTTP response exceeds "):
         return "response_too_large"
     if message.startswith("Market data missing columns:"):
         return "missing_columns"
     return _VALIDATION_REASON_BY_MESSAGE.get(message, "invalid_payload")
+
+
+def _invalid_normalized_fields(raw: pd.DataFrame) -> list[str]:
+    """Classify dropped records by field without exposing response values."""
+    checks = [
+        ("date", "日期", parse_date),
+        ("open", "開盤價", clean_numeric),
+        ("high", "最高價", clean_numeric),
+        ("low", "最低價", clean_numeric),
+        ("close", "收盤價", clean_numeric),
+        ("volume", "成交股數", clean_numeric),
+    ]
+    return [
+        name
+        for name, source, parser in checks
+        if raw[source].map(parser).isna().any()
+    ]
 
 
 def _taipei_today() -> date:
@@ -147,6 +170,13 @@ def normalize_twse_payload(
     raw["symbol"] = symbol
     frame = normalize_market_columns(raw)
     if len(frame) != len(records) or frame.empty:
+        invalid_fields = _invalid_normalized_fields(raw)
+        if invalid_fields:
+            raise ValueError(
+                "TWSE returned invalid daily-price records in fields: "
+                + ",".join(invalid_fields)
+                + "."
+            )
         raise ValueError("TWSE returned incomplete or invalid daily-price records.")
 
     dates = pd.to_datetime(frame["date"], errors="coerce")
