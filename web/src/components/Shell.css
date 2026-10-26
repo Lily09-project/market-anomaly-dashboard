@@ -110,10 +110,6 @@
   color: var(--gold);
 }
 
-main:focus {
-  outline: none;
-}
-
 .site-footer {
   border-top: 1px solid var(--line);
   background: var(--bg-sunken);
