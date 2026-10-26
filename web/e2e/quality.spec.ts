@@ -37,6 +37,13 @@ test.describe("Q4/Q5 navigation, keyboard and accessibility", () => {
     await expect(page.getByRole("radio", { name: /2330/ })).toBeChecked();
   });
 
+  test("motion duration stays unchanged under reduced-motion system preference", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openRoute(page, "/");
+    const duration = await page.locator(":root").evaluate((root) => getComputedStyle(root).getPropertyValue("--duration").trim());
+    expect(duration).toBe("220ms");
+  });
+
   test("every page keeps one palette under both system color preferences", async ({ page }) => {
     await page.addInitScript((key) => {
       try {

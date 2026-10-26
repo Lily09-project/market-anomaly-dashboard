@@ -57,8 +57,3 @@
   --duration: 220ms;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --duration: 0ms;
-  }
-}

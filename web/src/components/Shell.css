@@ -157,11 +157,6 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .spinner {
-    animation-duration: 3s;
-  }
-}
 
 @media (max-width: 980px) {
   .site-header-inner {
