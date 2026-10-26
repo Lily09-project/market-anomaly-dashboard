@@ -115,29 +115,35 @@ def analyse_regimes(returns: np.ndarray, truth: np.ndarray | None) -> tuple[dict
 
 
 EVENT_WARMUP = 252
+EVENT_REFIT = 63
+EVENT_LOOKBACK = 504
 
 
 def causal_event_scores(returns: np.ndarray, warmup: int = EVENT_WARMUP) -> tuple[np.ndarray, np.ndarray]:
-    """Freeze calibration before scoring any event; never fit on the scored interval."""
+    """Quarterly refits use only prior returns; each scored block is held out."""
     values = np.asarray(returns, dtype=float)
     z = np.full(len(values), np.nan)
     states = np.zeros(len(values), dtype=int)
-    if len(values) <= warmup:
-        return z, states
-    training = values[:warmup].copy()
-    training[events.anomaly_days(pd.Series(training)).to_numpy()] = np.nan
-    model = hmm.fit(training, N_STATES, seed=31)
-    z = hmm.predictive_z(values, model)
-    z[:warmup] = np.nan
-    filtered = model.initial.copy()
-    for index, value in enumerate(values):
-        predicted = filtered if index == 0 else filtered @ model.transition
-        states[index] = int(np.argmax(predicted))
-        likelihood = np.ones(N_STATES) if np.isnan(value) else np.maximum(
-            np.exp(-0.5 * (value-model.means)**2/model.variances) / np.sqrt(2*np.pi*model.variances), 1e-300,
-        )
-        filtered = predicted * likelihood
-        filtered /= filtered.sum()
+    for origin in range(warmup, len(values), EVENT_REFIT):
+        history_start = max(0, origin-EVENT_LOOKBACK)
+        end = min(origin+EVENT_REFIT, len(values))
+        training = values[history_start:origin].copy()
+        training[events.anomaly_days(pd.Series(training)).to_numpy()] = np.nan
+        model = hmm.fit(training, N_STATES, n_init=2, max_iter=100, seed=31)
+        block = values[history_start:end]
+        block_z = hmm.predictive_z(block, model)
+        offset = origin-history_start
+        z[origin:end] = block_z[offset:]
+        filtered = model.initial.copy()
+        for index, value in enumerate(block):
+            predicted = filtered if index == 0 else filtered @ model.transition
+            if index >= offset:
+                states[history_start+index] = int(np.argmax(predicted))
+            likelihood = np.ones(N_STATES) if np.isnan(value) else np.maximum(
+                np.exp(-0.5 * (value-model.means)**2/model.variances) / np.sqrt(2*np.pi*model.variances), 1e-300,
+            )
+            filtered = predicted * likelihood
+            filtered /= filtered.sum()
     return z, states
 
 
