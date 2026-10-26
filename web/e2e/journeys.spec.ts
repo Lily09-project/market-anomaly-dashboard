@@ -195,7 +195,7 @@ test("old stress results keep their own symbol, horizon, paths and baseline", as
   await expect(page.locator(".split")).toHaveText(originalResult, { useInnerText: true });
   await page.getByRole("button", { name: "以新設定重新模擬" }).click();
   await expect(page.getByRole("button", { name: "已是最新結果" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "2330 未來 250 個交易日的報酬扇形圖" })).toBeVisible();
+  await expect(page.getByRole("figure", { name: "2330 未來 250 個交易日的報酬扇形圖" })).toBeVisible();
   await expect(page.getByTestId("fan-table").locator("tbody tr").last()).toContainText("250");
-  await expect(page.locator(".split")).toContainText("20,000");
+  await expect(page.getByRole("img", { name: /^期末報酬分布：20,000 條路徑/ })).toBeVisible();
 });
