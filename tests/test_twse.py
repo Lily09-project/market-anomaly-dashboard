@@ -88,7 +88,7 @@ def test_twse_preserves_counts_when_every_row_is_a_zero_trade_row():
         (_payload(fields=["日期", "收盤價"]), "2330", date(2026, 1, 1), "schema"),
         (_payload([_row("115/02/02")]), "2330", date(2026, 1, 1), "outside the requested month"),
         (_payload([_row("115/01/02")[:-1]]), "2330", date(2026, 1, 1), "incomplete"),
-        (_payload([["115/01/02", "1", "1", "NaN", "2", "1", "1", "0", "1", ""]]), "2330", date(2026, 1, 1), "incomplete or invalid"),
+        (_payload([["115/01/02", "1", "1", "NaN", "2", "1", "1", "0", "1", ""]]), "2330", date(2026, 1, 1), "invalid daily-price records in fields: open"),
     ],
 )
 def test_twse_rejects_untrusted_or_malformed_payloads(payload, symbol, month, message):
