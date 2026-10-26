@@ -46,20 +46,6 @@ export function useRoute(): [Route, (route: Route, options?: { replace?: boolean
   return [parseRoute(hash), navigate];
 }
 
-/** True when the viewer asked the OS to minimise motion. */
-export function usePrefersReducedMotion(): boolean {
-  const query = "(prefers-reduced-motion: reduce)";
-  return useSyncExternalStore(
-    (callback) => {
-      const media = window.matchMedia(query);
-      media.addEventListener("change", callback);
-      return () => media.removeEventListener("change", callback);
-    },
-    () => window.matchMedia(query).matches,
-    () => false,
-  );
-}
-
 export function useDocumentTitle(title: string): void {
   useEffect(() => {
     document.title = title ? `${title}｜Market Regime Lab` : "Market Regime Lab — 市場狀態實驗室";

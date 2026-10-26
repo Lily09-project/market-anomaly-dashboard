@@ -19,6 +19,8 @@ test.describe("Q4/Q5 navigation, keyboard and accessibility", () => {
     await expect(page.getByText("跳到主要內容")).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.locator("main")).toBeFocused();
+    await expect(page.locator("main")).toHaveCSS("outline-style", "solid");
+    await expect(page.locator("main")).toHaveCSS("outline-width", "3px");
     const nav = page.getByRole("navigation", { name: "主要頁面" });
     await nav.getByRole("link", { name: "誠實回測" }).focus();
     await page.keyboard.press("Enter");
@@ -33,6 +35,16 @@ test.describe("Q4/Q5 navigation, keyboard and accessibility", () => {
     await page.getByRole("navigation", { name: "主要頁面" }).getByRole("link", { name: "市場狀態" }).click();
     await expect(page).toHaveURL(/#\/regimes\?symbol=2330/);
     await expect(page.getByRole("radio", { name: /2330/ })).toBeChecked();
+  });
+
+  test("motion duration stays unchanged under reduced-motion system preference", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openRoute(page, "/");
+    const durationMs = await page.locator(":root").evaluate((root) => {
+      const value = getComputedStyle(root).getPropertyValue("--duration").trim();
+      return value.endsWith("ms") ? Number.parseFloat(value) : Number.parseFloat(value) * 1000;
+    });
+    expect(durationMs).toBe(220);
   });
 
   test("every page keeps one palette under both system color preferences", async ({ page }) => {
