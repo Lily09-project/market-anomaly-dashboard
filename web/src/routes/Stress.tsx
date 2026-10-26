@@ -76,11 +76,12 @@ function StressView({ overview, stress, route }: { overview: Overview; stress: S
             ))}
           </select>
         </label>
-        <label className="field">
+        <label className="field" htmlFor="stress-block">
           <span className="label">
             區塊長度 <output data-testid="block-value">{params.block}</output> 天
           </span>
           <input
+            id="stress-block"
             type="range"
             min={STRESS_LIMITS.block[0]}
             max={STRESS_LIMITS.block[1]}
