@@ -176,10 +176,10 @@ def test_twse_does_not_replace_existing_data_after_partial_failure(tmp_path):
     count = 0
 
     class Client:
-        def get(self, _url, **_kwargs):
+        def get(self, _url, **kwargs):
             nonlocal count
             count += 1
-            if count == 2:
+            if kwargs.get("params", {}).get("stockNo") == "0050":
                 raise RuntimeError("network unavailable")
             return _Response(_payload())
 
