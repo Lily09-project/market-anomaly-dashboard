@@ -68,6 +68,23 @@ def test_twse_excludes_only_exact_zero_price_zero_volume_rows():
     assert frame.attrs["excluded_no_trade_rows"] == 1
 
 
+def test_twse_zero_volume_price_placeholders_are_excluded_without_hiding_traded_rows():
+    no_trade = ["115/01/02", "0", "0", "--", "", "-", "--", "0", "0", ""]
+    frame = normalize_twse_payload(
+        _payload([no_trade]), "2330", date(2026, 1, 1), date(2026, 1, 31), date(2026, 1, 1)
+    )
+    assert frame.empty
+    assert frame.attrs["source_row_count"] == 1
+    assert frame.attrs["excluded_no_trade_rows"] == 1
+
+    traded = _row("115/01/02")
+    traded[3] = "--"
+    with pytest.raises(ValueError, match="invalid daily-price records in fields: open"):
+        normalize_twse_payload(
+            _payload([traded]), "2330", date(2026, 1, 1), date(2026, 1, 31), date(2026, 1, 1)
+        )
+
+
 def test_twse_preserves_counts_when_every_row_is_a_zero_trade_row():
     frame = normalize_twse_payload(
         _payload([_row("115/01/02", no_trade=True)]),

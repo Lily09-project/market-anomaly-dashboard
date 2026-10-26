@@ -73,6 +73,34 @@ def _safe_validation_reason(error: BaseException) -> str:
     return _VALIDATION_REASON_BY_MESSAGE.get(message, "invalid_payload")
 
 
+def _normalize_zero_volume_price_placeholders(raw: pd.DataFrame) -> None:
+    """Normalize explicit TWSE no-quote markers only for zero-volume rows."""
+    price_fields = ("開盤價", "最高價", "最低價", "收盤價")
+    no_quote_markers = {"", "--", "-"}
+    for index, row in raw.iterrows():
+        if clean_numeric(row["成交股數"]) != 0:
+            continue
+        normalized_prices = []
+        is_no_trade = True
+        for field in price_fields:
+            value = row[field]
+            number = clean_numeric(value)
+            if number == 0:
+                normalized_prices.append((field, False))
+            elif number is None and (
+                value is None
+                or isinstance(value, str) and value.strip() in no_quote_markers
+            ):
+                normalized_prices.append((field, True))
+            else:
+                is_no_trade = False
+                break
+        if is_no_trade:
+            for field, is_placeholder in normalized_prices:
+                if is_placeholder:
+                    raw.at[index, field] = "0"
+
+
 def _invalid_normalized_fields(raw: pd.DataFrame) -> list[str]:
     """Classify dropped records by field without exposing response values."""
     checks = [
@@ -168,6 +196,7 @@ def normalize_twse_payload(
 
     raw = pd.DataFrame(records, columns=fields)
     raw["symbol"] = symbol
+    _normalize_zero_volume_price_placeholders(raw)
     frame = normalize_market_columns(raw)
     if len(frame) != len(records) or frame.empty:
         invalid_fields = _invalid_normalized_fields(raw)
