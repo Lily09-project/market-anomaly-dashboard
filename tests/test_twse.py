@@ -209,4 +209,19 @@ def test_twse_failure_identifies_month_without_echoing_untrusted_payload(tmp_pat
     assert fetch_twse(_config(tmp_path), client=InvalidClient(), sleep=lambda _seconds: None) is None
     message = capsys.readouterr().out
     assert "2330/2026-01" in message
+    assert "reason=date_outside_month" in message
     assert "115/02/02" not in message
+
+
+def test_twse_malformed_json_reports_only_a_safe_validation_code(tmp_path, capsys):
+    class InvalidJsonClient:
+        def get(self, _url, **_kwargs):
+            response = _Response(_payload())
+            response.content = b'{"stat":"OK","marker":"raw-upstream-marker"'
+            response.headers["content-length"] = str(len(response.content))
+            return response
+
+    assert fetch_twse(_config(tmp_path), client=InvalidJsonClient(), sleep=lambda _seconds: None) is None
+    message = capsys.readouterr().out
+    assert "reason=invalid_json" in message
+    assert "raw-upstream-marker" not in message

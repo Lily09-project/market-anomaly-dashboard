@@ -35,6 +35,37 @@ MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 MIN_REQUEST_INTERVAL_SECONDS = 0.5
 REQUIRED_FIELDS = {"日期", "成交股數", "開盤價", "最高價", "最低價", "收盤價"}
 
+_VALIDATION_REASON_BY_MESSAGE = {
+    "TWSE returned an unsuccessful response.": "unsuccessful_status",
+    "TWSE returned an invalid field list.": "invalid_fields",
+    "TWSE returned an incomplete daily-price schema.": "incomplete_schema",
+    "TWSE returned an invalid data list.": "invalid_data_list",
+    "TWSE returned more rows than a calendar month can contain.": "too_many_rows",
+    "TWSE returned incomplete daily-price rows.": "incomplete_rows",
+    "TWSE returned incomplete or invalid daily-price records.": "invalid_records",
+    "TWSE returned an invalid trading date.": "invalid_trading_date",
+    "TWSE returned a date outside the requested month.": "date_outside_month",
+    "TWSE returned data for an unexpected symbol.": "unexpected_symbol",
+    "TWSE returned invalid numeric price fields.": "invalid_numeric_fields",
+    "TWSE returned non-finite numeric price fields.": "non_finite_fields",
+    "TWSE returned inconsistent OHLCV values.": "inconsistent_ohlcv",
+    "TWSE returned duplicate symbol/date records.": "duplicate_records",
+}
+
+
+def _safe_validation_reason(error: BaseException) -> str:
+    """Return only a stable code; never include upstream-controlled response text."""
+    if isinstance(error, json.JSONDecodeError):
+        return "invalid_json"
+    if isinstance(error, UnicodeError):
+        return "invalid_encoding"
+    message = str(error)
+    if message.startswith("HTTP response exceeds "):
+        return "response_too_large"
+    if message.startswith("Market data missing columns:"):
+        return "missing_columns"
+    return _VALIDATION_REASON_BY_MESSAGE.get(message, "invalid_payload")
+
 
 def _taipei_today() -> date:
     return (datetime.now(timezone.utc) + timedelta(hours=8)).date()
@@ -237,9 +268,10 @@ def fetch_twse(
                         payload = json.loads(read_http_response_bytes(response, MAX_RESPONSE_BYTES).decode("utf-8-sig"))
                         normalized = normalize_twse_payload(payload, symbol, start, end, month)
                     except (UnicodeError, ValueError) as exc:
+                        reason = _safe_validation_reason(exc)
                         raise ValueError(
                             f"TWSE response failed validation for {symbol}/{month:%Y-%m} "
-                            f"({type(exc).__name__})."
+                            f"(reason={reason})."
                         ) from exc
                     source_row_count += int(normalized.attrs["source_row_count"])
                     excluded_no_trade_rows += int(normalized.attrs["excluded_no_trade_rows"])
