@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from src.fetch_market_data import normalize_market_columns
+from src.corporate_actions import adjust_finmind_splits
 from src.generate_sample_data import generate_sample_data
 from src.utils import atomic_write_dataframe, ensure_parent, load_config, project_path
 
@@ -40,6 +41,8 @@ def preprocess_data(config: dict | None = None, *, mode: str = "sample", market_
     market = market.sort_values(["symbol", "date"], kind="stable").drop_duplicates(subset=["date", "symbol"], keep="last")
     if market.empty:
         raise ValueError("No usable market rows after cleaning.")
+    if source == "api" and cfg.get("api", {}).get("provider") == "finmind":
+        market = adjust_finmind_splits(market)
     market = market.assign(date=pd.to_datetime(market["date"]).dt.strftime("%Y-%m-%d"), data_source=source)
     return atomic_write_dataframe(market.reset_index(drop=True), ensure_parent(cfg["data"]["cleaned_path"]))
 

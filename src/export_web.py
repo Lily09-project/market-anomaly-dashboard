@@ -6,6 +6,8 @@ manifest hashes can be checked in the browser.
 """
 from __future__ import annotations
 
+from src.corporate_actions import PRICE_BASIS
+
 import argparse
 import hashlib
 import json
@@ -361,6 +363,7 @@ def export(out_dir: Path, cleaned_path: Path | None = None) -> dict[str, str]:
         source_label = "FinMind public historical daily prices"
         market_sources = [
             {"label": "FinMind API documentation (no-token public access)", "url": "https://finmind.github.io/quickstart/"},
+            {"label": "0050 official 1:4 split reference (2025-06-18)", "url": "https://api.yuantafunds.com/ECImage/ECBackstage/file/2025-06-17/ca6610a73d444bc09bc2035df79bfd25.pdf"},
             {"label": "TaiwanStockPrice dataset fields and coverage", "url": "https://finmind.github.io/tutor/TaiwanMarket/Technical/"},
             {"label": "TWSE daily transaction dataset and open-data terms", "url": "https://data.gov.tw/dataset/11549"},
             {"label": "Government Open Data License 1.0", "url": "https://data.gov.tw/license"},
@@ -377,6 +380,7 @@ def export(out_dir: Path, cleaned_path: Path | None = None) -> dict[str, str]:
         "trading_days": len(dates),
         "symbols": list(wide.columns),
         "source_quality": source_quality,
+        "price_basis": PRICE_BASIS if not simulated and provider == "finmind" else None,
         "input_sha256": hashlib.sha256(input_bytes).hexdigest(),
         "truth": {"regimes": truth_states is not None, "injected_events": truth_jumps is not None},
         "disclaimer": config["project"]["disclaimer"],

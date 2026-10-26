@@ -5,6 +5,7 @@ interface Provenance {
   data_source: string;
   is_simulated: boolean;
   trading_days: number;
+  price_basis: { kind: string; cash_dividends_reinvested: boolean };
   symbols: string[];
   source_quality: { source_row_count: number; usable_price_rows: number; excluded_no_trade_rows: number } | null;
 }
@@ -22,6 +23,8 @@ test.describe("正式公開行情資料", () => {
     expect(provenance.provider).toBe("finmind");
     expect(provenance.data_source).toBe("FinMind public historical daily prices");
     expect(provenance.is_simulated).toBe(false);
+    expect(provenance.price_basis.kind).toBe("known_split_adjusted");
+    expect(provenance.price_basis.cash_dividends_reinvested).toBe(false);
     expect(provenance.trading_days).toBeGreaterThanOrEqual(400);
     expect(provenance.symbols.slice().sort()).toEqual(["0050", "2317", "2330"]);
     expect(provenance.source_quality).not.toBeNull();
@@ -35,6 +38,15 @@ test.describe("正式公開行情資料", () => {
       expect(item.close.every((value) => Number.isFinite(value) && value > 0)).toBe(true);
     }
 
+    const beforeSplit = overview.dates.indexOf("2025-06-10");
+    const afterSplit = overview.dates.indexOf("2025-06-18");
+    expect(beforeSplit).toBeGreaterThanOrEqual(0);
+    expect(afterSplit).toBeGreaterThan(beforeSplit);
+    const etf = overview.symbols.find((item) => item.symbol === "0050")!;
+    // Official reference: 188.65 / 4 = 47.1625, not a 75% market loss.
+    expect(etf.close[beforeSplit]).toBeCloseTo(47.1625, 3);
+    expect(etf.close[afterSplit] / etf.close[beforeSplit]).toBeGreaterThan(0.8);
+    expect(etf.close[afterSplit] / etf.close[beforeSplit]).toBeLessThan(1.2);
     await openRoute(page, "/");
     await expect(page.getByTestId("total-return")).toBeVisible();
     await page.getByRole("radio", { name: /2330/ }).check();
@@ -44,6 +56,7 @@ test.describe("正式公開行情資料", () => {
     await openRoute(page, "/data");
     await expect(page.getByTestId("data-source")).toHaveText("FinMind public historical daily prices");
     await expect(page.getByTestId("integrity-summary")).toHaveText("6/6");
+    await expect(page.getByRole("heading", { name: "價格還原基準" })).toBeVisible();
     await expectAccessible(page);
   });
 });

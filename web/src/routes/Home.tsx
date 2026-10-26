@@ -84,7 +84,7 @@ function Dashboard({ overview, regimes, backtest, events, route }: { overview: O
           </span>
         </div>
         <div className="card kpi">
-          <span className="stat-label">期間總報酬</span>
+          <span className="stat-label">期間價格報酬</span>
           <span className="stat-value" data-testid="total-return">
             {formatSignedPercent(close.at(-1)! / close[0]! - 1)}
           </span>
