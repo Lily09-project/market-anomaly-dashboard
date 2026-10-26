@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { LoaderContext, useDataset, useDocumentTitle } from "../app/hooks";
 import { ScrollRegion } from "../components/ScrollRegion";
 import { Gate } from "../components/States";
@@ -64,7 +64,7 @@ function Creator({ data, schemaVersion }: { data: Data; schemaVersion: string })
   return (
     <section className="card snapshot-card" aria-labelledby="create-title">
       <h2 id="create-title">建立研究快照</h2>
-      <p className="muted">快照記錄資料指紋、方法參數與結果，並以 SHA-256 簽上指紋。之後任何人重新匯入，都能確認內容沒有被改過。</p>
+      <p className="muted">快照保存資料指紋、參數與結果。SHA-256 只檢查內容一致性，來源仍需自行確認。</p>
       <div className="controls">
         <label className="field">
           <span className="label">標的</span>
@@ -104,7 +104,9 @@ function Creator({ data, schemaVersion }: { data: Data; schemaVersion: string })
   );
 }
 
-function SnapshotInput({ id, label, result, onResult }: { id: string; label: string; result: ValidationResult | null; onResult: (result: ValidationResult) => void }) {
+function SnapshotInput({ id, label, result, onResult }: { id: string; label: string; result: ValidationResult | null; onResult: (result: ValidationResult | null) => void }) {
+  const generation = useRef(0);
+  useEffect(() => () => { generation.current += 1; }, []);
   return (
     <div className="field snapshot-input">
       <label htmlFor={id} className="label">
@@ -115,6 +117,8 @@ function SnapshotInput({ id, label, result, onResult }: { id: string; label: str
         type="file"
         accept="application/json,.json"
         onChange={(e) => {
+          const request = ++generation.current;
+          onResult(null);
           const file = e.target.files?.[0];
           if (!file) return;
           // Reject oversized files before reading them into memory.
@@ -125,7 +129,10 @@ function SnapshotInput({ id, label, result, onResult }: { id: string; label: str
           file
             .text()
             .then(validateSnapshot)
-            .then(onResult, () => onResult({ ok: false, reason: "無法讀取這個檔案" }));
+            .then(
+              (validation) => { if (generation.current === request) onResult(validation); },
+              () => { if (generation.current === request) onResult({ ok: false, reason: "無法讀取這個檔案" }); },
+            );
         }}
       />
       <div aria-live="polite" data-testid={`${id}-status`}>
@@ -193,7 +200,11 @@ function useSchemaVersion(): string | null {
   useEffect(() => {
     if (!loader) return;
     let alive = true;
-    loader.manifest().then((m) => alive && setVersion(m.schema_version));
+    loader.manifest().then(
+      (m) => alive && setVersion(m.schema_version),
+      // Dataset gates show the manifest error; do not leave an unhandled promise.
+      () => { if (alive) setVersion(null); },
+    );
     return () => {
       alive = false;
     };
@@ -215,13 +226,12 @@ export default function SnapshotPage() {
       <header>
         <span className="eyebrow">可重現研究</span>
         <h1>研究快照</h1>
-        <p className="lede">把一次分析的結果「封存」成可驗證的檔案：附上資料指紋與參數，任何人都能重新匯入、確認沒被竄改，並和另一份快照逐項比較。</p>
+        <p className="lede">封存資料指紋、參數與分析結果，重新匯入後逐項比較。</p>
       </header>
       <Gate<[Overview, Regimes, Backtest, Events, Stress, Provenance]> states={[overview, regimes, backtest, events, stress, provenance]}>
         {(o, r, b, e, s, p) => <Creator data={{ overview: o, regimes: r, backtest: b, events: e, stress: s, provenance: p }} schemaVersion={schemaVersion ?? "2.0"} />}
       </Gate>
       <Comparer />
-      <p className="muted small">提示：用文字編輯器改動快照裡的任何一個數字再匯入，指紋驗證就會失敗——這就是它存在的意義。</p>
     </div>
   );
 }
