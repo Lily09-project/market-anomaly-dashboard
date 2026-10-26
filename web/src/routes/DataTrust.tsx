@@ -160,6 +160,12 @@ function Trust({ provenance, regimes, events }: { provenance: Provenance; regime
 
       <section className="card method" id="methods">
         <h2>方法與限制</h2>
+        {!provenance.is_simulated && provenance.provider === "finmind" && (
+          <section aria-label="價格還原基準">
+            <h3>價格還原基準</h3>
+            <p>0050 已依官方公告還原 2025-06-18 的 1 拆 4：分割前 OHLC 除以 4、成交股數乘以 4，原始下載檔保持不變。分析使用還原後價格；未再投入現金股息，不是含息總報酬，其他公司行動仍可能影響結果。</p>
+          </section>
+        )}
         <h3>市場狀態（隱藏馬可夫模型）</h3>
         <p>
           以 numpy 自行實作高斯 HMM：縮放的前向後向演算法（避免數值下溢）、Baum-Welch 估計（每次疊代對數概似不遞減）、多組種子初始化取最佳、Viterbi 解碼，並依波動排序狀態。跳空日先以 60 日穩健 z 分數排除，視為缺值。以 BIC 比較 1–3 個狀態。
