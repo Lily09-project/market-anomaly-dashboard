@@ -233,8 +233,14 @@ def fetch_twse(
                             ) from exc
                         raise
                     response.raise_for_status()
-                    payload = json.loads(read_http_response_bytes(response, MAX_RESPONSE_BYTES).decode("utf-8-sig"))
-                    normalized = normalize_twse_payload(payload, symbol, start, end, month)
+                    try:
+                        payload = json.loads(read_http_response_bytes(response, MAX_RESPONSE_BYTES).decode("utf-8-sig"))
+                        normalized = normalize_twse_payload(payload, symbol, start, end, month)
+                    except (UnicodeError, ValueError) as exc:
+                        raise ValueError(
+                            f"TWSE response failed validation for {symbol}/{month:%Y-%m} "
+                            f"({type(exc).__name__})."
+                        ) from exc
                     source_row_count += int(normalized.attrs["source_row_count"])
                     excluded_no_trade_rows += int(normalized.attrs["excluded_no_trade_rows"])
                     if not normalized.empty:
