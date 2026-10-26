@@ -21,7 +21,7 @@ try:
 except Exception:
     requests = None
 
-from src.fetch_market_data import normalize_market_columns
+from src.fetch_market_data import MARKET_COLUMN_ALIASES, normalize_market_columns
 from src.request_policy import RequestBudget, request_with_retry, validate_response_origin, validate_upstream_url
 from src.utils import atomic_write_dataframe, ensure_parent, load_config, normalize_http_timeout, read_http_response_bytes, safe_exception_message, write_json
 
@@ -29,6 +29,7 @@ API_URL = "https://api.finmindtrade.com/api/v4/data"
 API_HOSTS = {"api.finmindtrade.com"}
 SYMBOL_PATTERN = re.compile(r"^[0-9]{4,6}$")
 MAX_SYMBOLS = 8
+NUMERIC_PATTERN = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
 
 
 def _taipei_today() -> str:
@@ -49,7 +50,22 @@ def normalize_finmind_payload(payload: Any, symbol: str, start_date: str, end_da
     records = payload.get("data")
     if not isinstance(records, list) or not records:
         raise ValueError("FinMind returned no price records.")
-    frame = normalize_market_columns(pd.DataFrame(records))
+    raw = pd.DataFrame(records)
+    # The generic CSV importer is deliberately tolerant. Public API values
+    # must instead be numeric as received; never strip letters to invent prices.
+    for field in ("open", "high", "low", "close", "volume"):
+        column = next((alias for alias in MARKET_COLUMN_ALIASES[field] if alias in raw.columns), None)
+        if column is None:
+            continue  # The normalizer reports the missing required column.
+        for value in raw[column]:
+            if isinstance(value, bool):
+                raise ValueError("FinMind returned incomplete or invalid numeric price records.")
+            if isinstance(value, str):
+                if not NUMERIC_PATTERN.fullmatch(value.strip()):
+                    raise ValueError("FinMind returned incomplete or invalid numeric price records.")
+            elif not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise ValueError("FinMind returned incomplete or invalid numeric price records.")
+    frame = normalize_market_columns(raw)
     if len(frame) != len(records):
         raise ValueError("FinMind returned incomplete or invalid price records.")
     if frame.empty:
