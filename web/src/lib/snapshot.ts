@@ -1,8 +1,8 @@
 /**
  * Research snapshots: a small, self-verifying JSON record of what was
  * analysed (data fingerprint, parameters) and what came out. The fingerprint
- * is the SHA-256 of the canonical JSON of everything else, so an edited file
- * is rejected on import.
+ * is the SHA-256 of the canonical JSON of everything else. Import checks
+ * content consistency; this unkeyed hash does not authenticate the source.
  */
 import { sha256Hex } from "./data";
 
