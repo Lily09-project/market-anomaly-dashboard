@@ -57,3 +57,20 @@ def test_exported_walk_forward_pays_actual_entry_and_switch_costs():
     np.testing.assert_allclose(result["equity"]["walk_forward"], expected, atol=1e-4, rtol=0)
     expected_sharpe = actual.mean() / actual.std(ddof=1) * np.sqrt(252) if actual.std(ddof=1) else 0.0
     assert result["oos_sharpe_stitched"] == pytest.approx(expected_sharpe, abs=0.00051)
+
+
+def test_walk_forward_first_fold_enters_from_cash(monkeypatch):
+    count = 800
+    prices = 100 * np.power(1.001, np.arange(count))
+    dates = pd.bdate_range("2020-01-01", periods=count).strftime("%Y-%m-%d").tolist()
+    # Controlled causal signals guarantee a long position at the first OOS boundary.
+    # The earlier random-market ledger test can legitimately select cash there.
+    monkeypatch.setattr(backtest, "crossover_positions",
+                        lambda values, fast, slow: np.ones(len(values)) if fast == 5 else np.zeros(len(values)))
+    result = export_web.analyse_backtest(dates, prices)
+    first = dates.index(result["walk_forward"][0]["test_start"]) - 1
+    stop = dates.index(result["walk_forward"][-1]["test_end"])
+    earned = prices[first + 1:stop + 1] / prices[first:stop] - 1
+    earned[0] -= result["cost_per_trade"]
+    expected = np.round(np.cumprod(1 + earned)[::5], 4)
+    np.testing.assert_allclose(result["equity"]["walk_forward"], expected, atol=1e-4, rtol=0)
