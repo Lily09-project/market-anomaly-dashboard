@@ -6,7 +6,7 @@ import { Gate } from "../components/States";
 import { formatNumber, formatPercent, formatSignedPercent } from "../lib/format";
 import { STRESS_LIMITS, type Route } from "../lib/router";
 import { histogram, logReturns, type StressSummary } from "../lib/stress";
-import type { Overview, Stress } from "../lib/types";
+import type { Overview, Stress, StressParams } from "../lib/types";
 import { useStressWorker } from "../workers/useStressWorker";
 import "./Stress.css";
 
@@ -16,6 +16,9 @@ const PATHS = [500, 2000, 5000, 10000, 20000];
 
 interface Result {
   key: string;
+  symbol: string;
+  params: StressParams;
+  var95Daily: number;
   summary: StressSummary;
 }
 
@@ -35,11 +38,11 @@ function StressView({ overview, stress, route }: { overview: Overview; stress: S
   const [requested, setRequested] = useState(key);
   const update = (patch: Partial<StressRoute>) => navigate({ ...route, symbol, ...patch }, { replace: true });
 
-  // Run once for every new parameter set (including the first visit).
+  // Run on first visit or an explicit request; result labels retain that request.
   useEffect(() => {
     let alive = true;
     run(logReturns(series.close), params).then(
-      (summary) => alive && setResult({ key, summary }),
+      (summary) => alive && setResult({ key, symbol, params: { ...params }, var95Daily: series.var95_daily, summary }),
       () => undefined,
     );
     return () => {
@@ -51,6 +54,7 @@ function StressView({ overview, stress, route }: { overview: Overview; stress: S
 
   const stale = result !== null && result.key !== key;
   const summary = result?.summary;
+  const displayed = result ?? { symbol, params, var95Daily: series.var95_daily };
   const bins = summary ? histogram(summary.terminal, 30) : [];
 
   return (
@@ -131,7 +135,7 @@ function StressView({ overview, stress, route }: { overview: Overview; stress: S
               <span className="stat-value" data-testid="var95">
                 {formatPercent(summary.var95, 1)}
               </span>
-              <span className="muted small">{params.horizon} 天後，有 5% 的機會虧損超過這個幅度</span>
+              <span className="muted small">{displayed.params.horizon} 天後，有 5% 的機會虧損超過這個幅度</span>
             </div>
             <div className="card kpi">
               <span className="stat-label">CVaR 95%</span>
@@ -152,7 +156,7 @@ function StressView({ overview, stress, route }: { overview: Overview; stress: S
           <section className="split">
             <div className="card">
               <ChartFrame
-                title={`${symbol} 未來 ${params.horizon} 個交易日的報酬扇形圖`}
+                title={`${displayed.symbol} 未來 ${displayed.params.horizon} 個交易日的報酬扇形圖`}
                 summary={`中位數路徑最後為 ${formatSignedPercent(summary.fan["0.5"]!.at(-1) ?? null)}；90% 的路徑落在 ${formatSignedPercent(summary.fan["0.05"]!.at(-1) ?? null)} 到 ${formatSignedPercent(summary.fan["0.95"]!.at(-1) ?? null)} 之間。`}
                 table={
                   <table data-testid="fan-table">
@@ -168,7 +172,7 @@ function StressView({ overview, stress, route }: { overview: Overview; stress: S
                     </thead>
                     <tbody>
                       {summary.fan["0.5"]!.map((_, day) =>
-                        day % 5 === 4 || day === params.horizon - 1 ? (
+                        day % 5 === 4 || day === displayed.params.horizon - 1 ? (
                           <tr key={day}>
                             <th scope="row">{day + 1}</th>
                             {["0.05", "0.25", "0.5", "0.75", "0.95"].map((q) => (
@@ -190,7 +194,7 @@ function StressView({ overview, stress, route }: { overview: Overview; stress: S
             <div className="card">
               <ChartFrame
                 title="期末報酬分布"
-                summary={`${params.paths.toLocaleString("zh-TW")} 條路徑的期末報酬；紅色是超過 VaR 95% 的虧損尾端。`}
+                summary={`${displayed.params.paths.toLocaleString("zh-TW")} 條路徑的期末報酬；紅色是超過 VaR 95% 的虧損尾端。`}
                 table={
                   <table>
                     <thead>
@@ -215,14 +219,14 @@ function StressView({ overview, stress, route }: { overview: Overview; stress: S
                 <Histogram bins={bins} format={(v) => formatPercent(v, 0)} highlight={-summary.var95} />
               </ChartFrame>
               <p className="muted small">
-                對照：歷史單日 VaR 95% 為 {formatPercent(series.var95_daily, 2)}。若報酬獨立，{params.horizon} 天的 VaR 約為它的 √{params.horizon} ≈{" "}
-                {formatNumber(Math.sqrt(params.horizon), 1)} 倍；區塊越長，越能保留連續下跌的風險。
+                對照：歷史單日 VaR 95% 為 {formatPercent(displayed.var95Daily, 2)}。若報酬獨立，{displayed.params.horizon} 天的 VaR 約為它的 √{displayed.params.horizon} ≈{" "}
+                {formatNumber(Math.sqrt(displayed.params.horizon), 1)} 倍；區塊越長，越能保留連續下跌的風險。
               </p>
             </div>
           </section>
         </>
       ) : (
-        <p className="muted">模擬中…</p>
+        <p className="muted" role="status">{running ? "模擬中…" : "尚無模擬結果，請開始或重新執行。"}</p>
       )}
     </div>
   );

@@ -169,8 +169,8 @@ test("old stress results keep their own symbol, horizon, paths and baseline", as
   await page.getByLabel("路徑數").selectOption("20000");
   await page.getByRole("slider", { name: /區塊長度/ }).press("ArrowRight");
   await expect(page.getByText("設定已變更，下方仍是舊設定的結果。")).toBeVisible();
-  await expect(page.getByTestId("risk-kpis")).toHaveText(originalRisk);
-  await expect(page.locator(".split")).toHaveText(originalResult);
+  await expect(page.getByTestId("risk-kpis")).toHaveText(originalRisk, { useInnerText: true });
+  await expect(page.locator(".split")).toHaveText(originalResult, { useInnerText: true });
   await page.getByRole("button", { name: "以新設定重新模擬" }).click();
   await expect(page.getByRole("button", { name: "已是最新結果" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "2330 未來 250 個交易日的報酬扇形圖" })).toBeVisible();
