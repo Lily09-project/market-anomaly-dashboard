@@ -200,3 +200,13 @@ def test_twse_rejects_redirects_and_invalid_symbols(tmp_path, capsys):
     assert "https://example.test/" in message
     assert "token=secret" not in message
     assert fetch_twse(_config(tmp_path, ("2330?token=secret",)), client=RedirectClient(), sleep=lambda _seconds: None) is None
+
+def test_twse_failure_identifies_month_without_echoing_untrusted_payload(tmp_path, capsys):
+    class InvalidClient:
+        def get(self, _url, **_kwargs):
+            return _Response(_payload([_row("115/02/02")]))
+
+    assert fetch_twse(_config(tmp_path), client=InvalidClient(), sleep=lambda _seconds: None) is None
+    message = capsys.readouterr().out
+    assert "2330/2026-01" in message
+    assert "115/02/02" not in message
