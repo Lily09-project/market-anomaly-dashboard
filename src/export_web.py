@@ -113,11 +113,43 @@ def analyse_regimes(returns: np.ndarray, truth: np.ndarray | None) -> tuple[dict
     return payload, model, x
 
 
+
+EVENT_WARMUP = 252
+EVENT_REFIT = 63
+EVENT_LOOKBACK = 504
+
+
+def causal_event_scores(returns: np.ndarray, warmup: int = EVENT_WARMUP) -> tuple[np.ndarray, np.ndarray]:
+    """Quarterly refits use only prior returns; each scored block is held out."""
+    values = np.asarray(returns, dtype=float)
+    z = np.full(len(values), np.nan)
+    states = np.zeros(len(values), dtype=int)
+    for origin in range(warmup, len(values), EVENT_REFIT):
+        history_start = max(0, origin-EVENT_LOOKBACK)
+        end = min(origin+EVENT_REFIT, len(values))
+        training = values[history_start:origin].copy()
+        training[events.anomaly_days(pd.Series(training)).to_numpy()] = np.nan
+        model = hmm.fit(training, N_STATES, n_init=2, max_iter=100, seed=31)
+        block = values[history_start:end]
+        block_z = hmm.predictive_z(block, model)
+        offset = origin-history_start
+        z[origin:end] = block_z[offset:]
+        filtered = model.initial.copy()
+        for index, value in enumerate(block):
+            predicted = filtered if index == 0 else filtered @ model.transition
+            if index >= offset:
+                states[history_start+index] = int(np.argmax(predicted))
+            likelihood = np.ones(N_STATES) if np.isnan(value) else np.maximum(
+                np.exp(-0.5 * (value-model.means)**2/model.variances) / np.sqrt(2*np.pi*model.variances), 1e-300,
+            )
+            filtered = predicted * likelihood
+            filtered /= filtered.sum()
+    return z, states
+
+
 def analyse_events(dates: list[str], returns: np.ndarray, model: hmm.HMMResult, path_states: list[list[int]], truth_dates: set[str] | None) -> tuple[dict[str, Any], list[np.ndarray], list[np.ndarray]]:
-    z = hmm.predictive_z(returns, model)
-    state_at = np.empty(len(returns), dtype=int)
-    for start, end, state in path_states:
-        state_at[start : end + 1] = state
+    # Retrospective display parameters and smoothed paths are not scoring inputs.
+    z, state_at = causal_event_scores(returns)
     found, negatives, positives = [], [], []
     for i in np.flatnonzero(np.abs(np.nan_to_num(z)) > EVENT_Z):
         date = dates[i + 1]
