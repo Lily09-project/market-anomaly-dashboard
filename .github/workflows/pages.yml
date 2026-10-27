@@ -60,6 +60,23 @@ jobs:
         env:
           CI: "1"
         run: npm run e2e -- e2e/production-data.spec.ts
+      - name: Record the deployed source and asset digests
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path("web/dist")
+          files = [root / "index.html", *sorted((root / "assets").glob("*.js")), *sorted((root / "assets").glob("*.css"))]
+          assert len(files) > 1 and all(path.is_file() for path in files)
+          payload = {
+              "source_sha": os.environ["GITHUB_SHA"],
+              "files": {path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in files},
+          }
+          (root / "deployment.json").write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
+          PY
       - name: Upload only the built static site
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
@@ -118,4 +135,35 @@ jobs:
           assert isinstance(excluded, int) and not isinstance(excluded, bool) and excluded >= 0
           assert source == usable + excluded
           print(f"Verified public FinMind snapshot: {usable} usable, {excluded} no-trade rows excluded")
+          PY
+      - name: Verify the public source revision and assets
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import time
+          import urllib.request
+
+          base = "https://lily09-project.github.io/market-anomaly-dashboard/"
+          expected = os.environ["EXPECTED_SHA"]
+          for attempt in range(6):
+              try:
+                  def fetch(path):
+                      with urllib.request.urlopen(base + path + "?revision=" + expected, timeout=30) as response:
+                          return response.read()
+                  deployed = json.loads(fetch("deployment.json"))
+                  assert deployed["source_sha"] == expected, "Public source revision does not match this deployment"
+                  assert "index.html" in deployed["files"] and len(deployed["files"]) > 1
+                  for path, digest in deployed["files"].items():
+                      assert path == "index.html" or (path.startswith("assets/") and ".." not in path and path.endswith((".js", ".css"))), path
+                      assert hashlib.sha256(fetch(path)).hexdigest() == digest, "Public asset mismatch: " + path
+                  print("Verified public source revision and asset digests:", expected)
+                  break
+              except Exception:
+                  if attempt == 5:
+                      raise
+                  time.sleep(20)
           PY
