@@ -105,20 +105,25 @@ function EventsView({ overview, events, regimes, route }: { overview: Overview; 
         <div className="card">
           <StudyChart study={negative} title={`負向衝擊之後（${negative.n} 個事件，所有個股合計）`} />
           <p className="callout" data-testid="negative-verdict">
-            {negSig === "up"
+            {negative.n === 0
+              ? "沒有足夠事件可估計事件後報酬與 95% 區間。"
+              : negSig === "up"
               ? "結論：負向衝擊之後有顯著的反彈——第 3 天的 95% 區間完全在 0 以上。"
               : negSig === "down"
                 ? "結論：負向衝擊之後顯著續跌。"
-                : "結論：95% 區間涵蓋 0，沒有證據顯示事件後的報酬可以預測。"}
-            {v && ` 合成資料的真實答案是：每次負向跳空後連續 ${v.truth_rebound.days} 天各多出 ${formatPercent(v.truth_rebound.per_day, 1)}（合計約 ${formatPercent(v.truth_rebound.days * v.truth_rebound.per_day, 1)}）。`}
+                : "結論：95% 區間涵蓋 0，本次樣本未見顯著的事件後異常報酬。"}
+            {v && negative.n > 0 && ` 合成資料的真實答案是：每次負向跳空後連續 ${v.truth_rebound.days} 天各多出 ${formatPercent(v.truth_rebound.per_day, 1)}（合計約 ${formatPercent(v.truth_rebound.days * v.truth_rebound.per_day, 1)}）。`}
           </p>
         </div>
         <div className="card">
           <StudyChart study={positive} title={`正向衝擊之後（${positive.n} 個事件）`} />
           <p className="callout" data-testid="positive-verdict">
-            {posSig === "none"
-              ? "結論：95% 區間涵蓋 0，正向衝擊之後沒有可預測的報酬。這也是合成資料的真實設定：正向跳空之後沒有任何延續或反轉。"
-              : `結論：第 3 天的區間${posSig === "up" ? "高於" : "低於"} 0。`}
+            {positive.n === 0
+              ? "沒有足夠事件可估計事件後報酬與 95% 區間。"
+              : posSig === "none"
+                ? "結論：95% 區間涵蓋 0，本次樣本未見顯著的事件後異常報酬。"
+                : `結論：第 3 天的區間${posSig === "up" ? "高於" : "低於"} 0。`}
+            {v && positive.n > 0 && posSig === "none" && " 合成資料的設定為正向跳空後沒有延續或反轉。"}
           </p>
         </div>
       </section>

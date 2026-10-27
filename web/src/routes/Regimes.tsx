@@ -33,7 +33,7 @@ function RegimeView({ overview, regimes, route }: { overview: Overview; regimes:
 
       {noRegimes && (
         <p className="notice" data-testid="no-regime-notice">
-          BIC 在 1、2、3 個狀態中選擇了 <strong>1 個</strong>：這條序列沒有證據顯示存在不同狀態。下面仍顯示 3 狀態模型的結果，但三個狀態的波動幾乎相同，只是在切分雜訊。
+          BIC 在 1、2、3 個狀態中選擇了 <strong>1 個</strong>：這條序列沒有證據顯示存在不同狀態。下面仍顯示 3 狀態模型供比較，不代表資料支持三種不同狀態。
         </p>
       )}
 
@@ -57,7 +57,7 @@ function RegimeView({ overview, regimes, route }: { overview: Overview; regimes:
 
       <section className="card">
         <ChartFrame
-          title={regime.truth_segments ? "模型判定 vs. 合成資料的真實狀態" : "模型判定的狀態序列"}
+          title={regime.truth_segments ? "回顧性模型判定 vs. 合成資料的真實狀態" : "回顧性模型判定的狀態序列"}
           summary={
             regime.accuracy !== null
               ? `標籤對齊後，模型與真實狀態一致的交易日比例為 ${formatPercent(regime.accuracy, 1)}。`
@@ -212,11 +212,9 @@ function RegimeView({ overview, regimes, route }: { overview: Overview; regimes:
             </table>
           </ScrollRegion>
           <p className="muted small">
-            {noRegimes
-              ? "對照組正確地選了 1 個狀態。"
-              : regime.bic_choice === 2
-                ? "BIC 偏好 2 個狀態：平穩與震盪的波動只差約一倍，懲罰參數後不一定值得分開。真實資料是 3 個狀態，所以我們仍展示 3 狀態模型，並用真實答案檢驗它。"
-                : `BIC 選擇 ${regime.bic_choice} 個狀態。`}
+            {regime.truth_segments && regime.bic_choice === 2
+              ? "BIC 偏好 2 個狀態；這份合成資料設定為 3 個狀態，可用已知答案比較模型。"
+              : `BIC 選擇 ${regime.bic_choice} 個狀態。以上色帶使用全期間擬合的 3 狀態模型供回顧性比較，不是即時交易訊號。`}
           </p>
         </div>
       </section>
