@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { expect, fetchJson, openRoute, test } from "./fixtures";
-import type { Events, Manifest } from "../src/lib/types";
+import type { Events, Manifest, Regimes } from "../src/lib/types";
 
 for (const noEvents of [false, true]) {
   test(`event verdicts distinguish real data and missing evidence (empty=${noEvents})`, async ({ page }) => {
@@ -34,5 +34,25 @@ for (const noEvents of [false, true]) {
     } else {
       await expect(page.getByTestId("positive-verdict")).toContainText("95% 區間涵蓋 0");
     }
+  });
+}
+
+for (const states of [1, 2]) {
+  test(`real-data BIC interpretation does not invent a known truth (states=${states})`, async ({ page }) => {
+    const regimes = await fetchJson<Regimes>(page, "regimes.json");
+    const manifest = await fetchJson<Manifest>(page, "manifest.json");
+    const regime = regimes.symbols["0050"]!;
+    regime.bic_choice = states;
+    regime.accuracy = null;
+    regime.truth_segments = null;
+    regime.confusion = null;
+    const body = JSON.stringify(regimes);
+    manifest.files["regimes.json"] = createHash("sha256").update(body).digest("hex");
+    await page.route("**/data/regimes.json", route => route.fulfill({ contentType: "application/json", body }));
+    await page.route("**/data/manifest.json", route => route.fulfill({ json: manifest }));
+    await openRoute(page, "/regimes?symbol=0050");
+    await expect(page.locator("main")).not.toContainText("對照組正確地選了");
+    await expect(page.locator("main")).not.toContainText("真實資料是 3 個狀態");
+    await expect(page.locator("main")).toContainText("回顧性");
   });
 }
