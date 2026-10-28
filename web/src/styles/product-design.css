@@ -59,3 +59,10 @@ code{overflow-wrap:anywhere}
 .progress-row{min-width:0;max-width:100%}
 .progress-row progress{min-width:0;width:0;flex:1 1 0}
 .progress-row > span{flex-shrink:0}
+
+/* Native file controls keep their full accessible label without sizing the grid. */
+.snapshot-input{grid-template-columns:minmax(0,1fr)}
+.snapshot-input > *{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.snapshot-input input[type=file]{width:100%;min-width:0;max-width:100%}
+.snapshot-input .tag{white-space:normal;overflow-wrap:anywhere;max-width:100%}
+.snapshot-card > progress{width:100%;max-width:100%;min-width:0}
