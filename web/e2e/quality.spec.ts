@@ -9,7 +9,7 @@ const ROUTES = [
   "/snapshot",
   "/data",
 ];
-const FIXED_BACKGROUND = "#0b0e11";
+const FIXED_BACKGROUND = "rgb(11, 14, 17)";
 const LEGACY_THEME_KEY = "market-regime-lab-theme";
 
 test.describe("Q4/Q5 navigation, keyboard and accessibility", () => {
@@ -65,7 +65,7 @@ test.describe("Q4/Q5 navigation, keyboard and accessibility", () => {
         const appearance = await page.locator("html").evaluate((root) => ({
           dataTheme: root.getAttribute("data-theme"),
           colorScheme: getComputedStyle(root).colorScheme,
-          background: getComputedStyle(root).getPropertyValue("--bg").trim(),
+          background: getComputedStyle(document.body).backgroundColor,
         }));
         expect(appearance).toEqual({
           dataTheme: null,
