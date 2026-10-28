@@ -54,3 +54,8 @@ code{overflow-wrap:anywhere}
 /* A long symbol name remains readable at 200% text on a phone. */
 .symbol-segmented label{max-width:100%;min-width:0}
 .symbol-segmented label span{max-width:100%;white-space:normal;overflow-wrap:anywhere;text-align:left;line-height:1.5}
+
+/* Native progress has an intrinsic em width; let it shrink beside its label. */
+.progress-row{min-width:0;max-width:100%}
+.progress-row progress{min-width:0;width:0;flex:1 1 0}
+.progress-row > span{flex-shrink:0}
