@@ -1,0 +1,68 @@
+/* Adapted design language; product data, routes and interaction contracts remain authoritative. */
+h1,h2,h3,.brand-text strong{font-family:var(--font-sans)}
+h1{letter-spacing:-.035em;line-height:1.18}
+.btn,.input,.site-nav a{transition:background 160ms ease,border-color 160ms ease,transform 160ms ease}
+button,input,select{touch-action:manipulation}
+.page{min-width:0}
+.card{box-shadow:var(--shadow)}
+.hero .lede{max-width:60ch}
+.site-nav a:focus-visible{outline:3px solid var(--focus);outline-offset:-3px}
+@media(max-width:640px){.hero h1{font-size:clamp(1.9rem,7vw,2.6rem)}.btn{min-height:44px}.input{font-size:1rem}}
+
+.site-header{background:var(--bg);backdrop-filter:none;border-bottom:1px solid var(--line)}
+.site-header-inner{width:min(1600px,100% - 32px);min-height:72px}
+.brand-mark{background:var(--accent);color:var(--accent-ink);border-radius:4px;width:42px;height:42px}
+.brand-text strong{font-size:1.05rem;letter-spacing:-.02em}
+.site-nav ul{gap:4px}.site-nav a{padding-inline:12px;border-radius:4px}
+.site-nav a[aria-current=page]{background:var(--accent-soft);color:var(--accent);box-shadow:inset 0 -2px var(--accent)}
+.data-badge{background:var(--bg-sunken);border-radius:4px;color:var(--ink-soft)}
+.hero{padding:12px 0 20px;border-bottom:1px solid var(--line)}
+.hero h1{max-width:28ch;font-weight:650}.hero .lede{font-size:1rem;color:var(--muted)}
+.hero .eyebrow{color:var(--accent);letter-spacing:.06em}
+.stack>*+*{margin-top:24px}
+.card{padding:20px;border-radius:8px}
+.kpis{gap:12px}.kpi{border-top:2px solid var(--accent)}
+.stat-value,.big-number{font-family:var(--font-mono);font-size:clamp(1.6rem,2.4vw,2.5rem);letter-spacing:-.05em}
+.controls{padding:16px;background:var(--bg-sunken);border:1px solid var(--line);border-radius:6px}
+.btn-primary:hover{background:#f0b90b;color:#181a20}
+.segmented input:checked+span{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.heat td[data-sign=pos]{background:color-mix(in srgb,#0ecb81 calc(var(--v) * 25%),var(--bg-raised))}
+.heat td[data-sign=neg]{background:color-mix(in srgb,#f6465d calc(var(--v) * -25%),var(--bg-raised))}
+.matrix td{background:color-mix(in srgb,var(--accent) calc(var(--p,0) * 20%),var(--bg-raised))}
+.site-footer{background:var(--bg);color:var(--muted);margin-top:32px}
+@media(min-width:1100px){.split{grid-template-columns:minmax(0,1.55fr) minmax(0,1fr)}}
+@media(max-width:980px){.site-header-inner{grid-template-columns:1fr auto}.site-nav{grid-column:1/-1;grid-row:2;overflow-x:auto}.site-header{position:static}}
+@media(max-width:640px){.card{padding:16px}.controls{padding:12px}.site-nav a{padding-inline:12px}}
+
+/* Reflow without hiding content when the user enlarges text. */
+.brand,.brand-text,.site-nav,.field,.controls,.row,.segmented{min-width:0}
+.brand-mark{flex-shrink:0}
+.site-header .brand-text strong{white-space:normal;overflow-wrap:anywhere}
+.site-nav{max-width:100%;width:100%}
+.segmented{flex-wrap:wrap;row-gap:8px}
+@media(max-width:1199px){.site-header-inner{grid-template-columns:minmax(0,1fr) auto}}
+
+.page .matrix td{background:color-mix(in srgb,var(--accent) calc(var(--p,0) * 14%),var(--bg-raised));color:var(--ink)}
+.page .heat td[data-sign=pos]{background:color-mix(in srgb,#0ecb81 calc(var(--v) * 20%),var(--bg-raised))}
+.page .heat td[data-sign=neg]{background:color-mix(in srgb,#f6465d calc(var(--v) * -20%),var(--bg-raised))}
+
+/* Grid children must shrink before their own table/navigation scroll region. */
+.grid > *, .split > *{min-width:0}
+.site-nav{overflow-x:auto;scrollbar-width:thin}
+code{overflow-wrap:anywhere}
+
+/* A long symbol name remains readable at 200% text on a phone. */
+.symbol-segmented label{max-width:100%;min-width:0}
+.symbol-segmented label span{max-width:100%;white-space:normal;overflow-wrap:anywhere;text-align:left;line-height:1.5}
+
+/* Native progress has an intrinsic em width; let it shrink beside its label. */
+.progress-row{min-width:0;max-width:100%}
+.progress-row progress{min-width:0;width:0;flex:1 1 0}
+.progress-row > span{flex-shrink:0}
+
+/* Native file controls keep their full accessible label without sizing the grid. */
+.snapshot-input{grid-template-columns:minmax(0,1fr)}
+.snapshot-input > *{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.snapshot-input input[type=file]{width:100%;min-width:0;max-width:100%}
+.snapshot-input .tag{white-space:normal;overflow-wrap:anywhere;max-width:100%}
+.snapshot-card > progress{width:100%;max-width:100%;min-width:0}

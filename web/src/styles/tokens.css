@@ -1,45 +1,45 @@
 /* Design tokens for Market Regime Lab: one fixed light palette. */
 :root {
-  color-scheme: light;
+  color-scheme: dark;
   --font-sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-serif: "Noto Serif TC", "Songti TC", "PMingLiU", Georgia, serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 
-  --bg: #f4f4f7;
-  --bg-raised: #ffffff;
-  --bg-sunken: #e9e9f0;
-  --ink: #15151c;
-  --ink-soft: #33343f;
-  --muted: #454650;
-  --line: #d6d7e0;
-  --line-strong: #adafbe;
-  --accent: #3a45b5;
-  --accent-ink: #ffffff;
-  --accent-soft: #e0e3fa;
-  --teal: #0f6e6a;
-  --teal-soft: #d5ebe8;
-  --gold: #8a5a00;
-  --good: #1f6f3d;
-  --bad: #b3261e;
-  --chart-1: #3a45b5;
-  --chart-2: #c2410c;
-  --chart-3: #0f766e;
-  --chart-4: #6b7280;
-  --chart-grid: #e3e4ec;
-  --focus: #1d4ed8;
-  --shadow: 0 1px 2px rgb(17 25 29 / 6%), 0 8px 24px rgb(17 25 29 / 6%);
+  --bg: #0b0e11;
+  --bg-raised: #1e2329;
+  --bg-sunken: #14181e;
+  --ink: #eaecef;
+  --ink-soft: #d0d5dd;
+  --muted: #a8b1bd;
+  --line: #353d49;
+  --line-strong: #647184;
+  --accent: #fcd535;
+  --accent-ink: #181a20;
+  --accent-soft: #39351d;
+  --teal: #42dbad;
+  --teal-soft: #173e35;
+  --gold: #fcd535;
+  --good: #42dbad;
+  --bad: #ff8094;
+  --chart-1: #fcd535;
+  --chart-2: #ff8094;
+  --chart-3: #42dbad;
+  --chart-4: #b6a4ff;
+  --chart-grid: #353d49;
+  --focus: #8ab4ff;
+  --shadow: none;
 
   /* Market states: calm, choppy, turbulent. Bands use the soft variants. */
-  --state-0: #1f7a4d;
-  --state-0-soft: #d6efe1;
-  --state-1: #a16207;
-  --state-1-soft: #f7ead0;
-  --state-2: #b42345;
-  --state-2-soft: #f8d9e0;
+  --state-0: #42dbad;
+  --state-0-soft: #173e35;
+  --state-1: #fcd535;
+  --state-1-soft: #39351d;
+  --state-2: #ff8094;
+  --state-2-soft: #45252e;
 
-  --radius-s: 6px;
-  --radius-m: 10px;
-  --radius-l: 16px;
+  --radius-s: 4px;
+  --radius-m: 6px;
+  --radius-l: 8px;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -47,12 +47,12 @@
   --space-5: 24px;
   --space-6: 32px;
   --space-7: 48px;
-  --step--1: clamp(0.82rem, 0.8rem + 0.1vw, 0.88rem);
-  --step-0: clamp(0.98rem, 0.95rem + 0.15vw, 1.05rem);
+  --step--1: 0.875rem;
+  --step-0: 1rem;
   --step-1: clamp(1.15rem, 1.08rem + 0.35vw, 1.35rem);
   --step-2: clamp(1.4rem, 1.25rem + 0.7vw, 1.85rem);
-  --step-3: clamp(1.8rem, 1.5rem + 1.4vw, 2.75rem);
-  --content: 1180px;
+  --step-3: clamp(1.9rem, 1.5rem + 1.3vw, 3rem);
+  --content: 1440px;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --duration: 220ms;
 }
