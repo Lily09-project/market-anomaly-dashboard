@@ -45,3 +45,8 @@ button,input,select{touch-action:manipulation}
 .page .matrix td{background:color-mix(in srgb,var(--accent) calc(var(--p,0) * 14%),var(--bg-raised));color:var(--ink)}
 .page .heat td[data-sign=pos]{background:color-mix(in srgb,#0ecb81 calc(var(--v) * 20%),var(--bg-raised))}
 .page .heat td[data-sign=neg]{background:color-mix(in srgb,#f6465d calc(var(--v) * -20%),var(--bg-raised))}
+
+/* Grid children must shrink before their own table/navigation scroll region. */
+.grid > *, .split > *{min-width:0}
+.site-nav{overflow-x:auto;scrollbar-width:thin}
+code{overflow-wrap:anywhere}

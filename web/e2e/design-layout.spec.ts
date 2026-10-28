@@ -18,7 +18,7 @@ test("redesigned pages reflow with 200 percent text and retain reachable navigat
       const nav = document.querySelector(".site-nav")!.getBoundingClientRect();
       const offenders = Array.from(document.querySelectorAll("main *, .site-header *")).filter(el => {
         const rect = el.getBoundingClientRect();
-        return rect.right > innerWidth + 1 && !el.closest(".table-scroll, .site-nav");
+        return rect.right > document.documentElement.clientWidth + 1 && !el.parentElement?.closest(".table-scroll, .site-nav");
       }).slice(0,8).map(el => ({ tag: el.tagName, cls: el.className, text: el.textContent?.slice(0,50) }));
       return { offenders, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
         mainLeft: main.left, navRight: nav.right, navPosition: getComputedStyle(document.querySelector(".site-header")!).position };
