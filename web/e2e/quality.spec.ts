@@ -9,7 +9,7 @@ const ROUTES = [
   "/snapshot",
   "/data",
 ];
-const FIXED_BACKGROUND = "#f4f4f7";
+const FIXED_BACKGROUND = "#0b0e11";
 const LEGACY_THEME_KEY = "market-regime-lab-theme";
 
 test.describe("Q4/Q5 navigation, keyboard and accessibility", () => {
@@ -69,7 +69,7 @@ test.describe("Q4/Q5 navigation, keyboard and accessibility", () => {
         }));
         expect(appearance).toEqual({
           dataTheme: null,
-          colorScheme: "light",
+          colorScheme: "dark",
           background: FIXED_BACKGROUND,
         });
         await expectAccessible(page);
