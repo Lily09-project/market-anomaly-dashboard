@@ -7,7 +7,7 @@
 
 | 項目 | 決策 |
 | --- | --- |
-| 資料 | 正式 Pages 與 Docker 僅發布經驗證的 FinMind 公開歷史行情；使用 `--mode api --require-api`，來源或資料驗證失敗即停止。固定種子合成資料只供本機研究、方法測試與 PR 預覽。 |
+| 資料 | 正式 Pages 與 Docker 僅發布經驗證的 FinMind 公開歷史行情；使用 `--mode api --require-api`，來源或資料驗證失敗即停止。固定種子合成資料只供本機研究、方法測試與 PR 預覽。證交所 OpenAPI 盤後快照為補充資料：取得失敗時標示未取得、不阻擋發布；取得時須與 FinMind 未還原收盤價一致，不得以合成值替代。 |
 | 分析核心 | Python（`src/`），新增 `src/analytics/`，以 numpy 自行實作演算法（不依賴黑盒套件），全部可離線、可重現 |
 | 前端 | 全新 React + TypeScript + Vite 靜態網站（`web/`），部署於 GitHub Pages |
 | 舊版 Streamlit | 移除，由新網站與新測試取代 |

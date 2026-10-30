@@ -10,6 +10,12 @@ interface Provenance {
   source_quality: { source_row_count: number; usable_price_rows: number; excluded_no_trade_rows: number } | null;
 }
 
+interface Twse {
+  status: string;
+  trade_date: string | null;
+  symbols: Record<string, { close: number; cross_check: { match: boolean } | null }>;
+}
+
 interface Overview {
   dates: string[];
   symbols: { symbol: string; close: number[] }[];
@@ -47,15 +53,27 @@ test.describe("正式公開行情資料", () => {
     expect(etf.close[beforeSplit]).toBeCloseTo(47.1625, 3);
     expect(etf.close[afterSplit] / etf.close[beforeSplit]).toBeGreaterThan(0.8);
     expect(etf.close[afterSplit] / etf.close[beforeSplit]).toBeLessThan(1.2);
+    // The TWSE snapshot is supplementary: it may be unavailable, but never simulated or mismatched.
+    const twse = await fetchJson<Twse>(page, "twse.json");
+    expect(["ok", "unavailable"]).toContain(twse.status);
+    if (twse.status === "ok") {
+      expect(Object.keys(twse.symbols).sort()).toEqual(["0050", "2317", "2330"]);
+      for (const row of Object.values(twse.symbols)) {
+        expect(row.close).toBeGreaterThan(0);
+        if (row.cross_check) expect(row.cross_check.match).toBe(true);
+      }
+    }
+
     await openRoute(page, "/");
     await expect(page.getByTestId("total-return")).toBeVisible();
+    await expect(page.getByTestId(twse.status === "ok" ? "twse-cross-check" : "twse-unavailable")).toBeVisible();
     await page.getByRole("radio", { name: /2330/ }).check();
     await expect(page).toHaveURL(/symbol=2330/);
     await expectAccessible(page);
 
     await openRoute(page, "/data");
     await expect(page.getByTestId("data-source")).toHaveText("FinMind public historical daily prices");
-    await expect(page.getByTestId("integrity-summary")).toHaveText("6/6");
+    await expect(page.getByTestId("integrity-summary")).toHaveText("7/7");
     await expect(page.getByRole("heading", { name: "價格還原基準" })).toBeVisible();
     await expectAccessible(page);
   });

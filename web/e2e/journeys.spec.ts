@@ -26,6 +26,17 @@ test.describe("F1 標的總覽", () => {
     await expect(page.getByTestId("control-notice")).toBeVisible();
     await expectAccessible(page);
   });
+
+  test("the exchange snapshot panel is labelled as a preview and skips the control", async ({ page }) => {
+    await openRoute(page, "/?symbol=2330");
+    const panel = page.getByTestId("twse-panel");
+    await expect(panel.getByTestId("twse-sample")).toBeVisible();
+    await expect(panel.getByTestId("twse-cross-check")).toHaveText("與 FinMind 收盤一致");
+    await expect(panel.getByRole("figure")).toContainText("加權指數");
+    await page.getByRole("radio", { name: /RANDOM/ }).check();
+    await expect(panel).toContainText("隨機漫步對照組");
+    await expectAccessible(page);
+  });
 });
 
 test.describe("F2 市場狀態", () => {
@@ -146,7 +157,7 @@ test.describe("F6 研究快照", () => {
 test.describe("F7 資料可信度", () => {
   test("every file passes in-browser SHA-256 verification against the manifest", async ({ page }) => {
     await openRoute(page, "/data");
-    await expect(page.getByTestId("integrity-summary")).toHaveText("6/6");
+    await expect(page.getByTestId("integrity-summary")).toHaveText("7/7");
     const manifest = await fetchJson<{ files: Record<string, string> }>(page, "manifest.json");
     const rows = page.getByTestId("integrity-table").locator("tbody tr");
     for (const [name, hash] of Object.entries(manifest.files)) {

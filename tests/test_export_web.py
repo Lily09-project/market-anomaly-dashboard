@@ -11,7 +11,7 @@ from run_all import run
 from src import export_web
 from src.analytics import risk
 
-FILES = ("overview.json", "regimes.json", "events.json", "backtest.json", "stress.json", "provenance.json")
+FILES = ("overview.json", "regimes.json", "events.json", "backtest.json", "stress.json", "provenance.json", "twse.json")
 
 
 @pytest.fixture(scope="module")
@@ -165,3 +165,39 @@ def write_stress_fixture() -> None:
     payload = stress_fixture(root / "web" / "public" / "data")
     text = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     (root / "web" / "src" / "lib" / "fixtures" / "stress-parity.json").write_text(text + "\n", encoding="utf-8", newline="\n")
+
+
+def test_twse_preview_is_labelled_sample_and_skips_the_control(exported: Path) -> None:
+    twse = _load(exported, "twse.json")
+    assert twse["status"] == "sample"
+    assert twse["sources"] == []
+    assert export_web.CONTROL_SYMBOL not in twse["symbols"]
+    assert twse["trade_date"] == _load(exported, "overview.json")["dates"][-1]
+
+
+def test_twse_unavailable_without_a_snapshot(tmp_path: Path) -> None:
+    wide = pd.DataFrame({"2330": [1.0, 2.0]}, index=["2026-01-02", "2026-01-05"])
+    payload = export_web.twse_payload({"data": {"raw_dir": tmp_path}}, wide, False, None)
+    assert payload["status"] == "unavailable"
+    assert payload["symbols"] == {} and payload["market"] == []
+
+
+def test_twse_cross_check_uses_unadjusted_finmind_close(tmp_path: Path) -> None:
+    pd.DataFrame({"date": ["2026-10-29", "2026-10-29"], "symbol": ["2330", "2317"], "close": [2415.0, 250.0]}).to_csv(tmp_path / "market_finmind.csv", index=False)
+    snapshot = {
+        "trade_date": "2026-10-29",
+        "daily": {s: {"close": c, "change": 0.0, "volume_shares": 1.0, "value_twd": 1.0} for s, c in (("2330", 2415.0), ("2317", 248.0), ("0050", 107.25))},
+        "valuation": {"2330": {"pe": 27.99, "dividend_yield_pct": 0.91, "pb": 9.74}},
+        "margin": {s: {"margin_balance": 10.0, "margin_previous": 4.0, "short_balance": 1.0, "short_previous": 3.0} for s in ("2330", "2317", "0050")},
+        "market": [{"date": "2026-10-29", "taiex": 46368.33, "change": -667.25, "value_twd": 8.2e11}],
+    }
+    path = tmp_path / "twse_snapshot.json"
+    path.write_text(json.dumps(snapshot), encoding="utf-8")
+    wide = pd.DataFrame({"0050": [1.0], "2317": [1.0], "2330": [1.0]}, index=["2026-10-29"])
+    payload = export_web.twse_payload({"data": {"raw_dir": tmp_path}}, wide, False, path)
+    rows = payload["symbols"]
+    assert payload["status"] == "ok"
+    assert rows["2330"]["cross_check"] == {"finmind_close": 2415.0, "match": True}
+    assert rows["2317"]["cross_check"] == {"finmind_close": 250.0, "match": False}
+    assert rows["0050"]["cross_check"] is None and rows["0050"]["pe"] is None
+    assert rows["2330"]["margin_change"] == 6.0 and rows["2330"]["short_change"] == -2.0

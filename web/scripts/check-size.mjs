@@ -12,8 +12,8 @@ const preloads = [...html.matchAll(/<link[^>]+rel="modulepreload"[^>]+href="\.\/
 const initialJs = [...scripts, ...preloads];
 const jsGzip = initialJs.reduce((sum, file) => sum + gzipSync(readFileSync(join(dist, file))).length, 0);
 
-// The home page loads the manifest, overview, regimes, backtest, events and provenance files.
-const firstScreenData = ["manifest.json", "overview.json", "regimes.json", "backtest.json", "events.json", "provenance.json"];
+// The home page loads the manifest, overview, regimes, backtest, events, provenance and TWSE files.
+const firstScreenData = ["manifest.json", "overview.json", "regimes.json", "backtest.json", "events.json", "provenance.json", "twse.json"];
 const dataBytes = firstScreenData.reduce((sum, file) => sum + statSync(join(dist, "data", file)).size, 0);
 
 const JS_BUDGET = 200 * 1024;
