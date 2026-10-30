@@ -11,6 +11,7 @@ from pathlib import Path
 from src.export_web import DEFAULT_OUT, export
 from src.fetch_finmind import fetch_finmind
 from src.fetch_market_data import fetch_market_data
+from src.fetch_twse import fetch_twse
 from src.fetch_yfinance import fetch_yfinance
 from src.generate_sample_data import generate_sample_data
 from src.preprocess import preprocess_data
@@ -23,11 +24,14 @@ def run(mode: str = "sample", out_dir: Path | None = None, *, require_api: bool 
     config = load_config()
     ensure_project_dirs(config)
     market_path = None
+    twse_path = None
     if mode == "api":
         api = config.get("api", {})
         provider = api.get("provider", "url")
         if provider == "finmind":
             market_path = fetch_finmind(config)
+            if market_path is not None:
+                twse_path = fetch_twse(config)
         elif provider == "yfinance":
             market_path = fetch_yfinance(config, list(api.get("symbols", [])))
         else:
@@ -41,7 +45,7 @@ def run(mode: str = "sample", out_dir: Path | None = None, *, require_api: bool 
     effective = "api" if market_path is not None else "sample"
     cleaned = preprocess_data(config, mode=effective, market_path=market_path)
     target = out_dir or project_path(DEFAULT_OUT)
-    hashes = export(target, cleaned_path=cleaned)
+    hashes = export(target, cleaned_path=cleaned, twse_path=twse_path)
     print(f"Pipeline finished ({effective} data). Web data written to {target}")
     return hashes
 

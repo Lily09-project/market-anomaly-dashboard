@@ -19,6 +19,8 @@ python run_all.py --mode api --require-api
 
 產品正式資料使用不需 token 的 FinMind 公開歷史行情 API。嚴格模式在 API 不可用、資料不完整或驗證失敗時會停止，不輸出合成資料。不要在正式發布流程使用未加 `--require-api` 的一般 API 模式，因該模式可能回退到 sample。
 
+FinMind 成功後，流程會再向證交所 OpenAPI（`openapi.twse.com.tw`，免金鑰）取得最新一個交易日的盤後快照，寫入 `twse.json` 並列入 manifest 雜湊。這是補充資料：證交所失敗時 `twse.json` 標示 `unavailable`，價格分析照常發布；舊快照會先刪除，不會被誤當成當日資料。
+
 Windows 執行 `run_project.bat`；`run_project.bat --validate` 會跑 pytest、Bandit、Ruff、pip-audit、TypeScript、ESLint、Vitest 覆蓋率與效能預算，但不啟動網站。
 
 ## Docker 正式映像

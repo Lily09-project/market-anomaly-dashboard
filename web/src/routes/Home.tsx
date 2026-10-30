@@ -2,6 +2,7 @@ import { useDataset, useDocumentTitle, useRoute } from "../app/hooks";
 import { ChartFrame, Legend, LineChart } from "../components/charts";
 import { pickSymbol, StateChip, SymbolPicker } from "../components/Common";
 import { Gate } from "../components/States";
+import { TwsePanel } from "../components/Twse";
 import { formatNumber, formatPercent, formatSignedPercent } from "../lib/format";
 import { drawdowns, rollingVolatility, statesByDay } from "../lib/market";
 import { PERIOD_DAYS, routeToHash, type Period, type Route } from "../lib/router";
@@ -134,6 +135,8 @@ function Dashboard({ overview, regimes, backtest, events, route }: { overview: O
         </ChartFrame>
         <Legend items={[{ key: "close", label: "收盤價", tone: 1 }, ...regime.labels.map((label, state) => ({ key: label, label, state }))]} />
       </section>
+
+      <TwsePanel symbol={symbol} />
 
       <section className="split">
         <div className="card">

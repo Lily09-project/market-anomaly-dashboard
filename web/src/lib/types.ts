@@ -151,6 +151,31 @@ export interface Provenance {
   sources: { label: string; url: string }[];
 }
 
+export interface TwseSymbol {
+  close: number;
+  change: number | null;
+  volume_shares: number | null;
+  value_twd: number | null;
+  /** P/E, yield and P/B are published for listed stocks only, not ETFs. */
+  pe: number | null;
+  dividend_yield_pct: number | null;
+  pb: number | null;
+  /** Margin and short balances are in board lots (張). */
+  margin_balance: number | null;
+  margin_change: number | null;
+  short_balance: number | null;
+  short_change: number | null;
+  cross_check: { finmind_close: number; match: boolean } | null;
+}
+
+export interface Twse {
+  status: "ok" | "unavailable" | "sample";
+  trade_date: string | null;
+  symbols: Record<string, TwseSymbol>;
+  market: { date: string; taiex: number; change: number | null; value_twd: number | null }[];
+  sources: { label: string; url: string }[];
+}
+
 export interface Manifest {
   schema_version: string;
   files: Record<string, string>;
@@ -163,4 +188,5 @@ export interface DataFiles {
   "backtest.json": Backtest;
   "stress.json": Stress;
   "provenance.json": Provenance;
+  "twse.json": Twse;
 }

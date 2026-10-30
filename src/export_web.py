@@ -308,7 +308,79 @@ def _finmind_source_quality(config: dict[str, Any], provider: str, simulated: bo
     }
 
 
-def export(out_dir: Path, cleaned_path: Path | None = None) -> dict[str, str]:
+TWSE_SOURCES = [
+    {"label": "TWSE OpenAPI (after-hours snapshot, no key)", "url": "https://openapi.twse.com.tw/"},
+    {"label": "Government Open Data License 1.0", "url": "https://data.gov.tw/license"},
+]
+# Exchange closes are quoted to two decimals; anything larger is a real mismatch.
+CROSS_CHECK_TOLERANCE = 0.005
+
+
+def _finmind_raw_close(config: dict[str, Any], trade_date: str) -> dict[str, float]:
+    """Unadjusted FinMind closes on the TWSE date, so the split adjustment cannot hide a mismatch."""
+    raw_path = project_path(Path(config["data"]["raw_dir"]) / "market_finmind.csv")
+    if not raw_path.exists():
+        return {}
+    raw = pd.read_csv(raw_path, dtype={"symbol": "string"})
+    rows = raw.loc[raw["date"] == trade_date]
+    return {str(r.symbol): float(r.close) for r in rows.itertuples(index=False)}
+
+
+def twse_payload(config: dict[str, Any], wide: pd.DataFrame, simulated: bool, twse_path: Path | None) -> dict[str, Any]:
+    """Latest exchange snapshot per symbol, or an explicit unavailable/sample status."""
+    symbols = [s for s in wide.columns if s != CONTROL_SYMBOL]
+    if simulated:
+        # Labelled fixture so previews and tests exercise the panel; never shown as real.
+        last = wide.iloc[-1]
+        trade_date = str(wide.index[-1])
+        rows = {}
+        for i, symbol in enumerate(symbols):
+            close = round(float(last[symbol]), 2)
+            is_etf = symbol.startswith("00")
+            rows[symbol] = {
+                "close": close, "change": round(close - float(wide[symbol].iloc[-2]), 2), "volume_shares": 1_000_000.0 * (i + 1), "value_twd": round(close * 1_000_000 * (i + 1)),
+                "pe": None if is_etf else 15.0 + i, "dividend_yield_pct": None if is_etf else 2.0, "pb": None if is_etf else 2.5,
+                "margin_balance": 20_000.0 * (i + 1), "margin_change": 100.0, "short_balance": 300.0, "short_change": -10.0,
+                "cross_check": {"finmind_close": close, "match": True},
+            }
+        anchor = wide[symbols[0]].iloc[-20:]
+        market = [{"date": str(d), "taiex": _num(float(v) * 100, 2), "change": None, "value_twd": 5e11} for d, v in anchor.items()]
+        return {"status": "sample", "trade_date": trade_date, "symbols": rows, "market": market, "sources": []}
+    if twse_path is None or not Path(twse_path).exists():
+        return {"status": "unavailable", "trade_date": None, "symbols": {}, "market": [], "sources": TWSE_SOURCES}
+    snapshot = json.loads(Path(twse_path).read_text(encoding="utf-8"))
+    trade_date = snapshot["trade_date"]
+    finmind = _finmind_raw_close(config, trade_date)
+    rows = {}
+    for symbol in symbols:
+        daily = snapshot["daily"].get(symbol)
+        margin = snapshot["margin"].get(symbol)
+        if daily is None or margin is None:
+            continue
+        valuation = snapshot["valuation"].get(symbol, {})
+        reference = finmind.get(symbol)
+        rows[symbol] = {
+            "close": _num(daily["close"], 2),
+            "change": _num(daily["change"], 2),
+            "volume_shares": _num(daily["volume_shares"], 0),
+            "value_twd": _num(daily["value_twd"], 0),
+            "pe": _num(valuation.get("pe"), 2),
+            "dividend_yield_pct": _num(valuation.get("dividend_yield_pct"), 2),
+            "pb": _num(valuation.get("pb"), 2),
+            "margin_balance": _num(margin["margin_balance"], 0),
+            "margin_change": _num(margin["margin_balance"] - margin["margin_previous"], 0),
+            "short_balance": _num(margin["short_balance"], 0),
+            "short_change": _num(margin["short_balance"] - margin["short_previous"], 0),
+            "cross_check": None if reference is None else {
+                "finmind_close": _num(reference, 2),
+                "match": abs(reference - daily["close"]) <= CROSS_CHECK_TOLERANCE,
+            },
+        }
+    market = [{k: _num(v, 2) if isinstance(v, float) else v for k, v in item.items()} for item in snapshot["market"]]
+    return {"status": "ok", "trade_date": trade_date, "symbols": rows, "market": market, "sources": TWSE_SOURCES}
+
+
+def export(out_dir: Path, cleaned_path: Path | None = None, twse_path: Path | None = None) -> dict[str, str]:
     config = load_config()
     cleaned = pd.read_csv(cleaned_path or project_path(config["data"]["cleaned_path"]), dtype={"symbol": "string"})
     cleaned = cleaned.sort_values(["symbol", "date"], kind="stable")
@@ -427,6 +499,10 @@ def export(out_dir: Path, cleaned_path: Path | None = None) -> dict[str, str]:
         ],
     }
 
+    twse = twse_payload(config, wide, simulated, twse_path)
+    if twse["status"] == "ok":
+        provenance["sources"] = market_sources + twse["sources"] + provenance["sources"][len(market_sources):]
+
     files = {
         "overview.json": overview,
         "regimes.json": regimes_payload,
@@ -434,6 +510,7 @@ def export(out_dir: Path, cleaned_path: Path | None = None) -> dict[str, str]:
         "backtest.json": backtest_payload,
         "stress.json": stress_payload,
         "provenance.json": provenance,
+        "twse.json": twse,
     }
     out_dir.mkdir(parents=True, exist_ok=True)
     hashes = {name: _write_json(out_dir / name, payload) for name, payload in files.items()}
