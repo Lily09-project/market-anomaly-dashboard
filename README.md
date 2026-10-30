@@ -26,9 +26,17 @@
 
 ## 技術
 
-Python、NumPy、React、TypeScript、Vite、Web Worker；GitHub Pages 提供靜態展示，另有非 root Docker 映像。
+Python、NumPy、React、TypeScript、Vite、Web Worker；GitHub Pages 提供靜態展示，另有非 root Docker 映像。介面採深色金黑研究工作區，設計原則見 [DESIGN.md](DESIGN.md)。
 
-![回測研究畫面](docs/screenshots/backtest.png)
+## 畫面
+
+| 市場狀態 | 異常事件 |
+| --- | --- |
+| ![市場狀態畫面](docs/screenshots/regimes.png) | ![異常事件畫面](docs/screenshots/events.png) |
+| **誠實回測** | **壓力測試** |
+| ![誠實回測畫面](docs/screenshots/backtest.png) | ![壓力測試畫面](docs/screenshots/stress.png) |
+
+截圖取自正式網站的 FinMind 歷史快照。
 
 ## 本機執行與驗證
 
