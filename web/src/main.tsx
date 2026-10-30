@@ -4,6 +4,7 @@ import App from "./App";
 import "./styles/tokens.css";
 import "./styles/global.css";
 import "./styles/product-design.css";
+import "./styles/polish.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("missing #root element");
