@@ -41,11 +41,21 @@ function MarketView({ market, overview, route }: { market: TwseMarket; overview:
   const limit = paging.key === filterKey ? paging.limit : PAGE;
   const analysed = new Set(overview.symbols.filter((s) => !s.is_control).map((s) => s.symbol));
 
-  // Keep the search in the URL without adding a history entry per keystroke.
+  // Back/forward or the nav link can change ?q= while this page stays mounted:
+  // adopt the URL's search unless it is the one this box just wrote.
+  const [syncedQ, setSyncedQ] = useState(route.q);
+  if (route.q !== syncedQ) {
+    setSyncedQ(route.q);
+    if ((query.trim() || undefined) !== route.q) setQuery(route.q ?? "");
+  }
+
+  // Keep the search in the URL without adding a history entry per keystroke;
+  // wait for the deferred value to settle so a stale one is never written back.
   useEffect(() => {
+    if (deferred !== query) return;
     const q = deferred.trim() || undefined;
     if (q !== route.q) navigate({ ...route, q }, { replace: true });
-  }, [deferred, navigate, route]);
+  }, [deferred, query, navigate, route]);
 
   if (market.status === "unavailable" || market.trade_date === null) {
     return (

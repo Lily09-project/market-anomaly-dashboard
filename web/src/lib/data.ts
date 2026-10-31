@@ -19,30 +19,46 @@ export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-type Fetcher = (url: string) => Promise<Response>;
+type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
 
-export function createLoader(baseUrl: string, fetcher: Fetcher = (url) => fetch(url)) {
+export function createLoader(baseUrl: string, fetcher: Fetcher = (url, init) => fetch(url, init)) {
   let manifestPromise: Promise<Manifest> | null = null;
   const cache = new Map<string, Promise<unknown>>();
   const verified = new Set<string>();
 
-  const getBytes = async (name: string): Promise<ArrayBuffer> => {
-    const response = await fetcher(`${baseUrl}data/${name}`);
+  const getBytes = async (name: string, init?: RequestInit): Promise<ArrayBuffer> => {
+    const response = await fetcher(`${baseUrl}data/${name}`, init);
     if (!response.ok) throw new Error(`無法載入 ${name}（HTTP ${response.status}）`);
     return response.arrayBuffer();
   };
 
-  const manifest = () => {
-    manifestPromise ??= getBytes("manifest.json").then((bytes) => JSON.parse(new TextDecoder().decode(bytes)) as Manifest);
+  const manifest = (init?: RequestInit) => {
+    if (!manifestPromise || init) {
+      const promise = getBytes("manifest.json", init).then((bytes) => JSON.parse(new TextDecoder().decode(bytes)) as Manifest);
+      // A failed request must not poison every later load in this tab.
+      promise.catch(() => {
+        if (manifestPromise === promise) manifestPromise = null;
+      });
+      manifestPromise = promise;
+    }
     return manifestPromise;
+  };
+
+  const matches = async (m: Manifest, name: string, bytes: ArrayBuffer) => {
+    const expected = m.files[name];
+    return Boolean(expected) && (await sha256Hex(bytes)) === expected;
   };
 
   async function load<K extends keyof DataFiles>(name: K): Promise<DataFiles[K]> {
     if (!cache.has(name)) {
       const promise = (async () => {
-        const [m, bytes] = await Promise.all([manifest(), getBytes(name)]);
-        const expected = m.files[name];
-        if (!expected || (await sha256Hex(bytes)) !== expected) throw new IntegrityError(name);
+        let [m, bytes] = await Promise.all([manifest(), getBytes(name)]);
+        if (!(await matches(m, name, bytes))) {
+          // A redeploy (or a cached copy) can pair an old manifest with a new file:
+          // revalidate both once before calling it an integrity failure.
+          [m, bytes] = await Promise.all([manifest({ cache: "reload" }), getBytes(name, { cache: "reload" })]);
+          if (!(await matches(m, name, bytes))) throw new IntegrityError(name);
+        }
         verified.add(name);
         return JSON.parse(new TextDecoder().decode(bytes)) as DataFiles[K];
       })();

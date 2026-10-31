@@ -6,7 +6,8 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    - cron: "30 11 * * 1-5"
+    # 22:30 Taipei: TWSE margin balances (MI_MARGN, undated) are posted in the evening.
+    - cron: "30 14 * * 1-5"
   workflow_dispatch:
 
 permissions:

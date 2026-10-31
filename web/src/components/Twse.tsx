@@ -1,5 +1,6 @@
 import { useDataset } from "../app/hooks";
 import { formatNumber, formatSigned } from "../lib/format";
+import { isEtf } from "../lib/marketTable";
 import type { Twse, TwseSymbol } from "../lib/types";
 import { ChartFrame, LineChart } from "./charts";
 import { Gate } from "./States";
@@ -58,7 +59,7 @@ function TwseView({ twse, symbol }: { twse: Twse; symbol: string }) {
             <dl className="twse-metrics">
               <Metric label="收盤價" value={formatNumber(row.close, 2)} note={`漲跌 ${formatSigned(row.change, 2)}`} />
               <Metric label="成交值" value={hundredMillion(row.value_twd)} />
-              {row.pe === null && row.pb === null ? (
+              {isEtf(symbol) ? (
                 <>
                   <Metric label="本益比" value="不適用" note="ETF 沒有個股估值" />
                   <Metric label="殖利率" value="不適用" />

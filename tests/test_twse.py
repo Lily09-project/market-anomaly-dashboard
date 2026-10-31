@@ -57,9 +57,7 @@ def test_normalize_keeps_tracked_symbols_and_tolerates_etf_valuation():
     [
         {"daily": []},
         {"daily": [{"Date": "1151029", "Code": "0050", "ClosingPrice": "107.25"}]},
-        {"daily": [{"Date": "1151029", "Code": "0050", "ClosingPrice": ""}, {"Date": "1151029", "Code": "2330", "ClosingPrice": "1"}]},
         {"daily": [{"Date": "1151029", "Code": "0050", "ClosingPrice": "1"}, {"Date": "1151028", "Code": "2330", "ClosingPrice": "1"}]},
-        {"valuation": [{"Date": "1151028", "Code": "2330", "PEratio": "1", "DividendYield": "1", "PBratio": "1"}]},
         {"margin": [{"股票代號": "0050", "融資今日餘額": "1"}]},
         {"market": [{"Date": "1151029", "TAIEX": ""}]},
         {"market": [{"Date": "1151029", "TAIEX": "1"}, {"Date": "1151029", "TAIEX": "2"}]},
@@ -68,6 +66,18 @@ def test_normalize_keeps_tracked_symbols_and_tolerates_etf_valuation():
 def test_normalize_rejects_incomplete_or_inconsistent_payloads(overrides):
     with pytest.raises(ValueError):
         normalize_twse_payloads(_payloads(**overrides), SYMBOLS)
+
+
+def test_suspension_lagging_valuation_and_month_series_degrade_without_failing():
+    payloads = _payloads(
+        valuation=[{"Date": "1151028", "Code": "2330", "PEratio": "1", "DividendYield": "1", "PBratio": "1"}],
+        market=[{"Date": "1151028", "TAIEX": "46000", "Change": "1", "TradeValue": "1"}],
+    )
+    payloads["daily"][0]["ClosingPrice"] = ""
+    snapshot = normalize_twse_payloads(payloads, SYMBOLS)
+    assert snapshot["daily"]["0050"]["close"] is None
+    assert snapshot["valuation"] == {}
+    assert snapshot["market"] == []
 
 
 class _Response:
@@ -143,4 +153,18 @@ def test_market_wide_rejects_mixed_dates():
         row["Name"] = row["Code"]
     payloads["daily"][2]["Date"] = "1151028"
     with pytest.raises(ValueError):
+        fetch_twse.normalize_market_wide(payloads, "2026-10-29")
+
+
+def test_market_wide_skips_a_malformed_row_but_not_many():
+    payloads = _payloads()
+    for row in payloads["daily"]:
+        row["Name"] = row["Code"]
+    rows = [dict(row, Code=f"9{i:03d}", Name=f"x{i}") for i, row in enumerate(payloads["daily"] * 10)]
+    rows[0]["Change"] = "N/A"
+    payloads["daily"] = rows
+    assert len(fetch_twse.normalize_market_wide(payloads, "2026-10-29")) == len(rows) - 1
+    for row in rows[:3]:
+        row["Change"] = "N/A"
+    with pytest.raises(ValueError, match="malformed"):
         fetch_twse.normalize_market_wide(payloads, "2026-10-29")

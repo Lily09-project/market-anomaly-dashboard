@@ -22,7 +22,7 @@ except Exception:
     requests = None
 
 from src.request_policy import RequestBudget, request_with_retry, validate_response_origin, validate_upstream_url
-from src.utils import ensure_parent, load_config, normalize_http_timeout, read_http_response_bytes, safe_exception_message, write_json
+from src.utils import ensure_parent, load_config, normalize_http_timeout, project_path, read_http_response_bytes, safe_exception_message, write_json
 
 BASE_URL = "https://openapi.twse.com.tw/v1/"
 API_HOSTS = {"openapi.twse.com.tw"}
@@ -88,9 +88,9 @@ def normalize_twse_payloads(payloads: dict[str, Any], symbols: list[str]) -> dic
     trade_date = trade_dates.pop()
     daily = {}
     for symbol, row in daily_rows.items():
-        close = parse_number(row.get("ClosingPrice"))
-        if close is None or close <= 0:
-            raise ValueError(f"TWSE daily close for {symbol} is missing.")
+        close = parse_number(row.get("ClosingPrice"))  # blank: suspended or no trade today
+        if close is not None and close <= 0:
+            raise ValueError(f"TWSE daily close for {symbol} is not positive.")
         daily[symbol] = {
             "close": close,
             "change": parse_number(row.get("Change"), blank=0.0),
@@ -100,10 +100,10 @@ def normalize_twse_payloads(payloads: dict[str, Any], symbols: list[str]) -> dic
 
     # ETFs such as 0050 have no P/E, yield or P/B row; that is not an error.
     valuation_rows = _by_code(_rows(payloads["valuation"], "valuation"), "Code", symbols, "valuation", required=False)
+    if any(roc_to_iso(row.get("Date")) != trade_date for row in valuation_rows.values()):
+        valuation_rows = {}  # a lagging valuation file is dropped, not shown under today's date
     valuation: dict[str, Any] = {}
     for symbol, row in valuation_rows.items():
-        if roc_to_iso(row.get("Date")) != trade_date:
-            raise ValueError("TWSE valuation date differs from the daily trading date.")
         valuation[symbol] = {
             "pe": parse_number(row.get("PEratio")),
             "dividend_yield_pct": parse_number(row.get("DividendYield")),
@@ -137,6 +137,8 @@ def normalize_twse_payloads(payloads: dict[str, Any], symbols: list[str]) -> dic
     market.sort(key=lambda item: item["date"])
     if len({item["date"] for item in market}) != len(market):
         raise ValueError("TWSE market totals contain duplicate dates.")
+    if market and market[-1]["date"] != trade_date:
+        market = []  # the month series lags the daily quotes; omit it rather than mislabel it
     return {"trade_date": trade_date, "daily": daily, "valuation": valuation, "margin": margin, "market": market}
 
 
@@ -146,10 +148,14 @@ MARKET_COLUMNS = ("code", "name", "close", "change", "change_pct", "value_twd", 
 def normalize_market_wide(payloads: dict[str, Any], trade_date: str) -> list[list[Any]]:
     """Every listed security for the trade date, as compact rows in MARKET_COLUMNS order."""
     valuation = {str(r.get("Code", "")).strip(): r for r in _rows(payloads["valuation"], "valuation")}
+    if any(roc_to_iso(r.get("Date")) != trade_date for r in valuation.values()):
+        valuation = {}
     margin = {str(r.get("股票代號", "")).strip(): r for r in _rows(payloads["margin"], "margin")}
     rows: list[list[Any]] = []
     seen: set[str] = set()
-    for row in _rows(payloads["daily"], "daily"):
+    daily = _rows(payloads["daily"], "daily")
+    skipped = 0
+    for row in daily:
         code = str(row.get("Code", "")).strip()
         name = str(row.get("Name", "")).strip()
         if not code or not name or code in seen:
@@ -157,28 +163,34 @@ def normalize_market_wide(payloads: dict[str, Any], trade_date: str) -> list[lis
         if roc_to_iso(row.get("Date")) != trade_date:
             raise ValueError("TWSE daily rows do not share one trading date.")
         seen.add(code)
-        close = parse_number(row.get("ClosingPrice"))  # blank: no trade today
-        change = parse_number(row.get("Change"))
-        previous = None if close is None or change is None else close - change
-        v = valuation.get(code, {})
-        m = margin.get(code)
-        balance = parse_number(m.get("融資今日餘額"), blank=0.0) if m else None
-        prior = parse_number(m.get("融資前日餘額"), blank=0.0) if m else None
+        try:
+            close = parse_number(row.get("ClosingPrice"))  # blank: no trade today
+            change = parse_number(row.get("Change"))
+            previous = None if close is None or change is None else close - change
+            v = valuation.get(code, {})
+            m = margin.get(code)
+            balance = parse_number(m.get("融資今日餘額"), blank=0.0) if m else None
+            prior = parse_number(m.get("融資前日餘額"), blank=0.0) if m else None
+            value = parse_number(row.get("TradeValue"), blank=0.0)
+            pe, dividend_yield, pb = (parse_number(v.get(k)) for k in ("PEratio", "DividendYield", "PBratio"))
+        except ValueError:
+            skipped += 1  # one malformed row must not drop the whole market page
+            continue
         rows.append([
             code,
             name,
             close,
             change,
             None if not previous else round(change / previous, 6),
-            parse_number(row.get("TradeValue"), blank=0.0),
-            parse_number(v.get("PEratio")),
-            parse_number(v.get("DividendYield")),
-            parse_number(v.get("PBratio")),
+            value,
+            pe,
+            dividend_yield,
+            pb,
             balance,
             None if balance is None or prior is None else balance - prior,
         ])
-    if not rows:
-        raise ValueError("TWSE daily returned no listed securities.")
+    if not rows or skipped > len(daily) * 0.05:
+        raise ValueError(f"TWSE daily has too many malformed rows ({skipped} of {len(daily)}).")
     return sorted(rows, key=lambda r: r[0])
 
 
@@ -186,7 +198,7 @@ def fetch_twse(config: dict[str, Any] | None = None, *, client: Any = None) -> P
     cfg = config or load_config()
     api = cfg.get("api", {})
     symbols = [str(item).strip() for item in api.get("symbols", [])]
-    target = Path(cfg["data"]["raw_dir"]) / SNAPSHOT_FILE
+    target = project_path(Path(cfg["data"]["raw_dir"]) / SNAPSHOT_FILE)
     target.unlink(missing_ok=True)  # never let an old snapshot pass as today's
     try:
         http = client or requests

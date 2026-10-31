@@ -17,7 +17,10 @@ function useIntegrityChecks(): { manifest: Manifest | null; checks: Check[] } {
   useEffect(() => {
     if (!loader) return;
     let alive = true;
-    loader.manifest().then((m) => alive && setManifest(m));
+    loader.manifest().then(
+      (m) => alive && setManifest(m),
+      () => undefined, // each file check below reports the failure
+    );
     FILES.forEach((file, i) => {
       loader.load(file).then(
         () => alive && setChecks((prev) => prev.map((c, j) => (j === i ? { ...c, status: "ok" } : c))),

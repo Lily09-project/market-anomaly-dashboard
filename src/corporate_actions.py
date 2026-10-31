@@ -43,8 +43,9 @@ def adjust_finmind_splits(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 # Taiwan's daily price limit is 10%; ex-dividend days can exceed it, but splits
-# and capital reductions move far more. Anything beyond this is unexplained.
-MAX_UNEXPLAINED_MOVE = 0.30
+# and capital reductions move far more. Anything beyond this is unexplained;
+# the largest ex-dividend move among the tracked symbols since 2021 is about 15%.
+MAX_UNEXPLAINED_MOVE = 0.20
 
 
 def reject_unexplained_jumps(frame: pd.DataFrame, limit: float = MAX_UNEXPLAINED_MOVE) -> pd.DataFrame:

@@ -180,6 +180,11 @@ test.describe("F8 全市場盤後", () => {
     await expect(page.getByLabel("搜尋代號或名稱")).toHaveValue("樣本股 02");
     await expect(rows).toHaveCount(1);
     await expectAccessible(page);
+    // The nav link clears the search even though the page stays mounted.
+    await page.getByRole("navigation", { name: "主要頁面" }).getByRole("link", { name: "全市場" }).click();
+    await expect(page.getByLabel("搜尋代號或名稱")).toHaveValue("");
+    await expect(page).not.toHaveURL(/q=/);
+    expect(await rows.count()).toBeGreaterThan(1);
   });
 });
 
