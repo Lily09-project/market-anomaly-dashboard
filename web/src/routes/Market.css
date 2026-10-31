@@ -1,0 +1,29 @@
+.market-controls {
+  align-items: end;
+}
+
+.market-search {
+  flex: 1 1 240px;
+}
+
+.market-table {
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+.market-table td[data-sign="1"] {
+  color: var(--bad);
+}
+
+.market-table td[data-sign="-1"] {
+  color: var(--good);
+}
+
+.market-etf {
+  margin-left: var(--space-2);
+  color: var(--muted);
+}
+
+.market-more {
+  margin-top: var(--space-3);
+}

@@ -176,6 +176,17 @@ export interface Twse {
   sources: { label: string; url: string }[];
 }
 
+/** Row order follows `columns`: code, name, close, change, change_pct, value_twd, pe, dividend_yield_pct, pb, margin_balance, margin_change. */
+export type MarketRow = [string, string, number | null, number | null, number | null, number | null, number | null, number | null, number | null, number | null, number | null];
+
+export interface TwseMarket {
+  status: "ok" | "unavailable" | "sample";
+  trade_date: string | null;
+  columns: string[];
+  rows: MarketRow[];
+  sources: { label: string; url: string }[];
+}
+
 export interface Manifest {
   schema_version: string;
   files: Record<string, string>;
@@ -189,4 +200,5 @@ export interface DataFiles {
   "stress.json": Stress;
   "provenance.json": Provenance;
   "twse.json": Twse;
+  "twse_market.json": TwseMarket;
 }

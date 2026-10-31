@@ -10,6 +10,8 @@ interface Provenance {
   source_quality: { source_row_count: number; usable_price_rows: number; excluded_no_trade_rows: number } | null;
 }
 
+const SYMBOLS = ["0050", "1301", "2308", "2317", "2330", "2382", "2412", "2454", "2881", "2882"];
+
 interface Twse {
   status: string;
   trade_date: string | null;
@@ -32,13 +34,13 @@ test.describe("正式公開行情資料", () => {
     expect(provenance.price_basis.kind).toBe("known_split_adjusted");
     expect(provenance.price_basis.cash_dividends_reinvested).toBe(false);
     expect(provenance.trading_days).toBeGreaterThanOrEqual(400);
-    expect(provenance.symbols.slice().sort()).toEqual(["0050", "2317", "2330"]);
+    expect(provenance.symbols.slice().sort()).toEqual(SYMBOLS);
     expect(provenance.source_quality).not.toBeNull();
     expect(provenance.source_quality!.source_row_count).toBe(
       provenance.source_quality!.usable_price_rows + provenance.source_quality!.excluded_no_trade_rows,
     );
     expect(overview.dates.length).toBe(provenance.trading_days);
-    expect(overview.symbols.map((item) => item.symbol).sort()).toEqual(["0050", "2317", "2330"]);
+    expect(overview.symbols.map((item) => item.symbol).sort()).toEqual(SYMBOLS);
     for (const item of overview.symbols) {
       expect(item.close).toHaveLength(overview.dates.length);
       expect(item.close.every((value) => Number.isFinite(value) && value > 0)).toBe(true);
@@ -57,7 +59,7 @@ test.describe("正式公開行情資料", () => {
     const twse = await fetchJson<Twse>(page, "twse.json");
     expect(["ok", "unavailable"]).toContain(twse.status);
     if (twse.status === "ok") {
-      expect(Object.keys(twse.symbols).sort()).toEqual(["0050", "2317", "2330"]);
+      expect(Object.keys(twse.symbols).sort()).toEqual(SYMBOLS);
       for (const row of Object.values(twse.symbols)) {
         expect(row.close).toBeGreaterThan(0);
         if (row.cross_check) expect(row.cross_check.match).toBe(true);
@@ -71,9 +73,21 @@ test.describe("正式公開行情資料", () => {
     await expect(page).toHaveURL(/symbol=2330/);
     await expectAccessible(page);
 
+    const market = await fetchJson<{ status: string; trade_date: string | null; rows: [string, string, number | null][] }>(page, "twse_market.json");
+    expect(["ok", "unavailable"]).toContain(market.status);
+    if (market.status === "ok") {
+      expect(market.trade_date).toBe(twse.trade_date);
+      expect(market.rows.length).toBeGreaterThan(900);
+      const tsmc = market.rows.find((row) => row[0] === "2330");
+      expect(tsmc?.[2]).toBe(twse.symbols["2330"]?.close);
+      await openRoute(page, "/market?q=2330");
+      await expect(page.getByTestId("market-table").locator("tbody tr")).toHaveCount(1);
+      await expectAccessible(page);
+    }
+
     await openRoute(page, "/data");
     await expect(page.getByTestId("data-source")).toHaveText("FinMind public historical daily prices");
-    await expect(page.getByTestId("integrity-summary")).toHaveText("7/7");
+    await expect(page.getByTestId("integrity-summary")).toHaveText("8/8");
     await expect(page.getByRole("heading", { name: "價格還原基準" })).toBeVisible();
     await expectAccessible(page);
   });

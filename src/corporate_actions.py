@@ -40,3 +40,19 @@ def adjust_finmind_splits(frame: pd.DataFrame) -> pd.DataFrame:
     adjusted["volume"] = adjusted["volume"].astype(float)
     adjusted.loc[before, "volume"] = adjusted.loc[before, "volume"] * 4.0
     return adjusted
+
+
+# Taiwan's daily price limit is 10%; ex-dividend days can exceed it, but splits
+# and capital reductions move far more. Anything beyond this is unexplained.
+MAX_UNEXPLAINED_MOVE = 0.30
+
+
+def reject_unexplained_jumps(frame: pd.DataFrame, limit: float = MAX_UNEXPLAINED_MOVE) -> pd.DataFrame:
+    """Fail instead of publishing a split or capital reduction as a market crash."""
+    ordered = frame.assign(_date=pd.to_datetime(frame["date"])).sort_values(["symbol", "_date"], kind="stable")
+    moves = ordered.groupby("symbol")["close"].pct_change().abs()
+    jumps = ordered.loc[moves > limit, ["symbol", "date"]]
+    if not jumps.empty:
+        listed = ", ".join(f"{row.symbol} {pd.Timestamp(row.date).date()}" for row in jumps.head(5).itertuples(index=False))
+        raise ValueError(f"Unexplained single-day price move above {limit:.0%} (likely an unhandled corporate action): {listed}")
+    return frame

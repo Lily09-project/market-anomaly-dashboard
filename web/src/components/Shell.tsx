@@ -11,6 +11,7 @@ function navItems(symbol: string | undefined): { route: Route; label: string; ma
     { route: { name: "events", symbol }, label: "異常事件", match: ["events"] },
     { route: { name: "backtest", symbol }, label: "誠實回測", match: ["backtest"] },
     { route: { name: "stress", symbol }, label: "壓力測試", match: ["stress"] },
+    { route: { name: "market" }, label: "全市場", match: ["market"] },
     { route: { name: "snapshot" }, label: "研究快照", match: ["snapshot"] },
     { route: { name: "data" }, label: "資料可信度", match: ["data"] },
   ];

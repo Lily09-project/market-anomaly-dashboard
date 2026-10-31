@@ -11,7 +11,7 @@ from run_all import run
 from src import export_web
 from src.analytics import risk
 
-FILES = ("overview.json", "regimes.json", "events.json", "backtest.json", "stress.json", "provenance.json", "twse.json")
+FILES = ("overview.json", "regimes.json", "events.json", "backtest.json", "stress.json", "provenance.json", "twse.json", "twse_market.json")
 
 
 @pytest.fixture(scope="module")
@@ -201,3 +201,17 @@ def test_twse_cross_check_uses_unadjusted_finmind_close(tmp_path: Path) -> None:
     assert rows["2317"]["cross_check"] == {"finmind_close": 250.0, "match": False}
     assert rows["0050"]["cross_check"] is None and rows["0050"]["pe"] is None
     assert rows["2330"]["margin_change"] == 6.0 and rows["2330"]["short_change"] == -2.0
+
+
+def test_market_wide_preview_is_labelled_and_seeded(exported: Path) -> None:
+    market = _load(exported, "twse_market.json")
+    assert market["status"] == "sample" and market["sources"] == []
+    assert market["columns"][:3] == ["code", "name", "close"]
+    assert len(market["rows"]) == export_web.SAMPLE_MARKET_ROWS
+    assert all(len(row) == len(market["columns"]) for row in market["rows"])
+    assert market["trade_date"] == _load(exported, "twse.json")["trade_date"]
+
+
+def test_market_wide_unavailable_without_a_snapshot() -> None:
+    payload = export_web.market_wide_payload(None, False, None)
+    assert payload["status"] == "unavailable" and payload["rows"] == []

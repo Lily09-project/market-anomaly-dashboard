@@ -10,6 +10,7 @@ const RegimesPage = lazy(() => import("./routes/Regimes"));
 const EventsPage = lazy(() => import("./routes/Events"));
 const BacktestPage = lazy(() => import("./routes/Backtest"));
 const StressPage = lazy(() => import("./routes/Stress"));
+const MarketPage = lazy(() => import("./routes/Market"));
 const SnapshotPage = lazy(() => import("./routes/Snapshot"));
 const DataTrust = lazy(() => import("./routes/DataTrust"));
 
@@ -39,6 +40,8 @@ function Routes() {
       return <BacktestPage route={route} />;
     case "stress":
       return <StressPage route={route} />;
+    case "market":
+      return <MarketPage route={route} />;
     case "snapshot":
       return <SnapshotPage />;
     case "data":
