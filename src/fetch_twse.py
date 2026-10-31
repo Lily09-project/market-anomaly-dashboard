@@ -140,6 +140,48 @@ def normalize_twse_payloads(payloads: dict[str, Any], symbols: list[str]) -> dic
     return {"trade_date": trade_date, "daily": daily, "valuation": valuation, "margin": margin, "market": market}
 
 
+MARKET_COLUMNS = ("code", "name", "close", "change", "change_pct", "value_twd", "pe", "dividend_yield_pct", "pb", "margin_balance", "margin_change")
+
+
+def normalize_market_wide(payloads: dict[str, Any], trade_date: str) -> list[list[Any]]:
+    """Every listed security for the trade date, as compact rows in MARKET_COLUMNS order."""
+    valuation = {str(r.get("Code", "")).strip(): r for r in _rows(payloads["valuation"], "valuation")}
+    margin = {str(r.get("股票代號", "")).strip(): r for r in _rows(payloads["margin"], "margin")}
+    rows: list[list[Any]] = []
+    seen: set[str] = set()
+    for row in _rows(payloads["daily"], "daily"):
+        code = str(row.get("Code", "")).strip()
+        name = str(row.get("Name", "")).strip()
+        if not code or not name or code in seen:
+            continue
+        if roc_to_iso(row.get("Date")) != trade_date:
+            raise ValueError("TWSE daily rows do not share one trading date.")
+        seen.add(code)
+        close = parse_number(row.get("ClosingPrice"))  # blank: no trade today
+        change = parse_number(row.get("Change"))
+        previous = None if close is None or change is None else close - change
+        v = valuation.get(code, {})
+        m = margin.get(code)
+        balance = parse_number(m.get("融資今日餘額"), blank=0.0) if m else None
+        prior = parse_number(m.get("融資前日餘額"), blank=0.0) if m else None
+        rows.append([
+            code,
+            name,
+            close,
+            change,
+            None if not previous else round(change / previous, 6),
+            parse_number(row.get("TradeValue"), blank=0.0),
+            parse_number(v.get("PEratio")),
+            parse_number(v.get("DividendYield")),
+            parse_number(v.get("PBratio")),
+            balance,
+            None if balance is None or prior is None else balance - prior,
+        ])
+    if not rows:
+        raise ValueError("TWSE daily returned no listed securities.")
+    return sorted(rows, key=lambda r: r[0])
+
+
 def fetch_twse(config: dict[str, Any] | None = None, *, client: Any = None) -> Path | None:
     cfg = config or load_config()
     api = cfg.get("api", {})
@@ -165,6 +207,7 @@ def fetch_twse(config: dict[str, Any] | None = None, *, client: Any = None) -> P
                 if callable(close):
                     close()
         snapshot = normalize_twse_payloads(payloads, symbols)
+        snapshot["all"] = normalize_market_wide(payloads, snapshot["trade_date"])
         snapshot["endpoints"] = {name: BASE_URL + path for name, path in ENDPOINTS.items()}
         written = write_json(snapshot, ensure_parent(target))
         snapshot_digest = hashlib.sha256(written.read_bytes()).hexdigest()

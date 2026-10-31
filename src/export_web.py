@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 
 from src.analytics import backtest, events, hmm, risk, stats
+from src.fetch_twse import MARKET_COLUMNS
 from src.generate_sample_data import CONTROL_SYMBOL, JUMPS_PER_STOCK, REBOUND_DAYS, REBOUND_PER_DAY, REGIMES
 from src.utils import load_config, project_path
 
@@ -30,7 +31,19 @@ EVENT_Z = 5.0
 IS_SHARE = 0.6
 MIN_HISTORY_DAYS = backtest.WALK_FORWARD_TRAIN + backtest.WALK_FORWARD_TEST + 1
 STRESS_DEFAULTS = {"horizon": 60, "block": 10, "paths": 2000, "seed": 20261024}
-NAMES = {"0050": "元大台灣50", "2330": "台積電", "2317": "鴻海", CONTROL_SYMBOL: "隨機漫步對照組"}
+NAMES = {
+    "0050": "元大台灣50",
+    "2330": "台積電",
+    "2317": "鴻海",
+    "2454": "聯發科",
+    "2308": "台達電",
+    "2382": "廣達",
+    "2881": "富邦金",
+    "2882": "國泰金",
+    "2412": "中華電",
+    "1301": "台塑",
+    CONTROL_SYMBOL: "隨機漫步對照組",
+}
 
 
 class InsufficientHistoryError(ValueError):
@@ -380,6 +393,33 @@ def twse_payload(config: dict[str, Any], wide: pd.DataFrame, simulated: bool, tw
     return {"status": "ok", "trade_date": trade_date, "symbols": rows, "market": market, "sources": TWSE_SOURCES}
 
 
+SAMPLE_MARKET_ROWS = 36
+
+
+def market_wide_payload(trade_date: str | None, simulated: bool, twse_path: Path | None) -> dict[str, Any]:
+    """Every listed security on the TWSE date; a seeded, labelled fixture in sample mode."""
+    columns = list(MARKET_COLUMNS)
+    if simulated:
+        rng = np.random.default_rng(20261031)
+        rows = []
+        for i in range(SAMPLE_MARKET_ROWS):
+            close = round(float(rng.uniform(10, 900)), 2)
+            change = round(close * float(rng.normal(0, 0.02)), 2)
+            etf = i % 6 == 0
+            rows.append([
+                f"{(9000 + i) if not etf else i:04d}", f"樣本{'ETF' if etf else '股'} {i + 1:02d}", close, change,
+                round(change / (close - change), 6), float(round(rng.uniform(1e7, 5e10))),
+                None if etf else round(float(rng.uniform(5, 60)), 2), None if etf else round(float(rng.uniform(0, 8)), 2),
+                None if etf else round(float(rng.uniform(0.5, 8)), 2), float(int(rng.integers(0, 60000))), float(int(rng.integers(-800, 800))),
+            ])
+        rows.sort(key=lambda r: r[0])
+        return {"status": "sample", "trade_date": trade_date, "columns": columns, "rows": rows, "sources": []}
+    if twse_path is None or not Path(twse_path).exists():
+        return {"status": "unavailable", "trade_date": None, "columns": columns, "rows": [], "sources": TWSE_SOURCES}
+    snapshot = json.loads(Path(twse_path).read_text(encoding="utf-8"))
+    return {"status": "ok", "trade_date": snapshot["trade_date"], "columns": columns, "rows": snapshot["all"], "sources": TWSE_SOURCES}
+
+
 def export(out_dir: Path, cleaned_path: Path | None = None, twse_path: Path | None = None) -> dict[str, str]:
     config = load_config()
     cleaned = pd.read_csv(cleaned_path or project_path(config["data"]["cleaned_path"]), dtype={"symbol": "string"})
@@ -511,6 +551,7 @@ def export(out_dir: Path, cleaned_path: Path | None = None, twse_path: Path | No
         "stress.json": stress_payload,
         "provenance.json": provenance,
         "twse.json": twse,
+        "twse_market.json": market_wide_payload(twse["trade_date"], simulated, twse_path),
     }
     out_dir.mkdir(parents=True, exist_ok=True)
     hashes = {name: _write_json(out_dir / name, payload) for name, payload in files.items()}

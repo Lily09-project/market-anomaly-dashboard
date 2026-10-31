@@ -57,3 +57,14 @@ def test_pipeline_applies_split_only_to_raw_finmind(tmp_path, mode, provider, ex
     cleaned = pd.read_csv(output, dtype={"symbol": "string"})
     close = cleaned.loc[(cleaned["symbol"] == "0050") & (cleaned["date"] == "2025-06-10"), "close"].iloc[0]
     assert close == pytest.approx(expected)
+
+
+def test_unexplained_jumps_are_rejected_but_ex_dividend_moves_pass():
+    import pandas as pd
+    from src.corporate_actions import reject_unexplained_jumps
+
+    ok = pd.DataFrame({"date": ["2023-06-19", "2023-06-20"], "symbol": ["2454", "2454"], "close": [800.0, 690.0]})
+    assert reject_unexplained_jumps(ok) is ok
+    capital_reduction = pd.DataFrame({"date": ["2022-09-16", "2022-09-19"], "symbol": ["2603", "2603"], "close": [81.0, 169.0]})
+    with pytest.raises(ValueError, match="2603 2022-09-19"):
+        reject_unexplained_jumps(capital_reduction)

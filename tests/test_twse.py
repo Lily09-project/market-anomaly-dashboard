@@ -13,9 +13,9 @@ SYMBOLS = ["0050", "2330"]
 def _payloads(**overrides):
     payloads = {
         "daily": [
-            {"Date": "1151029", "Code": "0050", "ClosingPrice": "107.25", "Change": "-1.4000", "TradeVolume": "86630134", "TradeValue": "9292291798"},
-            {"Date": "1151029", "Code": "2330", "ClosingPrice": "2415.00", "Change": "-10.0000", "TradeVolume": "18403916", "TradeValue": "44316626887"},
-            {"Date": "1151029", "Code": "1101", "ClosingPrice": "30.00", "Change": "0", "TradeVolume": "1", "TradeValue": "1"},
+            {"Date": "1151029", "Code": "0050", "Name": "元大台灣50", "ClosingPrice": "107.25", "Change": "-1.4000", "TradeVolume": "86630134", "TradeValue": "9292291798"},
+            {"Date": "1151029", "Code": "2330", "Name": "台積電", "ClosingPrice": "2415.00", "Change": "-10.0000", "TradeVolume": "18403916", "TradeValue": "44316626887"},
+            {"Date": "1151029", "Code": "1101", "Name": "台泥", "ClosingPrice": "30.00", "Change": "0", "TradeVolume": "1", "TradeValue": "1"},
         ],
         "valuation": [{"Date": "1151029", "Code": "2330", "PEratio": "27.99", "DividendYield": "0.91", "PBratio": "9.74"}],
         "margin": [
@@ -121,3 +121,26 @@ def test_fetch_failure_removes_stale_snapshot(tmp_path, capsys):
 def test_fetch_rejects_cross_host_responses(tmp_path):
     client = _Client(_payloads(), redirect_to="https://example.com/v1/x")
     assert fetch(_config(tmp_path), client=client) is None
+
+
+def test_market_wide_keeps_every_listed_security():
+    payloads = _payloads()
+    payloads["daily"].append({"Date": "1151029", "Code": "9999", "Name": "停牌", "ClosingPrice": "", "Change": "", "TradeValue": "0"})
+    for row in payloads["daily"]:
+        row.setdefault("Name", row["Code"])
+    rows = fetch_twse.normalize_market_wide(payloads, "2026-10-29")
+    by_code = {r[0]: dict(zip(fetch_twse.MARKET_COLUMNS, r)) for r in rows}
+    assert [r[0] for r in rows] == ["0050", "1101", "2330", "9999"]
+    assert by_code["2330"]["pe"] == 27.99 and by_code["2330"]["margin_change"] == 11.0
+    assert by_code["2330"]["change_pct"] == round(-10 / 2425, 6)
+    assert by_code["1101"]["margin_balance"] is None
+    assert by_code["9999"]["close"] is None and by_code["9999"]["change_pct"] is None
+
+
+def test_market_wide_rejects_mixed_dates():
+    payloads = _payloads()
+    for row in payloads["daily"]:
+        row["Name"] = row["Code"]
+    payloads["daily"][2]["Date"] = "1151028"
+    with pytest.raises(ValueError):
+        fetch_twse.normalize_market_wide(payloads, "2026-10-29")

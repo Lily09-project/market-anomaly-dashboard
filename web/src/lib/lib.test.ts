@@ -5,7 +5,9 @@ import stressFixture from "./fixtures/stress-parity.json";
 import { formatNumber, formatPercent, formatSigned, formatSignedPercent } from "./format";
 import { agreement, drawdowns, heatmap, rankCorrelation, rollingVolatility, sampledDates, statesByDay } from "./market";
 import { mulberry32 } from "./rng";
+import { selectMarketRows } from "./marketTable";
 import { parseRoute, routeToHash, type Route } from "./router";
+import type { MarketRow } from "./types";
 import { canonicalJson, createSnapshot, diffSnapshots, MAX_SNAPSHOT_BYTES, validateSnapshot, type SnapshotBody } from "./snapshot";
 import { quantile } from "./stats";
 import { blockBootstrap, histogram, logReturns, summarise, varCvar } from "./stress";
@@ -177,6 +179,8 @@ describe("router", () => {
       { name: "events", symbol: "2317", date: "2023-05-02" },
       { name: "backtest", symbol: "RANDOM", cell: 4 },
       { name: "stress", symbol: "0050", horizon: 60, block: 10, paths: 2000 },
+      { name: "market", q: "台積", sort: "change_pct", desc: true, kind: "stock" },
+      { name: "market", q: undefined, sort: undefined, desc: undefined, kind: undefined },
       { name: "snapshot" },
       { name: "data" },
     ];
@@ -185,6 +189,7 @@ describe("router", () => {
     expect(parseRoute("#/?period=10y")).toMatchObject({ period: undefined });
     expect(parseRoute("#/stress?horizon=9999&block=0&paths=abc")).toEqual({ name: "stress", symbol: undefined, horizon: undefined, block: undefined, paths: undefined });
     expect(parseRoute("#/events?date=yesterday")).toMatchObject({ date: undefined });
+    expect(parseRoute("#/market?sort=price&kind=bond&desc=yes")).toEqual({ name: "market", q: undefined, sort: undefined, desc: undefined, kind: undefined });
     expect(parseRoute("#/nope")).toEqual({ name: "not-found", path: "/nope" });
     expect(routeToHash({ name: "not-found", path: "/nope" })).toBe("#/nope");
   });
@@ -239,5 +244,23 @@ describe("downloadText", () => {
     expect(document.querySelector("a[download]")).toBeNull();
     await new Promise((r) => setTimeout(r, 0));
     expect(revoke).toHaveBeenCalledWith("blob:test");
+  });
+});
+
+describe("market table", () => {
+  const row = (code: string, name: string, pct: number | null, pe: number | null): MarketRow => [code, name, 10, 1, pct, 1e8, pe, null, null, 0, 0];
+  const rows = [row("2330", "台積電", 0.02, 27), row("0050", "元大台灣50", -0.01, null), row("2317", "鴻海", null, 16), row("1101", "台泥", 0.05, 12)];
+
+  it("searches code or name and filters by kind", () => {
+    expect(selectMarketRows(rows, { q: "台" }).map((r) => r[0])).toEqual(["0050", "1101", "2330"]);
+    expect(selectMarketRows(rows, { q: "23" }).map((r) => r[0])).toEqual(["2317", "2330"]);
+    expect(selectMarketRows(rows, { kind: "etf" }).map((r) => r[0])).toEqual(["0050"]);
+    expect(selectMarketRows(rows, { kind: "stock" })).toHaveLength(3);
+  });
+
+  it("sorts both ways and keeps missing values last", () => {
+    expect(selectMarketRows(rows, { sort: "change_pct" }).map((r) => r[0])).toEqual(["0050", "2330", "1101", "2317"]);
+    expect(selectMarketRows(rows, { sort: "change_pct", desc: true }).map((r) => r[0])).toEqual(["1101", "2330", "0050", "2317"]);
+    expect(selectMarketRows(rows, { sort: "pe", desc: true }).map((r) => r[0])).toEqual(["2330", "2317", "1101", "0050"]);
   });
 });

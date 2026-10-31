@@ -8,9 +8,14 @@ export type Route =
   | { name: "events"; symbol?: string; date?: string }
   | { name: "backtest"; symbol?: string; cell?: number }
   | { name: "stress"; symbol?: string; horizon?: number; block?: number; paths?: number }
+  | { name: "market"; q?: string; sort?: MarketSort; desc?: boolean; kind?: MarketKind }
   | { name: "snapshot" }
   | { name: "data" }
   | { name: "not-found"; path: string };
+
+export const MARKET_SORTS = ["code", "change_pct", "value_twd", "pe", "dividend_yield_pct", "pb", "margin_change"] as const;
+export type MarketSort = (typeof MARKET_SORTS)[number];
+export type MarketKind = "stock" | "etf";
 
 export const STRESS_LIMITS = {
   horizon: [5, 250],
@@ -55,6 +60,18 @@ export function parseRoute(hash: string): Route {
         block: bounded(intParam(params, "block"), STRESS_LIMITS.block),
         paths: bounded(intParam(params, "paths"), STRESS_LIMITS.paths),
       };
+    case "market": {
+      const sort = params.get("sort");
+      const kind = params.get("kind");
+      const q = params.get("q")?.trim().slice(0, 40);
+      return {
+        name: "market",
+        q: q || undefined,
+        sort: (MARKET_SORTS as readonly string[]).includes(sort ?? "") ? (sort as MarketSort) : undefined,
+        desc: params.get("desc") === "1" ? true : undefined,
+        kind: kind === "stock" || kind === "etf" ? kind : undefined,
+      };
+    }
     case "snapshot":
       return { name: "snapshot" };
     case "data":
@@ -82,6 +99,8 @@ export function routeToHash(route: Route): string {
       return `#/backtest${query({ symbol: route.symbol, cell: route.cell })}`;
     case "stress":
       return `#/stress${query({ symbol: route.symbol, horizon: route.horizon, block: route.block, paths: route.paths })}`;
+    case "market":
+      return `#/market${query({ q: route.q, sort: route.sort, desc: route.desc ? 1 : undefined, kind: route.kind })}`;
     case "snapshot":
       return "#/snapshot";
     case "data":

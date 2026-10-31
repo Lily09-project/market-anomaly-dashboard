@@ -154,10 +154,39 @@ test.describe("F6 研究快照", () => {
   });
 });
 
+test.describe("F8 全市場盤後", () => {
+  test("search, sort and type filters live in the URL and survive a reload", async ({ page }) => {
+    await openRoute(page, "/market");
+    await expect(page.getByTestId("market-sample")).toBeVisible();
+    const rows = page.getByTestId("market-table").locator("tbody tr");
+    const total = await rows.count();
+    expect(total).toBeGreaterThan(10);
+    await page.getByRole("radio", { name: "ETF" }).check();
+    await expect(page).toHaveURL(/kind=etf/);
+    await expect(rows.first()).toContainText("ETF");
+    expect(await rows.count()).toBeLessThan(total);
+    await page.getByRole("radio", { name: "全部" }).check();
+    await page.getByLabel("排序").selectOption("change_pct");
+    await page.getByRole("radio", { name: "由大到小" }).check();
+    await expect(page).toHaveURL(/sort=change_pct/);
+    await expect(page).toHaveURL(/desc=1/);
+    const first = Number((await rows.nth(0).locator("td").nth(2).innerText()).replace(/[+%]/g, ""));
+    const second = Number((await rows.nth(1).locator("td").nth(2).innerText()).replace(/[+%]/g, ""));
+    expect(first).toBeGreaterThanOrEqual(second);
+    await page.getByLabel("搜尋代號或名稱").fill("樣本股 02");
+    await expect(rows).toHaveCount(1);
+    await expect(page).toHaveURL(/q=/);
+    await page.reload();
+    await expect(page.getByLabel("搜尋代號或名稱")).toHaveValue("樣本股 02");
+    await expect(rows).toHaveCount(1);
+    await expectAccessible(page);
+  });
+});
+
 test.describe("F7 資料可信度", () => {
   test("every file passes in-browser SHA-256 verification against the manifest", async ({ page }) => {
     await openRoute(page, "/data");
-    await expect(page.getByTestId("integrity-summary")).toHaveText("7/7");
+    await expect(page.getByTestId("integrity-summary")).toHaveText("8/8");
     const manifest = await fetchJson<{ files: Record<string, string> }>(page, "manifest.json");
     const rows = page.getByTestId("integrity-table").locator("tbody tr");
     for (const [name, hash] of Object.entries(manifest.files)) {

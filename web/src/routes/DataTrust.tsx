@@ -6,7 +6,7 @@ import { formatPercent } from "../lib/format";
 import type { DataFiles, Events, Manifest, Provenance, Regimes } from "../lib/types";
 import "./DataTrust.css";
 
-const FILES: (keyof DataFiles)[] = ["overview.json", "regimes.json", "events.json", "backtest.json", "stress.json", "provenance.json", "twse.json"];
+const FILES: (keyof DataFiles)[] = ["overview.json", "regimes.json", "events.json", "backtest.json", "stress.json", "provenance.json", "twse.json", "twse_market.json"];
 
 type Check = { file: string; status: "pending" | "ok" | "failed"; hash?: string };
 

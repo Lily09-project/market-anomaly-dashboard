@@ -28,7 +28,7 @@ from src.utils import atomic_write_dataframe, ensure_parent, load_config, normal
 API_URL = "https://api.finmindtrade.com/api/v4/data"
 API_HOSTS = {"api.finmindtrade.com"}
 SYMBOL_PATTERN = re.compile(r"^[0-9]{4,6}$")
-MAX_SYMBOLS = 8
+MAX_SYMBOLS = 12
 NUMERIC_PATTERN = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
 
 
