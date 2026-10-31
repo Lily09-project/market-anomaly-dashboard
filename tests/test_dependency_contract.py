@@ -10,11 +10,15 @@ LOCK_FILES = ["requirements-dev.lock.txt","requirements-runtime.lock.txt"]
 
 
 def read_requirements(path):
-    return [
-        Requirement(line.strip())
-        for line in Path(path).read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.lstrip().startswith(("#", "-"))
-    ]
+    """Parse requirement lines, joining hash-mode continuations and dropping --hash options."""
+    logical = Path(path).read_text(encoding="utf-8").replace("\\\n", " ").splitlines()
+    requirements = []
+    for line in logical:
+        if not line.strip() or line.lstrip().startswith(("#", "-")):
+            continue
+        spec = " ".join(part for part in line.split() if not part.startswith("--hash="))
+        requirements.append(Requirement(spec))
+    return requirements
 
 
 @pytest.mark.parametrize("lock_path", LOCK_FILES)

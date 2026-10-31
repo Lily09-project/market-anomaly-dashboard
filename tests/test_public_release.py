@@ -61,7 +61,16 @@ def test_locks_pin_every_transitive_dependency() -> None:
     for token in ("bandit==", "pip-audit==", "pytest==", "pytest-cov==", "ruff=="):
         assert token in dev_lock
     for lock in (runtime_lock, dev_lock):
-        assert all("==" in line for line in lock.splitlines() if line.strip() and not line.startswith("#"))
+        entries = [
+            line
+            for line in lock.replace("\\\n", " ").splitlines()
+            if line.strip() and not line.startswith("#")
+        ]
+        assert entries
+        for entry in entries:
+            requirement = entry.split("--hash=", 1)[0]
+            assert "==" in requirement, entry
+            assert "--hash=sha256:" in entry, f"missing hashes: {requirement}"
 
 
 def test_gitignore_keeps_generated_and_secret_files_out() -> None:

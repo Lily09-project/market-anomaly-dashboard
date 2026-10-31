@@ -35,15 +35,50 @@ def _normalise_package_name(value: str) -> str:
     return re.sub(r"[-_.]+", "-", value.strip().lower())
 
 
+def _lock_entries(path: Path) -> list[str]:
+    """Return logical lock lines, joining backslash continuations (hash format)."""
+    entries: list[str] = []
+    pending = ""
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not pending and (not line or line.startswith("#")):
+            continue
+        if line.endswith("\\"):
+            pending += line[:-1] + " "
+            continue
+        entries.append((pending + line).strip())
+        pending = ""
+    if pending.strip():
+        entries.append(pending.strip())
+    return [entry for entry in entries if not entry.startswith("-")]
+
+
+def _split_lock_entry(entry: str) -> tuple[str, list[str]]:
+    """Split a lock entry into its requirement and its --hash values."""
+    parts = entry.split()
+    hashes = [part.split("=", 1)[1] for part in parts if part.startswith("--hash=")]
+    requirement = " ".join(part for part in parts if not part.startswith("--hash="))
+    return requirement, hashes
+
+
 def _lock_packages(path: Path) -> set[str]:
     packages = set()
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or line.startswith("-"):
-            continue
-        name = re.split(r"[<>=!~;\[]", line, maxsplit=1)[0]
+    for entry in _lock_entries(path):
+        requirement, _ = _split_lock_entry(entry)
+        name = re.split(r"[<>=!~;\[ ]", requirement, maxsplit=1)[0]
         packages.add(_normalise_package_name(name))
     return packages
+
+
+def _lock_format_failures(path: Path) -> list[str]:
+    failures = []
+    for entry in _lock_entries(path):
+        requirement, hashes = _split_lock_entry(entry)
+        if "==" not in requirement:
+            failures.append(f"{path.name} contains an unpinned dependency: {requirement}")
+        if not hashes or not all(value.startswith("sha256:") for value in hashes):
+            failures.append(f"{path.name} has no sha256 hashes for: {requirement}")
+    return failures
 
 
 def _tracked_files() -> list[str]:
@@ -73,10 +108,11 @@ def run_checks() -> list[str]:
         missing = sorted(_normalise_package_name(item) for item in REQUIRED_RUNTIME - packages)
         if missing:
             failures.append(f"runtime lock is missing: {', '.join(missing)}")
-        if any("==" not in line for line in runtime_lock.read_text(encoding="utf-8").splitlines() if line.strip() and not line.startswith("#")):
-            failures.append("runtime lock contains an unpinned dependency")
+        failures.extend(_lock_format_failures(runtime_lock))
     if not dev_lock.exists():
         failures.append("requirements-dev.lock.txt is missing")
+    else:
+        failures.extend(_lock_format_failures(dev_lock))
 
     try:
         tracked = _tracked_files()
