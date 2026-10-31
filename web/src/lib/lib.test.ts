@@ -230,6 +230,38 @@ describe("format, csv and data loader", () => {
     );
     await expect(bad.load("events.json")).rejects.toBeInstanceOf(IntegrityError);
   });
+
+  it("revalidates once after a redeploy and recovers from a failed manifest request", async () => {
+    const encoder = new TextEncoder();
+    const respond = (text: string, status = 200) => new Response(encoder.encode(text), { status });
+    const oldBody = '{"dates":["a"]}';
+    const newBody = '{"dates":["b"]}';
+    const digest = async (text: string) => sha256Hex(encoder.encode(text).buffer as ArrayBuffer);
+    const manifests = [await digest(oldBody), await digest(newBody)];
+    let deployed = 0;
+    const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.cache === "reload") deployed = 1;
+      return url.endsWith("manifest.json")
+        ? respond(JSON.stringify({ schema_version: "2.1", files: { "overview.json": manifests[deployed] } }))
+        : respond(newBody);
+    });
+    await expect(createLoader("./", fetcher).load("overview.json")).resolves.toEqual({ dates: ["b"] });
+    expect(fetcher.mock.calls.filter(([, init]) => init?.cache === "reload")).toHaveLength(2);
+
+    let failManifest = true;
+    const flaky = createLoader("./", async (url: string) => {
+      if (url.endsWith("manifest.json")) {
+        if (failManifest) {
+          failManifest = false;
+          return respond("down", 503);
+        }
+        return respond(JSON.stringify({ schema_version: "2.1", files: { "overview.json": manifests[1] } }));
+      }
+      return respond(newBody);
+    });
+    await expect(flaky.load("overview.json")).rejects.toThrow("HTTP 503");
+    await expect(flaky.load("overview.json")).resolves.toEqual({ dates: ["b"] });
+  });
 });
 
 describe("downloadText", () => {

@@ -384,7 +384,7 @@ def twse_payload(config: dict[str, Any], wide: pd.DataFrame, simulated: bool, tw
             "margin_change": _num(margin["margin_balance"] - margin["margin_previous"], 0),
             "short_balance": _num(margin["short_balance"], 0),
             "short_change": _num(margin["short_balance"] - margin["short_previous"], 0),
-            "cross_check": None if reference is None else {
+            "cross_check": None if reference is None or daily["close"] is None else {
                 "finmind_close": _num(reference, 2),
                 "match": abs(reference - daily["close"]) <= CROSS_CHECK_TOLERANCE,
             },

@@ -89,6 +89,8 @@ test.describe("Q4/Q5 navigation, keyboard and accessibility", () => {
     for (const route of ["/", "/regimes", "/events", "/backtest", "/stress"]) {
       await openRoute(page, route);
       if (route === "/stress") await expect(page.getByTestId("var95")).toBeVisible();
+      // The exchange panel loads on its own; count charts only once it has rendered.
+      if (route === "/") await expect(page.getByTestId("twse-panel").getByRole("figure")).toBeVisible();
       const count = await page.locator("figure.chart-frame").count();
       expect(count, `charts on ${route}`).toBeGreaterThan(0);
       await expect(page.locator("figure.chart-frame details table")).toHaveCount(count);

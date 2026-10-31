@@ -152,7 +152,8 @@ export interface Provenance {
 }
 
 export interface TwseSymbol {
-  close: number;
+  /** Null when the security was suspended or did not trade that day. */
+  close: number | null;
   change: number | null;
   volume_shares: number | null;
   value_twd: number | null;
