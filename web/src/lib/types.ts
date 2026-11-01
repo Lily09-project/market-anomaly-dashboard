@@ -146,6 +146,8 @@ export interface Provenance {
   symbols: string[];
   source_quality: { source_row_count: number; usable_price_rows: number; excluded_no_trade_rows: number } | null;
   input_sha256: string;
+  /** Known corporate actions applied to the price series (absent in older data). */
+  price_basis?: { kind: string; cash_dividends_reinvested: boolean; splits: { symbol: string; effective_date: string; new_units_per_old: number; source: string }[] };
   truth: { regimes: boolean; injected_events: boolean };
   disclaimer: string;
   sources: { label: string; url: string }[];

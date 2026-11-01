@@ -57,7 +57,7 @@ function Trust({ provenance, regimes, events }: { provenance: Provenance; regime
       <section className="grid grid-3">
         <div className="card">
           <span className="stat-label">資料來源</span>
-          <p className="stat-value" data-testid="data-source">
+          <p className="stat-value stat-value-text" data-testid="data-source">
             {provenance.is_simulated ? "合成資料" : provenance.data_source}
           </p>
           <span className="muted small">

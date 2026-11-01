@@ -51,3 +51,12 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* A source name is prose, not a figure: keep it readable instead of display-sized. */
+.page .stat-value-text {
+  font-family: var(--font-sans);
+  font-size: var(--step-1);
+  letter-spacing: 0;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}

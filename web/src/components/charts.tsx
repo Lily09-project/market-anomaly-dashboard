@@ -60,6 +60,17 @@ export interface Series {
 
 const defined = (v: number | null | undefined): v is number => v !== null && v !== undefined && Number.isFinite(v);
 
+/** A date label is about 80px wide at 13px: never ask for more ticks than the plot can hold. */
+const TICK_SPACING = 96;
+export const fittingTicks = (plotWidth: number) => Math.max(2, Math.floor(plotWidth / TICK_SPACING) + 1);
+
+/** Evenly spaced indexes into a label array, always including the first and last. */
+export function axisTicks(length: number, ticks: number): number[] {
+  const count = Math.min(Math.max(ticks, 2), length);
+  if (count <= 1) return length === 1 ? [0] : [];
+  return Array.from({ length: count }, (_, i) => Math.round((i * (length - 1)) / (count - 1)));
+}
+
 /**
  * Line chart over an index axis with optional bands, background state
  * stripes, a zero/reference line and a vertical marker.
@@ -96,7 +107,7 @@ export function LineChart({
   const pad = (hi - lo) * 0.06 || Math.abs(hi) * 0.1 || 1;
   const x = scaleLinear().domain([0, Math.max(labels.length - 1, 1)]).range([left, right]);
   const y = scaleLinear().domain([lo - pad, hi + pad]).range([height - 26, 10]).nice();
-  const tickIndexes = Array.from({ length: Math.min(ticks, labels.length) }, (_, i) => Math.round((i * (labels.length - 1)) / Math.max(ticks - 1, 1)));
+  const tickIndexes = axisTicks(labels.length, Math.min(ticks, fittingTicks(right - left)));
   return (
     <div ref={box} className="chart-box">
       <svg className="chart line-chart" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
@@ -310,13 +321,27 @@ export function DivergingBars({ rows, format, height = 28 }: { rows: { key: stri
 }
 
 /** One row of state stripes per path (e.g. the HMM next to the ground truth). */
-export function StateTimeline({ rows, length, labels }: { rows: { key: string; label: string; segments: Segment[] }[]; length: number; labels: string[] }) {
+export function StateTimeline({
+  rows,
+  length,
+  labels,
+  axis,
+}: {
+  rows: { key: string; label: string; segments: Segment[] }[];
+  length: number;
+  labels: string[];
+  /** Optional date per index, drawn as a time axis under the rows. */
+  axis?: string[];
+}) {
   const [box, width] = useChartWidth();
   const left = 92;
   const right = width - 12;
   const rowHeight = 30;
   const x = scaleLinear().domain([0, Math.max(length, 1)]).range([left, right]);
-  const height = rows.length * (rowHeight + 10) + 20;
+  const rowsHeight = rows.length * (rowHeight + 10);
+  const height = rowsHeight + (axis ? 34 : 20);
+  // Edge labels are pinned inside the plot, so they need extra room before a middle one fits.
+  const axisIndexes = axis ? axisTicks(axis.length, Math.min(4, fittingTicks(right - left - TICK_SPACING / 2))) : [];
   return (
     <div ref={box} className="chart-box">
       <svg className="chart timeline" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
@@ -335,6 +360,16 @@ export function StateTimeline({ rows, length, labels }: { rows: { key: string; l
             </g>
           );
         })}
+        {axisIndexes.map((i, k) => (
+          <text
+            key={i}
+            x={k === 0 ? left : k === axisIndexes.length - 1 ? right : x(i)}
+            y={rowsHeight + 18}
+            textAnchor={k === 0 ? "start" : k === axisIndexes.length - 1 ? "end" : "middle"}
+          >
+            {axis?.[i]}
+          </text>
+        ))}
       </svg>
     </div>
   );

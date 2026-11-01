@@ -26,3 +26,21 @@ tr[data-changed="true"] th,
 tr[data-changed="true"] td {
   background: var(--accent-soft);
 }
+
+/* The native picker button follows the site's secondary button style. */
+.snapshot-input input[type="file"]::file-selector-button {
+  min-height: 40px;
+  margin-right: var(--space-3);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-m);
+  background: var(--bg-sunken);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.snapshot-input input[type="file"]::file-selector-button:hover {
+  border-color: var(--accent);
+}
