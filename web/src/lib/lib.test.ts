@@ -3,9 +3,10 @@ import { downloadText, escapeCell, toCsv } from "./csv";
 import { createLoader, IntegrityError, sha256Hex } from "./data";
 import stressFixture from "./fixtures/stress-parity.json";
 import { formatNumber, formatPercent, formatSigned, formatSignedPercent } from "./format";
-import { agreement, drawdowns, heatmap, rankCorrelation, rollingVolatility, sampledDates, statesByDay } from "./market";
+import { agreement, drawdowns, heatmap, mostVolatileState, rankCorrelation, rollingVolatility, sampledDates, statesByDay } from "./market";
 import { mulberry32 } from "./rng";
-import { selectMarketRows } from "./marketTable";
+import { marketBreadth, selectMarketRows } from "./marketTable";
+import { axisTicks, fittingTicks } from "../components/charts";
 import { parseRoute, routeToHash, type Route } from "./router";
 import type { MarketRow } from "./types";
 import { canonicalJson, createSnapshot, diffSnapshots, MAX_SNAPSHOT_BYTES, validateSnapshot, type SnapshotBody } from "./snapshot";
@@ -294,5 +295,31 @@ describe("market table", () => {
     expect(selectMarketRows(rows, { sort: "change_pct" }).map((r) => r[0])).toEqual(["0050", "2330", "1101", "2317"]);
     expect(selectMarketRows(rows, { sort: "change_pct", desc: true }).map((r) => r[0])).toEqual(["1101", "2330", "0050", "2317"]);
     expect(selectMarketRows(rows, { sort: "pe", desc: true }).map((r) => r[0])).toEqual(["2330", "2317", "1101", "0050"]);
+  });
+});
+
+describe("judge-facing summaries", () => {
+  it("counts advancers, decliners and the rest, and sums turnover", () => {
+    const rows: MarketRow[] = [
+      ["2330", "台積電", 1000, 10, 1.0, 5e10, 20, 1.5, 6, 100, 5],
+      ["2317", "鴻海", 200, -2, -1.0, 1e10, 15, 2.5, 2, 50, -3],
+      ["1101", "台泥", 30, 0, 0, null, 10, 4, 1, 10, 0],
+      ["9999", "停牌", null, null, null, null, null, null, null, null, null],
+    ];
+    expect(marketBreadth(rows)).toEqual({ up: 1, down: 1, flat: 2, value: 6e10 });
+  });
+
+  it("finds the most volatile state without assuming label order", () => {
+    expect(mostVolatileState([0.13, 0.36, 0.18])).toBe(1);
+    expect(mostVolatileState([0.4])).toBe(0);
+  });
+
+  it("never asks a narrow chart for more date ticks than fit", () => {
+    expect(fittingTicks(236)).toBe(3);
+    expect(fittingTicks(120)).toBe(2);
+    expect(fittingTicks(1300)).toBeGreaterThanOrEqual(4);
+    expect(axisTicks(100, 3)).toEqual([0, 50, 99]);
+    expect(axisTicks(1, 4)).toEqual([0]);
+    expect(axisTicks(0, 4)).toEqual([]);
   });
 });

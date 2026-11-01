@@ -103,3 +103,8 @@ export function sampledDates(dates: readonly string[], start: string, step: numb
   if (first < 0) return [];
   return Array.from({ length: count }, (_, i) => dates[Math.min(first + i * step, dates.length - 1)]!);
 }
+
+/** Index of the highest-volatility state, so callers never assume the label order. */
+export function mostVolatileState(vol: number[]): number {
+  return vol.reduce((best, v, i) => (v > (vol[best] ?? -Infinity) ? i : best), 0);
+}

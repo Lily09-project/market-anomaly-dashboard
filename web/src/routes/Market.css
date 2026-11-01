@@ -11,10 +11,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.breadth-value[data-sign="1"],
 .market-table td[data-sign="1"] {
   color: var(--bad);
 }
 
+.breadth-value[data-sign="-1"],
 .market-table td[data-sign="-1"] {
   color: var(--good);
 }
@@ -26,4 +28,29 @@
 
 .market-more {
   margin-top: var(--space-3);
+}
+
+.market-breadth {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: var(--space-3);
+}
+
+.market-breadth .card {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  padding: var(--space-3) var(--space-4);
+}
+
+.breadth-value {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The results sit below the page header's hairline, not on it. */
+.page > header + .stack {
+  margin-top: var(--space-5);
 }

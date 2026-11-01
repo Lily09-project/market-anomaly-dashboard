@@ -5,6 +5,7 @@ import { pickSymbol, StateChip, SymbolPicker } from "../components/Common";
 import { ScrollRegion } from "../components/ScrollRegion";
 import { Gate } from "../components/States";
 import { formatNumber, formatPercent, formatSignedPercent } from "../lib/format";
+import { mostVolatileState } from "../lib/market";
 import type { Route } from "../lib/router";
 import type { Overview, Regimes } from "../lib/types";
 import "./Regimes.css";
@@ -18,6 +19,10 @@ function RegimeView({ overview, regimes, route }: { overview: Overview; regimes:
   const length = overview.dates.length - 1;
   const ll = regime.log_likelihood;
   const noRegimes = regime.bic_choice === 1;
+  const hot = mostVolatileState(regime.vol_annual);
+  const calm = regime.vol_annual.reduce((best, v, i) => (v < (regime.vol_annual[best] ?? Infinity) ? i : best), 0);
+  const calmVol = regime.vol_annual[calm] ?? 0;
+  const volRatio = calmVol > 0 ? (regime.vol_annual[hot] ?? 0) / calmVol : null;
 
   return (
     <div className="stack">
@@ -55,6 +60,13 @@ function RegimeView({ overview, regimes, route }: { overview: Overview; regimes:
         ))}
       </section>
 
+      {!noRegimes && volRatio !== null && hot !== calm && (
+        <p className="callout" data-testid="regime-takeaway">
+          重點：{labels[hot]}狀態的年化波動 <strong>{formatPercent(regime.vol_annual[hot])}</strong>，是{labels[calm]}狀態（{formatPercent(calmVol)}）的{" "}
+          <strong>{formatNumber(volRatio, 1)} 倍</strong>；最新一個交易日判定為 <StateChip state={regime.current.state} labels={labels} />（機率 {formatPercent(regime.current.probability, 0)}）。
+        </p>
+      )}
+
       <section className="card">
         <ChartFrame
           title={regime.truth_segments ? "回顧性模型判定 vs. 合成資料的真實狀態" : "回顧性模型判定的狀態序列"}
@@ -89,6 +101,7 @@ function RegimeView({ overview, regimes, route }: { overview: Overview; regimes:
           <StateTimeline
             length={length}
             labels={labels}
+            axis={overview.dates.slice(1)}
             rows={[
               { key: "hmm", label: "HMM", segments: regime.segments },
               ...(regime.truth_segments ? [{ key: "truth", label: "真實狀態", segments: regime.truth_segments }] : []),

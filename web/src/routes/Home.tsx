@@ -4,10 +4,10 @@ import { pickSymbol, StateChip, SymbolPicker } from "../components/Common";
 import { Gate } from "../components/States";
 import { TwsePanel } from "../components/Twse";
 import { formatNumber, formatPercent, formatSignedPercent } from "../lib/format";
-import { drawdowns, rollingVolatility, statesByDay } from "../lib/market";
+import { drawdowns, mostVolatileState, rollingVolatility, statesByDay } from "../lib/market";
 import { PERIOD_DAYS, routeToHash, type Period, type Route } from "../lib/router";
 import { logReturns } from "../lib/stress";
-import type { Backtest, Events, Overview, Regimes, Segment } from "../lib/types";
+import type { Backtest, Events, Overview, Provenance, Regimes, Segment } from "../lib/types";
 import "./Home.css";
 
 type HomeRoute = Extract<Route, { name: "home" }>;
@@ -25,7 +25,56 @@ function clipSegments(segments: Segment[], from: number): Segment[] {
     .map(([s, e, state]) => [Math.max(s, 0), e, state] as Segment);
 }
 
-function Dashboard({ overview, regimes, backtest, events, route }: { overview: Overview; regimes: Regimes; backtest: Backtest; events: Events; route: HomeRoute }) {
+const JOURNEY: { name: "regimes" | "events" | "backtest" | "stress"; label: string; question: string }[] = [
+  { name: "regimes", label: "市場狀態", question: "現在處於哪一種狀態？" },
+  { name: "events", label: "異常事件", question: "大漲大跌之後，報酬可以預測嗎？" },
+  { name: "backtest", label: "誠實回測", question: "漂亮的回測，是實力還是運氣？" },
+  { name: "stress", label: "壓力測試", question: "接下來 60 天，壞情況會虧多少？" },
+];
+
+/** Cross-symbol headline computed from the loaded results; the control series is excluded. */
+function HeadlineFinding({ overview, regimes, backtest }: { overview: Overview; regimes: Regimes; backtest: Backtest }) {
+  const symbols = overview.symbols.filter((s) => !s.is_control && backtest.symbols[s.symbol] && regimes.symbols[s.symbol]).map((s) => s.symbol);
+  const n = symbols.length;
+  if (n === 0) return null;
+  const overfit = symbols.filter((s) => backtest.symbols[s]!.pbo >= 0.5).length;
+  const losing = symbols.filter((s) => backtest.symbols[s]!.oos_sharpe_stitched < backtest.symbols[s]!.buy_hold_sharpe_oos).length;
+  const stressed = symbols.filter((s) => {
+    const r = regimes.symbols[s]!;
+    return r.current.state === mostVolatileState(r.vol_annual);
+  }).length;
+  return (
+    <aside className="card headline" aria-labelledby="headline-title" data-testid="headline-finding">
+      <span className="stat-label">核心發現 · {n} 檔合計</span>
+      <h2 id="headline-title">{overfit * 2 > n ? "多數「漂亮回測」經不起檢驗" : "回測經得起檢驗嗎？"}</h2>
+      <dl className="headline-stats">
+        <div>
+          <dt>回測過度擬合機率（PBO）≥ 50%</dt>
+          <dd>
+            <strong>{overfit}</strong> / {n} 檔
+          </dd>
+        </div>
+        <div>
+          <dt>均線策略樣本外 Sharpe 不如買進持有</dt>
+          <dd>
+            <strong>{losing}</strong> / {n} 檔
+          </dd>
+        </div>
+        <div>
+          <dt>目前處於高波動狀態</dt>
+          <dd>
+            <strong>{stressed}</strong> / {n} 檔
+          </dd>
+        </div>
+      </dl>
+      <a className="headline-link" href={routeToHash({ name: "backtest" })}>
+        看回測如何被檢驗 →
+      </a>
+    </aside>
+  );
+}
+
+function Dashboard({ overview, regimes, backtest, events, provenance, route }: { overview: Overview; regimes: Regimes; backtest: Backtest; events: Events; provenance: Provenance; route: HomeRoute }) {
   const [, navigate] = useRoute();
   const symbol = pickSymbol(overview, route.symbol);
   const period = route.period ?? "all";
@@ -46,16 +95,47 @@ function Dashboard({ overview, regimes, backtest, events, route }: { overview: O
   for (let i = daysInState.length - 1; i >= 0 && daysInState[i] === regime.current.state; i -= 1) streak += 1;
   const negative = events.study.negative;
   const reboundIndex = negative.post_offsets.indexOf(3);
+  const analysed = overview.symbols.filter((s) => !s.is_control);
+  const split = provenance.price_basis?.splits.find((s) => s.symbol === symbol);
 
   return (
     <div className="stack">
       <header className="hero">
-        <span className="eyebrow">市場狀態實驗室 · 研究用途，非投資建議</span>
-        <h1>市場不是一條平滑的曲線，而是幾種「狀態」之間的切換。</h1>
-        <p className="lede">
-          用隱藏馬可夫模型找出平穩、震盪與高波動三種狀態；檢驗異常日之後是否真的有可預測的報酬；再用過度擬合檢定揭穿「漂亮回測」。所有方法都在已知答案的合成資料上接受檢驗。
-        </p>
+        <div className="hero-copy">
+          <span className="eyebrow">市場狀態實驗室 · 研究用途，非投資建議</span>
+          <h1>市場不是一條平滑的曲線，而是幾種「狀態」之間的切換。</h1>
+          <p className="lede">
+            用隱藏馬可夫模型找出平穩、震盪與高波動三種狀態；檢驗異常日之後是否真的有可預測的報酬；再用過度擬合檢定揭穿「漂亮回測」。每個方法都先在已知答案的合成資料上接受檢驗。
+          </p>
+          <p className="hero-meta" data-testid="hero-meta">
+            {provenance.is_simulated ? "測試用合成資料" : provenance.provider === "finmind" ? "FinMind 臺股日行情" : "市場日資料"} · {analysed.length} 檔 · {provenance.range.start} 至{" "}
+            <strong>{provenance.range.end}</strong>（{provenance.trading_days.toLocaleString("zh-TW")} 個交易日，非即時）·{" "}
+            <a href={routeToHash({ name: "data" })}>資料來源與驗證</a>
+          </p>
+        </div>
+        <HeadlineFinding overview={overview} regimes={regimes} backtest={backtest} />
       </header>
+
+      <nav className="journey" aria-labelledby="journey-title">
+        <h2 id="journey-title" className="journey-title">
+          第一次來？照這個順序看
+        </h2>
+        <ol>
+          {JOURNEY.map((step, i) => (
+            <li key={step.name}>
+              <a href={routeToHash({ name: step.name, symbol })}>
+                <span className="journey-step" aria-hidden="true">
+                  {i + 1}
+                </span>
+                <span className="journey-text">
+                  <strong>{step.label}</strong>
+                  <span>{step.question}</span>
+                </span>
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
 
       <div className="controls">
         <SymbolPicker overview={overview} value={symbol} route={{ ...route, symbol }} />
@@ -134,9 +214,11 @@ function Dashboard({ overview, regimes, backtest, events, route }: { overview: O
           <LineChart series={[{ key: "close", label: "收盤價", values: close, tone: 1 }]} labels={dates} stripes={stripes} format={(v) => formatNumber(v, 0)} />
         </ChartFrame>
         <Legend items={[{ key: "close", label: "收盤價", tone: 1 }, ...regime.labels.map((label, state) => ({ key: label, label, state }))]} />
+        <p className="chart-note">
+          怎麼看：線是收盤價（元），背景顏色是模型每天判定的狀態，顏色換了就代表狀態切換。
+          {split && <> 價格已依官方公告還原 {split.effective_date} 的 1 拆 {split.new_units_per_old} 分割。</>}
+        </p>
       </section>
-
-      <TwsePanel symbol={symbol} />
 
       <section className="split">
         <div className="card">
@@ -196,6 +278,8 @@ function Dashboard({ overview, regimes, backtest, events, route }: { overview: O
           </ul>
         </div>
       </section>
+
+      <TwsePanel symbol={symbol} />
     </div>
   );
 }
@@ -206,10 +290,11 @@ export default function Home({ route }: { route: HomeRoute }) {
   const regimes = useDataset("regimes.json");
   const backtest = useDataset("backtest.json");
   const events = useDataset("events.json");
+  const provenance = useDataset("provenance.json");
   return (
     <div className="page">
-      <Gate<[Overview, Regimes, Backtest, Events]> states={[overview, regimes, backtest, events]}>
-        {(o, r, b, e) => <Dashboard overview={o} regimes={r} backtest={b} events={e} route={route} />}
+      <Gate<[Overview, Regimes, Backtest, Events, Provenance]> states={[overview, regimes, backtest, events, provenance]}>
+        {(o, r, b, e, p) => <Dashboard overview={o} regimes={r} backtest={b} events={e} provenance={p} route={route} />}
       </Gate>
     </div>
   );

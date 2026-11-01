@@ -32,3 +32,17 @@ export function selectMarketRows(rows: MarketRow[], { q, sort = "code", desc = f
       return order === 0 ? a[0].localeCompare(b[0]) : order * direction;
     });
 }
+
+/** Advancers, decliners and the rest (flat or no change data), plus total turnover in TWD. */
+export function marketBreadth(rows: MarketRow[]): { up: number; down: number; flat: number; value: number } {
+  let up = 0;
+  let down = 0;
+  let value = 0;
+  for (const r of rows) {
+    const change = r[4];
+    if (change !== null && change > 0) up += 1;
+    else if (change !== null && change < 0) down += 1;
+    value += r[5] ?? 0;
+  }
+  return { up, down, flat: rows.length - up - down, value };
+}

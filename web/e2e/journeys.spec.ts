@@ -11,6 +11,8 @@ interface Overview {
 test.describe("F1 標的總覽", () => {
   test("switching symbol and period updates the summary and the URL", async ({ page }) => {
     await openRoute(page, "/");
+    await expect(page.getByTestId("headline-finding")).toContainText("檔");
+    await expect(page.getByRole("navigation", { name: "第一次來？照這個順序看" }).getByRole("link")).toHaveCount(4);
     const total = page.getByTestId("total-return");
     const before = await total.innerText();
     await page.getByRole("radio", { name: /2330/ }).check();

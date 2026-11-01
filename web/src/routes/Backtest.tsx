@@ -74,6 +74,7 @@ function BacktestView({ overview, backtest, route }: { overview: Overview; backt
   const selected = route.cell !== undefined && route.cell < result.grid.length ? route.cell : result.best_is;
   const [fast, slow] = result.grid[selected]!;
   const verdict = pboVerdict(result.pbo);
+  const beatsHold = result.oos_sharpe_stitched >= result.buy_hold_sharpe_oos;
   const rho = rankCorrelation(result.is_sharpe, result.oos_sharpe);
   const equityDates = sampledDates(overview.dates, result.equity.start, result.equity.step, result.equity.walk_forward.length);
   const logitBins = histogram(result.logits, 12);
@@ -107,6 +108,9 @@ function BacktestView({ overview, backtest, route }: { overview: Overview; backt
             {formatNumber(result.full_sharpe[result.best_full], 2)} → {formatNumber(result.oos_sharpe_stitched, 2)}
           </span>
           <span className="muted small">同期間買進持有 Sharpe {formatNumber(result.buy_hold_sharpe_oos, 2)}</span>
+          <span className="tag" data-tone={beatsHold ? "good" : "bad"} data-testid="vs-buy-hold">
+            {beatsHold ? "樣本外勝過買進持有" : "樣本外不如買進持有"}
+          </span>
         </div>
         <div className="card kpi">
           <span className="stat-label">Deflated Sharpe Ratio</span>
@@ -118,7 +122,15 @@ function BacktestView({ overview, backtest, route }: { overview: Overview; backt
           </span>
         </div>
       </section>
-      <p className="callout">{verdict.text}</p>
+      <p className="callout">
+        {verdict.text}
+        {result.pbo >= 0.5 && result.dsr.dsr >= 0.95 && (
+          <>
+            {" "}
+            Deflated Sharpe 仍高，表示最佳績效本身不太像純粹的運氣；但 PBO 顯示「從 {result.grid.length} 組裡挑出它」的過程並不可靠。兩個指標回答的是不同問題。
+          </>
+        )}
+      </p>
 
       <section className="card">
         <h2>同一組參數，樣本內與樣本外判若兩人</h2>

@@ -268,3 +268,9 @@ thead th {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Chips and tags inside a KPI grid keep their own width instead of stretching. */
+.kpi > .tag,
+.kpi > .state-chip {
+  justify-self: start;
+}

@@ -3,7 +3,7 @@ import { useDataset, useDocumentTitle, useRoute } from "../app/hooks";
 import { ScrollRegion } from "../components/ScrollRegion";
 import { Gate } from "../components/States";
 import { formatNumber, formatSigned, formatSignedPercent } from "../lib/format";
-import { isEtf, selectMarketRows } from "../lib/marketTable";
+import { isEtf, marketBreadth, selectMarketRows } from "../lib/marketTable";
 import { routeToHash, type MarketKind, type MarketSort, type Route } from "../lib/router";
 import type { Overview, TwseMarket } from "../lib/types";
 import "./Market.css";
@@ -66,6 +66,8 @@ function MarketView({ market, overview, route }: { market: TwseMarket; overview:
   }
   const rows = selectMarketRows(market.rows, { q: deferred, sort, desc, kind: route.kind });
   const shown = rows.slice(0, limit);
+  const breadth = marketBreadth(market.rows);
+  const byValue = { name: "market", sort: "value_twd", desc: true } as const;
 
   return (
     <div className="stack">
@@ -74,6 +76,30 @@ function MarketView({ market, overview, route }: { market: TwseMarket; overview:
           預覽用合成數值，正式網站會換成證交所 OpenAPI 的全部上市證券。
         </p>
       )}
+      <section className="market-breadth" aria-label={`${market.trade_date} 全市場概況`} data-testid="market-breadth">
+        <div className="card">
+          <span className="stat-label">上漲</span>
+          <span className="breadth-value" data-sign="1">{breadth.up.toLocaleString("zh-TW")}</span>
+        </div>
+        <div className="card">
+          <span className="stat-label">下跌</span>
+          <span className="breadth-value" data-sign="-1">{breadth.down.toLocaleString("zh-TW")}</span>
+        </div>
+        <div className="card">
+          <span className="stat-label">平盤／無漲跌資料</span>
+          <span className="breadth-value">{breadth.flat.toLocaleString("zh-TW")}</span>
+        </div>
+        <div className="card">
+          <span className="stat-label">總成交值</span>
+          <span className="breadth-value">{formatNumber(breadth.value / 1e8, 0)} 億</span>
+          {!(sort === byValue.sort && desc) && (
+            <a className="small" href={routeToHash(byValue)}>
+              看成交值排行 →
+            </a>
+          )}
+        </div>
+      </section>
+
       <div className="controls market-controls">
         <label className="field market-search">
           <span>搜尋代號或名稱</span>
