@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -125,6 +127,9 @@ def test_provenance_marks_simulated_data(exported: Path) -> None:
     assert provenance["source_quality"] is None
     assert provenance["truth"] == {"regimes": True, "injected_events": True}
     assert "不構成任何投資建議" in provenance["disclaimer"]
+    # Source labels are shown verbatim on the data page, so they must be readable there.
+    assert all(any("一" <= ch <= "鿿" for ch in source["label"]) for source in provenance["sources"])
+    assert len({source["url"] for source in provenance["sources"]}) == len(provenance["sources"])
 
 
 def test_short_history_fails_clearly(exported: Path, tmp_path: Path) -> None:
@@ -215,3 +220,40 @@ def test_market_wide_preview_is_labelled_and_seeded(exported: Path) -> None:
 def test_market_wide_unavailable_without_a_snapshot() -> None:
     payload = export_web.market_wide_payload(None, False, None)
     assert payload["status"] == "unavailable" and payload["rows"] == []
+
+
+def test_current_regime_uses_the_latest_posterior_not_the_viterbi_end() -> None:
+    # Two short-lived calm states share the mass, so the sticky turbulent state
+    # can end the Viterbi path while holding only 10% of the latest posterior
+    # (the case seen on 2882 in the 2026-11-02 production snapshot).
+    probabilities = np.array([
+        [0.10, 0.30, 0.60],
+        [0.62, 0.28, 0.10],
+        [0.55, 0.35, 0.10],
+        [0.622, 0.28, 0.098],
+    ])
+    assert export_web.current_regime(probabilities) == {"state": 0, "probability": 0.622, "days": 3}
+
+
+def test_exported_current_state_is_the_most_probable_one(exported: Path) -> None:
+    for regime in _load(exported, "regimes.json")["symbols"].values():
+        current = regime["current"]
+        assert current["probability"] >= 1 / export_web.N_STATES
+        assert current["days"] >= 1
+
+
+def test_sources_are_listed_once_with_readable_labels() -> None:
+    sources = [
+        {"label": "A", "url": "https://example.test/a"},
+        {"label": "B", "url": "https://example.test/licence"},
+        {"label": "B again", "url": "https://example.test/licence"},
+    ]
+    assert export_web._unique_sources(sources) == sources[:2]
+    for source in (*export_web.TWSE_SOURCES,):
+        assert any("一" <= ch <= "鿿" for ch in source["label"]), source
+
+
+def test_web_reads_the_schema_version_this_exporter_writes() -> None:
+    source = (Path(__file__).resolve().parents[1] / "web" / "src" / "lib" / "data.ts").read_text(encoding="utf-8")
+    match = re.search(r'DATA_SCHEMA_VERSION = "([^"]+)"', source)
+    assert match is not None and match.group(1) == export_web.SCHEMA_VERSION
