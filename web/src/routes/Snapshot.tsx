@@ -1,7 +1,7 @@
 import { useContext, useEffect, useRef, useState } from "react";
 import { LoaderContext, useDataset, useDocumentTitle } from "../app/hooks";
 import { ScrollRegion } from "../components/ScrollRegion";
-import { Gate } from "../components/States";
+import { Gate, Loading } from "../components/States";
 import { downloadText } from "../lib/csv";
 import { formatNumber } from "../lib/format";
 import { createSnapshot, diffSnapshots, MAX_SNAPSHOT_BYTES, validateSnapshot, type Snapshot, type ValidationResult } from "../lib/snapshot";
@@ -229,7 +229,10 @@ export default function SnapshotPage() {
         <p className="lede">封存資料指紋、參數與分析結果，重新匯入後逐項比較。</p>
       </header>
       <Gate<[Overview, Regimes, Backtest, Events, Stress, Provenance]> states={[overview, regimes, backtest, events, stress, provenance]}>
-        {(o, r, b, e, s, p) => <Creator data={{ overview: o, regimes: r, backtest: b, events: e, stress: s, provenance: p }} schemaVersion={schemaVersion ?? "2.0"} />}
+        {(o, r, b, e, s, p) =>
+          // The snapshot records the manifest's schema version; never stamp a guessed one.
+          schemaVersion === null ? <Loading /> : <Creator data={{ overview: o, regimes: r, backtest: b, events: e, stress: s, provenance: p }} schemaVersion={schemaVersion} />
+        }
       </Gate>
       <Comparer />
     </div>

@@ -86,3 +86,24 @@ export function histogram(values: readonly number[], bins: number): { lo: number
   for (const v of values) counts[Math.min(Math.floor((v - min) / width), bins - 1)]! += 1;
   return counts.map((count, i) => ({ lo: min + i * width, hi: min + (i + 1) * width, count }));
 }
+
+/**
+ * Histogram whose bin edges include `pivot`, with bins closed on the right
+ * ((lo, hi], the first one also holding the minimum). Every value ≤ pivot then
+ * lands in a bin with hi ≤ pivot, so highlighting those bins shows exactly the
+ * share of values at or below the pivot (the PBO, or the tail beyond VaR).
+ */
+export function histogramAround(values: readonly number[], bins: number, pivot: number): { lo: number; hi: number; count: number }[] {
+  if (values.length === 0 || bins < 1) return [];
+  const min = Math.min(...values, pivot);
+  const max = Math.max(...values, pivot);
+  const width = (max - min) / bins || 1;
+  const first = Math.floor((min - pivot) / width);
+  const last = Math.max(Math.ceil((max - pivot) / width), first + 1);
+  const counts = new Array<number>(last - first).fill(0);
+  for (const v of values) {
+    const index = Math.ceil((v - pivot) / width) - 1 - first;
+    counts[Math.min(Math.max(index, 0), counts.length - 1)]! += 1;
+  }
+  return counts.map((count, i) => ({ lo: pivot + (first + i) * width, hi: pivot + (first + i + 1) * width, count }));
+}
