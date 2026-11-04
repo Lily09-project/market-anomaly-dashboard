@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { expect, fetchJson, openRoute, test } from "./fixtures";
-import type { Events, Manifest, Regimes } from "../src/lib/types";
+import type { Events, Manifest, Regimes, Twse } from "../src/lib/types";
 
 for (const noEvents of [false, true]) {
   test(`event verdicts distinguish real data and missing evidence (empty=${noEvents})`, async ({ page }) => {
@@ -56,3 +56,34 @@ for (const states of [1, 2]) {
     await expect(page.locator("main")).toContainText("回顧性");
   });
 }
+
+test("a disagreeing Viterbi path end is explained and the posterior state drives the summary", async ({ page }) => {
+  const regimes = await fetchJson<Regimes>(page, "regimes.json");
+  const manifest = await fetchJson<Manifest>(page, "manifest.json");
+  const regime = regimes.symbols["0050"]!;
+  const end = regime.segments.at(-1)!;
+  const other = (end[2] + 1) % regime.labels.length;
+  regime.current = { state: other, probability: 0.62, days: 4 };
+  const body = JSON.stringify(regimes);
+  manifest.files["regimes.json"] = createHash("sha256").update(body).digest("hex");
+  await page.route("**/data/regimes.json", route => route.fulfill({ contentType: "application/json", body }));
+  await page.route("**/data/manifest.json", route => route.fulfill({ json: manifest }));
+  await openRoute(page, "/regimes?symbol=0050");
+  await expect(page.getByTestId("path-end-note")).toContainText(`最後一段是${regime.labels[end[2]]}`);
+  await openRoute(page, "/?symbol=0050");
+  await expect(page.getByTestId("current-state")).toHaveText("機率 62%，已持續 4 個交易日");
+});
+
+test("a month with a single TAIEX day shows the value instead of an empty chart", async ({ page }) => {
+  const twse = await fetchJson<Twse>(page, "twse.json");
+  const manifest = await fetchJson<Manifest>(page, "manifest.json");
+  twse.market = twse.market.slice(-1);
+  const body = JSON.stringify(twse);
+  manifest.files["twse.json"] = createHash("sha256").update(body).digest("hex");
+  await page.route("**/data/twse.json", route => route.fulfill({ contentType: "application/json", body }));
+  await page.route("**/data/manifest.json", route => route.fulfill({ json: manifest }));
+  await openRoute(page, "/?symbol=2330");
+  const panel = page.getByTestId("twse-panel");
+  await expect(panel.getByTestId("twse-taiex")).toContainText(`加權指數（${twse.market[0]!.date}）`);
+  await expect(panel.getByRole("figure")).toHaveCount(0);
+});

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { downloadText, escapeCell, toCsv } from "./csv";
-import { createLoader, IntegrityError, sha256Hex } from "./data";
+import { createLoader, DATA_SCHEMA_VERSION, IntegrityError, SchemaMismatchError, sha256Hex } from "./data";
 import stressFixture from "./fixtures/stress-parity.json";
 import { formatNumber, formatPercent, formatSigned, formatSignedPercent } from "./format";
 import { agreement, drawdowns, heatmap, mostVolatileState, rankCorrelation, rollingVolatility, sampledDates, statesByDay } from "./market";
@@ -11,7 +11,7 @@ import { parseRoute, routeToHash, type Route } from "./router";
 import type { MarketRow } from "./types";
 import { canonicalJson, createSnapshot, diffSnapshots, MAX_SNAPSHOT_BYTES, validateSnapshot, type SnapshotBody } from "./snapshot";
 import { quantile } from "./stats";
-import { blockBootstrap, histogram, logReturns, summarise, varCvar } from "./stress";
+import { blockBootstrap, histogram, histogramAround, logReturns, summarise, varCvar } from "./stress";
 import type { Segment, StressParity } from "./types";
 
 describe("stress engine (mirrors src/analytics/risk.py)", () => {
@@ -67,6 +67,24 @@ describe("stress engine (mirrors src/analytics/risk.py)", () => {
     expect(bins.map((b) => b.count)).toEqual([2, 3]);
     expect(histogram([], 3)).toEqual([]);
     expect(histogram([1, 1], 2)[0]!.count).toBe(2);
+  });
+
+  it("aligns a bin edge with the pivot so highlighted bins hold exactly the values at or below it", () => {
+    const draw = mulberry32(5);
+    // CSCV logits include exact zeros (a tie at the median) and they count toward the PBO.
+    const values = [0, 0, ...Array.from({ length: 250 }, () => draw() * 5 - 1.3)];
+    for (const pivot of [0, -0.37, 0.8]) {
+      const bins = histogramAround(values, 12, pivot);
+      const highlighted = bins.filter((b) => b.hi <= pivot).reduce((n, b) => n + b.count, 0);
+      expect(highlighted).toBe(values.filter((v) => v <= pivot).length);
+      expect(bins.reduce((n, b) => n + b.count, 0)).toBe(values.length);
+      expect(bins.some((b) => Math.abs(b.hi - pivot) < 1e-12)).toBe(true);
+    }
+    // The plain histogram does not guarantee this: a bin can straddle the pivot.
+    const plain = histogram(values, 12);
+    expect(plain.filter((b) => b.hi <= 0).reduce((n, b) => n + b.count, 0)).not.toBe(values.filter((v) => v <= 0).length);
+    expect(histogramAround([], 5, 0)).toEqual([]);
+    expect(histogramAround([2, 2], 4, 2).reduce((n, b) => n + b.count, 0)).toBe(2);
   });
 });
 
@@ -221,15 +239,38 @@ describe("format, csv and data loader", () => {
     const body = '{"dates":[]}';
     const digest = await sha256Hex(encoder.encode(body).buffer as ArrayBuffer);
     const fetcher = vi.fn(async (url: string) =>
-      url.endsWith("manifest.json") ? respond(JSON.stringify({ schema_version: "2.0", files: { "overview.json": digest } })) : url.endsWith("overview.json") ? respond(body) : respond("x", 404),
+      url.endsWith("manifest.json") ? respond(JSON.stringify({ schema_version: DATA_SCHEMA_VERSION, files: { "overview.json": digest } })) : url.endsWith("overview.json") ? respond(body) : respond("x", 404),
     );
     const loader = createLoader("./", fetcher);
     await expect(loader.load("overview.json")).resolves.toEqual({ dates: [] });
     await expect(loader.load("events.json")).rejects.toThrow("HTTP 404");
     const bad = createLoader("./", async (url: string) =>
-      url.endsWith("manifest.json") ? respond(JSON.stringify({ schema_version: "2.0", files: { "events.json": "0".repeat(64) } })) : respond("{}"),
+      url.endsWith("manifest.json") ? respond(JSON.stringify({ schema_version: DATA_SCHEMA_VERSION, files: { "events.json": "0".repeat(64) } })) : respond("{}"),
     );
     await expect(bad.load("events.json")).rejects.toBeInstanceOf(IntegrityError);
+  });
+
+  it("rejects data exported for another schema, even when the hashes match", async () => {
+    const encoder = new TextEncoder();
+    const body = '{"dates":[]}';
+    const digest = await sha256Hex(encoder.encode(body).buffer as ArrayBuffer);
+    const fetcher = vi.fn(async (url: string, _init?: RequestInit) =>
+      new Response(encoder.encode(url.endsWith("manifest.json") ? JSON.stringify({ schema_version: "1.0", files: { "overview.json": digest } }) : body)),
+    );
+    const error = await createLoader("./", fetcher).load("overview.json").catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(SchemaMismatchError);
+    expect((error as Error).message).toContain("資料格式版本不符");
+    // It re-fetched once with cache: "reload" before giving up.
+    expect(fetcher.mock.calls.filter(([, init]) => init?.cache === "reload")).toHaveLength(2);
+  });
+
+  it("explains network and parse failures in Traditional Chinese", async () => {
+    const offline = createLoader("./", async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    await expect(offline.load("overview.json")).rejects.toThrow("無法連線取得");
+    const garbled = createLoader("./", async () => new Response("<html>not json</html>"));
+    await expect(garbled.manifest()).rejects.toThrow("manifest.json 不是有效的 JSON");
   });
 
   it("revalidates once after a redeploy and recovers from a failed manifest request", async () => {

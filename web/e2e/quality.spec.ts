@@ -8,6 +8,7 @@ const ROUTES = [
   "/stress",
   "/snapshot",
   "/data",
+  "/market",
 ];
 const FIXED_BACKGROUND = "rgb(11, 14, 17)";
 const LEGACY_THEME_KEY = "market-regime-lab-theme";

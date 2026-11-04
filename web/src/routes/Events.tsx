@@ -132,7 +132,7 @@ function EventsView({ overview, events, regimes, route }: { overview: Overview; 
 
       {list.length === 0 ? (
         <EmptyState title="這個標的沒有異常日">
-          <p>{overview.symbols.find((s) => s.symbol === symbol)?.is_control ? "隨機漫步對照組沒有被誤判的異常日——偵測器沒有把雜訊當成事件。" : "門檻內沒有任何一天超過異常標準。"}</p>
+          <p>{overview.symbols.find((s) => s.symbol === symbol)?.is_control ? "隨機漫步對照組沒有被誤判的異常日——偵測器沒有把雜訊當成事件。" : `暖機期之後沒有任何一天的 |z| 超過 ${events.threshold}。`}</p>
         </EmptyState>
       ) : (
         <section className="split">

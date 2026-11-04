@@ -91,8 +91,9 @@ function Dashboard({ overview, regimes, backtest, events, provenance, route }: {
   const dd = drawdowns(close);
   const stripes = clipSegments(regime.segments, from);
   const daysInState = statesByDay(regime.segments, returns.length);
-  let streak = 0;
-  for (let i = daysInState.length - 1; i >= 0 && daysInState[i] === regime.current.state; i -= 1) streak += 1;
+  // Older exports lack `days`; fall back to the trailing run on the Viterbi path.
+  let streak = regime.current.days ?? 0;
+  if (regime.current.days === undefined) for (let i = daysInState.length - 1; i >= 0 && daysInState[i] === regime.current.state; i -= 1) streak += 1;
   const negative = events.study.negative;
   const reboundIndex = negative.post_offsets.indexOf(3);
   const analysed = overview.symbols.filter((s) => !s.is_control);
@@ -265,7 +266,7 @@ function Dashboard({ overview, regimes, backtest, events, provenance, route }: {
             </li>
             <li>
               <a href={routeToHash({ name: "backtest", symbol })}>誠實回測</a>：均線策略的回測過度擬合機率 <strong>{formatPercent(bt.pbo, 0)}</strong>，walk-forward 樣本外 Sharpe{" "}
-              <strong>{formatNumber(bt.oos_sharpe_stitched, 2)}</strong>（樣本內最佳 {formatNumber(bt.full_sharpe[bt.best_full], 2)}）。
+              <strong>{formatNumber(bt.oos_sharpe_stitched, 2)}</strong>（全期最佳參數 {formatNumber(bt.full_sharpe[bt.best_full], 2)}）。
             </li>
             <li>
               <a href={routeToHash({ name: "events", symbol })}>異常事件</a>：所有標的合計，負向衝擊後 3 日平均累積異常報酬{" "}

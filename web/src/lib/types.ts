@@ -28,7 +28,8 @@ export interface Regime {
   share: number[];
   log_likelihood: number[];
   segments: Segment[];
-  current: { state: number; probability: number };
+  /** Most probable state on the latest day (posterior), and how many trailing days it has led. */
+  current: { state: number; probability: number; days?: number };
   bic: Record<string, number>;
   bic_choice: number;
   excluded_jump_days: number;

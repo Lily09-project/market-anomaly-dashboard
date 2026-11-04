@@ -86,7 +86,7 @@ test.describe("正式公開行情資料", () => {
     }
 
     await openRoute(page, "/data");
-    await expect(page.getByTestId("data-source")).toHaveText("FinMind public historical daily prices");
+    await expect(page.getByTestId("data-source")).toHaveText("FinMind 公開歷史日行情");
     await expect(page.getByTestId("integrity-summary")).toHaveText("8/8");
     await expect(page.getByRole("heading", { name: "價格還原基準" })).toBeVisible();
     await expectAccessible(page);

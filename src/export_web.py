@@ -87,6 +87,23 @@ def _single_state_loglik(x: np.ndarray) -> float:
     return float(np.sum(-0.5 * np.log(2 * math.pi * var) - 0.5 * (x - x.mean()) ** 2 / var))
 
 
+def current_regime(probabilities: np.ndarray) -> dict[str, Any]:
+    """Most probable state on the latest day, its probability and how long it has led.
+
+    The Viterbi path is the single most likely *sequence*; its last state can
+    carry a small marginal probability when two short-lived states share the
+    mass. "Current state" therefore uses the latest posterior instead.
+    """
+    leading = np.argmax(probabilities, axis=1)
+    state = int(leading[-1])
+    days = 0
+    for value in leading[::-1]:
+        if value != state:
+            break
+        days += 1
+    return {"state": state, "probability": _num(float(probabilities[-1, state]), 3), "days": days}
+
+
 def analyse_regimes(returns: np.ndarray, truth: np.ndarray | None) -> tuple[dict[str, Any], hmm.HMMResult, np.ndarray]:
     """Fit 1–3 state HMMs, keep the 3-state model for display and report BIC and accuracy."""
     prefilter = events.anomaly_days(pd.Series(returns)).to_numpy()
@@ -108,7 +125,7 @@ def analyse_regimes(returns: np.ndarray, truth: np.ndarray | None) -> tuple[dict
         "share": _nums(np.bincount(path, minlength=N_STATES) / len(path), 4),
         "log_likelihood": [_num(v, 2) for v in model.history],
         "segments": _segments(path),
-        "current": {"state": int(path[-1]), "probability": _num(float(probabilities[-1, path[-1]]), 3)},
+        "current": current_regime(probabilities),
         "bic": {str(k): _num(v, 1) for k, v in bic.items()},
         "bic_choice": int(chosen),
         "excluded_jump_days": int(prefilter.sum()),
@@ -322,9 +339,19 @@ def _finmind_source_quality(config: dict[str, Any], provider: str, simulated: bo
 
 
 TWSE_SOURCES = [
-    {"label": "TWSE OpenAPI (after-hours snapshot, no key)", "url": "https://openapi.twse.com.tw/"},
-    {"label": "Government Open Data License 1.0", "url": "https://data.gov.tw/license"},
+    {"label": "證交所 OpenAPI（盤後快照，免金鑰）", "url": "https://openapi.twse.com.tw/"},
+    {"label": "政府資料開放授權條款－第 1 版", "url": "https://data.gov.tw/license"},
 ]
+
+
+def _unique_sources(sources: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Keep the first entry per URL so a shared licence is listed once."""
+    unique: dict[str, dict[str, str]] = {}
+    for source in sources:
+        unique.setdefault(source["url"], source)
+    return list(unique.values())
+
+
 # Exchange closes are quoted to two decimals; anything larger is a real mismatch.
 CROSS_CHECK_TOLERANCE = 0.005
 
@@ -507,15 +534,15 @@ def export(out_dir: Path, cleaned_path: Path | None = None, twse_path: Path | No
     input_bytes = Path(cleaned_path or project_path(config["data"]["cleaned_path"])).read_bytes()
     if simulated:
         source_label = "Reproducible synthetic test data"
-        market_sources = [{"label": "Synthetic data generator (test fixture)", "url": "https://github.com/Lily09-project/market-anomaly-dashboard"}]
+        market_sources = [{"label": "合成資料產生器（測試用 fixture）", "url": "https://github.com/Lily09-project/market-anomaly-dashboard"}]
     elif provider == "finmind":
         source_label = "FinMind public historical daily prices"
         market_sources = [
-            {"label": "FinMind API documentation (no-token public access)", "url": "https://finmind.github.io/quickstart/"},
-            {"label": "0050 official 1:4 split reference (2025-06-18)", "url": "https://api.yuantafunds.com/ECImage/ECBackstage/file/2025-06-17/ca6610a73d444bc09bc2035df79bfd25.pdf"},
-            {"label": "TaiwanStockPrice dataset fields and coverage", "url": "https://finmind.github.io/tutor/TaiwanMarket/Technical/"},
-            {"label": "TWSE daily transaction dataset and open-data terms", "url": "https://data.gov.tw/dataset/11549"},
-            {"label": "Government Open Data License 1.0", "url": "https://data.gov.tw/license"},
+            {"label": "FinMind API 文件（免 token 公開存取）", "url": "https://finmind.github.io/quickstart/"},
+            {"label": "0050 官方 1 拆 4 分割公告（2025-06-18）", "url": "https://api.yuantafunds.com/ECImage/ECBackstage/file/2025-06-17/ca6610a73d444bc09bc2035df79bfd25.pdf"},
+            {"label": "FinMind TaiwanStockPrice 資料集欄位與涵蓋範圍", "url": "https://finmind.github.io/tutor/TaiwanMarket/Technical/"},
+            {"label": "證交所個股日成交資訊資料集（政府資料開放平臺）", "url": "https://data.gov.tw/dataset/11549"},
+            {"label": "政府資料開放授權條款－第 1 版", "url": "https://data.gov.tw/license"},
         ]
     else:
         source_label = "Configured market data API"
@@ -534,14 +561,14 @@ def export(out_dir: Path, cleaned_path: Path | None = None, twse_path: Path | No
         "truth": {"regimes": truth_states is not None, "injected_events": truth_jumps is not None},
         "disclaimer": config["project"]["disclaimer"],
         "sources": market_sources + [
-            {"label": "Bailey et al. (2017) The Probability of Backtest Overfitting", "url": "https://doi.org/10.21314/JCF.2016.322"},
-            {"label": "Bailey & López de Prado (2014) The Deflated Sharpe Ratio", "url": "https://doi.org/10.3905/jpm.2014.40.5.094"},
+            {"label": "Bailey 等人（2017）The Probability of Backtest Overfitting", "url": "https://doi.org/10.21314/JCF.2016.322"},
+            {"label": "Bailey 與 López de Prado（2014）The Deflated Sharpe Ratio", "url": "https://doi.org/10.3905/jpm.2014.40.5.094"},
         ],
     }
 
     twse = twse_payload(config, wide, simulated, twse_path)
     if twse["status"] == "ok":
-        provenance["sources"] = market_sources + twse["sources"] + provenance["sources"][len(market_sources):]
+        provenance["sources"] = _unique_sources(market_sources + twse["sources"] + provenance["sources"][len(market_sources):])
 
     files = {
         "overview.json": overview,

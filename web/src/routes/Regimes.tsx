@@ -23,6 +23,7 @@ function RegimeView({ overview, regimes, route }: { overview: Overview; regimes:
   const calm = regime.vol_annual.reduce((best, v, i) => (v < (regime.vol_annual[best] ?? Infinity) ? i : best), 0);
   const calmVol = regime.vol_annual[calm] ?? 0;
   const volRatio = calmVol > 0 ? (regime.vol_annual[hot] ?? 0) / calmVol : null;
+  const pathEnd = regime.segments.at(-1)?.[2];
 
   return (
     <div className="stack">
@@ -63,7 +64,7 @@ function RegimeView({ overview, regimes, route }: { overview: Overview; regimes:
       {!noRegimes && volRatio !== null && hot !== calm && (
         <p className="callout" data-testid="regime-takeaway">
           重點：{labels[hot]}狀態的年化波動 <strong>{formatPercent(regime.vol_annual[hot])}</strong>，是{labels[calm]}狀態（{formatPercent(calmVol)}）的{" "}
-          <strong>{formatNumber(volRatio, 1)} 倍</strong>；最新一個交易日判定為 <StateChip state={regime.current.state} labels={labels} />（機率 {formatPercent(regime.current.probability, 0)}）。
+          <strong>{formatNumber(volRatio, 1)} 倍</strong>；依最新一個交易日的後驗機率，目前最可能是 <StateChip state={regime.current.state} labels={labels} />（{formatPercent(regime.current.probability, 0)}）。
         </p>
       )}
 
@@ -109,6 +110,11 @@ function RegimeView({ overview, regimes, route }: { overview: Overview; regimes:
           />
         </ChartFrame>
         <Legend items={labels.map((label, state) => ({ key: label, label, state }))} />
+        {pathEnd !== undefined && pathEnd !== regime.current.state && (
+          <p className="muted small" data-testid="path-end-note">
+            色帶是整段期間最可能的狀態序列（Viterbi），最後一段是{labels[pathEnd]}；「目前狀態」則看最新一天各狀態的機率，最可能是{labels[regime.current.state]}。兩種判定回答不同問題，所以可能不一致。
+          </p>
+        )}
         {regime.accuracy !== null && (
           <p className="callout">
             還原準確率 <strong data-testid="accuracy">{formatPercent(regime.accuracy, 1)}</strong>（驗收門檻 80%）。估計前先排除了 {regime.excluded_jump_days} 個跳空日：跳空另外在「異常事件」研究，否則模型會把它們當成第四種狀態。
