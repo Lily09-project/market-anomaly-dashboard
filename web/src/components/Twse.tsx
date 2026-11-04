@@ -79,6 +79,16 @@ function TwseView({ twse, symbol }: { twse: Twse; symbol: string }) {
           <p className="muted">這個標的沒有交易所資料（隨機漫步對照組）。</p>
         )}
       </div>
+      {market.length === 1 && (
+        // Early in a month the series has a single day: show it instead of a one-point chart.
+        <dl className="twse-index" data-testid="twse-taiex">
+          <Metric
+            label={`加權指數（${market[0]!.date}）`}
+            value={formatNumber(market[0]!.taiex, 2)}
+            note={`漲跌 ${formatSigned(market[0]!.change, 2)} 點 · 成交值 ${hundredMillion(market[0]!.value_twd)}`}
+          />
+        </dl>
+      )}
       {market.length > 1 && (
         <ChartFrame
           title="加權指數（本月）"

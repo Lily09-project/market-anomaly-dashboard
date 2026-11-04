@@ -66,7 +66,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <p>
             {provenance.status === "ready" && (
               <>
-                資料期間 {provenance.data.range.start} 至 {provenance.data.range.end}，共 {provenance.data.trading_days} 個交易日
+                資料期間 {provenance.data.range.start} 至 {provenance.data.range.end}，共 {provenance.data.trading_days.toLocaleString("zh-TW")} 個交易日
                 {provenance.data.is_simulated ? "（測試用合成資料）" : provider === "finmind" ? "（歷史快照，非即時）" : ""}。
               </>
             )}

@@ -58,7 +58,7 @@ function Trust({ provenance, regimes, events }: { provenance: Provenance; regime
         <div className="card">
           <span className="stat-label">資料來源</span>
           <p className="stat-value stat-value-text" data-testid="data-source">
-            {provenance.is_simulated ? "合成資料" : provenance.data_source}
+            {provenance.is_simulated ? "合成資料" : provenance.provider === "finmind" ? "FinMind 公開歷史日行情" : "設定的市場資料 API"}
           </p>
           <span className="muted small">
             {provenance.is_simulated
@@ -72,7 +72,7 @@ function Trust({ provenance, regimes, events }: { provenance: Provenance; regime
           <span className="stat-label">涵蓋範圍</span>
           <p className="stat-value">{provenance.symbols.length} 檔</p>
           <span className="muted small">
-            {provenance.range.start} 至 {provenance.range.end}，{provenance.trading_days} 個交易日
+            {provenance.range.start} 至 {provenance.range.end}，{provenance.trading_days.toLocaleString("zh-TW")} 個交易日
           </span>
         </div>
         <div className="card">

@@ -7,7 +7,7 @@ import { Gate } from "../components/States";
 import { formatNumber, formatPercent } from "../lib/format";
 import { heatmap, rankCorrelation, sampledDates } from "../lib/market";
 import type { Route } from "../lib/router";
-import { histogram } from "../lib/stress";
+import { histogramAround } from "../lib/stress";
 import type { Backtest, BacktestResult, Overview } from "../lib/types";
 import "./Backtest.css";
 
@@ -77,7 +77,8 @@ function BacktestView({ overview, backtest, route }: { overview: Overview; backt
   const beatsHold = result.oos_sharpe_stitched >= result.buy_hold_sharpe_oos;
   const rho = rankCorrelation(result.is_sharpe, result.oos_sharpe);
   const equityDates = sampledDates(overview.dates, result.equity.start, result.equity.step, result.equity.walk_forward.length);
-  const logitBins = histogram(result.logits, 12);
+  const logitBins = histogramAround(result.logits, 12, 0);
+  const trainMean = result.walk_forward.reduce((s, f) => s + f.train_sharpe, 0) / Math.max(result.walk_forward.length, 1);
   const select = (cell: number) => navigate({ ...route, symbol, cell }, { replace: true });
 
   return (
@@ -103,7 +104,7 @@ function BacktestView({ overview, backtest, route }: { overview: Overview; backt
           </span>
         </div>
         <div className="card kpi">
-          <span className="stat-label">樣本內最佳 → walk-forward 樣本外</span>
+          <span className="stat-label">全期最佳參數 → walk-forward 樣本外</span>
           <span className="stat-value" data-testid="sharpe-drop">
             {formatNumber(result.full_sharpe[result.best_full], 2)} → {formatNumber(result.oos_sharpe_stitched, 2)}
           </span>
@@ -179,7 +180,10 @@ function BacktestView({ overview, backtest, route }: { overview: Overview; backt
           >
             <DivergingBars rows={result.walk_forward.map((f) => ({ key: f.test_start, label: `${f.test_start.slice(0, 7)} 測試`, value: f.test_sharpe }))} format={(v) => formatNumber(v, 2)} />
           </ChartFrame>
-          <p className="muted small">每一段用前 2 年訓練、接下來半年測試，測試窗彼此不重疊；訓練 Sharpe 平均 {formatNumber(result.walk_forward.reduce((s, f) => s + f.train_sharpe, 0) / Math.max(result.walk_forward.length, 1), 2)}，測試卻只有 {formatNumber(result.oos_sharpe_stitched, 2)}。</p>
+          <p className="muted small">
+            每一段用前 2 年訓練、接下來半年測試，測試窗彼此不重疊；訓練 Sharpe 平均 {formatNumber(trainMean, 2)}，串接後的測試 Sharpe {formatNumber(result.oos_sharpe_stitched, 2)}
+            {result.oos_sharpe_stitched < trainMean ? "，樣本外明顯打了折扣。" : "，這次樣本外沒有比訓練期差。"}
+          </p>
         </div>
         <div className="card">
           <ChartFrame

@@ -5,7 +5,7 @@ import { pickSymbol, SymbolPicker } from "../components/Common";
 import { Gate } from "../components/States";
 import { formatNumber, formatPercent, formatSignedPercent } from "../lib/format";
 import { STRESS_LIMITS, type Route } from "../lib/router";
-import { histogram, logReturns, type StressSummary } from "../lib/stress";
+import { histogramAround, logReturns, type StressSummary } from "../lib/stress";
 import type { Overview, Stress, StressParams } from "../lib/types";
 import { useStressWorker } from "../workers/useStressWorker";
 import "./Stress.css";
@@ -55,7 +55,7 @@ function StressView({ overview, stress, route }: { overview: Overview; stress: S
   const stale = result !== null && result.key !== key;
   const summary = result?.summary;
   const displayed = result ?? { symbol, params, var95Daily: series.var95_daily };
-  const bins = summary ? histogram(summary.terminal, 30) : [];
+  const bins = summary ? histogramAround(summary.terminal, 30, -summary.var95) : [];
 
   return (
     <div className="stack">

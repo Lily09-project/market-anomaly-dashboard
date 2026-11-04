@@ -91,7 +91,7 @@ function MarketView({ market, overview, route }: { market: TwseMarket; overview:
         </div>
         <div className="card">
           <span className="stat-label">總成交值</span>
-          <span className="breadth-value">{formatNumber(breadth.value / 1e8, 0)} 億</span>
+          <span className="breadth-value">{Math.round(breadth.value / 1e8).toLocaleString("zh-TW")} 億</span>
           {!(sort === byValue.sort && desc) && (
             <a className="small" href={routeToHash(byValue)}>
               看成交值排行 →
