@@ -33,6 +33,19 @@ function parseJson<T>(name: string, bytes: ArrayBuffer): T {
   }
 }
 
+function parseManifest(bytes: ArrayBuffer): Manifest {
+  const value = parseJson<unknown>("manifest.json", bytes);
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new IntegrityError("manifest.json");
+  }
+  const manifest = value as Partial<Manifest>;
+  if (typeof manifest.schema_version !== "string" || manifest.files === null ||
+      typeof manifest.files !== "object" || Array.isArray(manifest.files)) {
+    throw new IntegrityError("manifest.json");
+  }
+  return manifest as Manifest;
+}
+
 export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -59,7 +72,7 @@ export function createLoader(baseUrl: string, fetcher: Fetcher = (url, init) => 
 
   const manifest = (init?: RequestInit) => {
     if (!manifestPromise || init) {
-      const promise = getBytes("manifest.json", init).then((bytes) => parseJson<Manifest>("manifest.json", bytes));
+      const promise = getBytes("manifest.json", init).then((bytes) => parseManifest(bytes));
       // A failed request must not poison every later load in this tab.
       promise.catch(() => {
         if (manifestPromise === promise) manifestPromise = null;
@@ -85,8 +98,9 @@ export function createLoader(baseUrl: string, fetcher: Fetcher = (url, init) => 
           if (m.schema_version !== DATA_SCHEMA_VERSION) throw new SchemaMismatchError(m.schema_version);
           if (!(await matches(m, name, bytes))) throw new IntegrityError(name);
         }
+        const data = parseJson<DataFiles[K]>(name, bytes);
         verified.add(name);
-        return parseJson<DataFiles[K]>(name, bytes);
+        return data;
       })();
       promise.catch(() => cache.delete(name));
       cache.set(name, promise);

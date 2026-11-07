@@ -26,7 +26,10 @@ BOOTSTRAP_DRAWS = 2000
 def robust_z(returns: pd.Series, lookback: int = LOOKBACK) -> pd.Series:
     """z-score of each return against the median and MAD of the previous `lookback` days."""
     median = returns.rolling(lookback, min_periods=lookback // 3).median().shift(1)
-    mad = (returns - median).abs().rolling(lookback, min_periods=lookback // 3).median().shift(1) * MAD_TO_SD
+    mad = returns.rolling(lookback, min_periods=lookback // 3).apply(
+        lambda window: float(np.nanmedian(np.abs(window - np.nanmedian(window)))),
+        raw=True,
+    ).shift(1) * MAD_TO_SD
     return (returns - median) / mad.where(mad > 0)
 
 
