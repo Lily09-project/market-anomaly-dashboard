@@ -3,7 +3,7 @@ import { LoaderContext, useRoute } from "./app/hooks";
 import { Shell } from "./components/Shell";
 import { EmptyState, Loading } from "./components/States";
 import { createLoader, type Loader } from "./lib/data";
-import { routeToHash } from "./lib/router";
+import { routeToHash, type Route } from "./lib/router";
 import Home from "./routes/Home";
 
 const RegimesPage = lazy(() => import("./routes/Regimes"));
@@ -14,20 +14,7 @@ const MarketPage = lazy(() => import("./routes/Market"));
 const SnapshotPage = lazy(() => import("./routes/Snapshot"));
 const DataTrust = lazy(() => import("./routes/DataTrust"));
 
-function Routes() {
-  const [route] = useRoute();
-  const first = useRef(true);
-  const key = route.name;
-
-  // Move focus to the new page for keyboard and screen-reader users.
-  useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    window.scrollTo({ top: 0 });
-    document.getElementById("main")?.focus({ preventScroll: true });
-  }, [key]);
+function Routes({ route }: { route: Route }) {
 
   switch (route.name) {
     case "home":
@@ -61,6 +48,18 @@ function Routes() {
 
 export default function App({ loader }: { loader?: Loader }) {
   const value = useMemo(() => loader ?? createLoader(import.meta.env.BASE_URL), [loader]);
+  const [route] = useRoute();
+  const key = route.name;
+  const previousKey = useRef(key);
+
+  // The shell is available even when the next route's module is still loading.
+  useEffect(() => {
+    if (previousKey.current === key) return;
+    previousKey.current = key;
+    window.scrollTo({ top: 0 });
+    document.getElementById("main")?.focus({ preventScroll: true });
+  }, [key]);
+
   return (
     <LoaderContext.Provider value={value}>
       <Shell>
@@ -71,7 +70,7 @@ export default function App({ loader }: { loader?: Loader }) {
             </div>
           }
         >
-          <Routes />
+          <Routes route={route} />
         </Suspense>
       </Shell>
     </LoaderContext.Provider>
