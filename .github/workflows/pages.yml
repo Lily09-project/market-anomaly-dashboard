@@ -110,13 +110,16 @@ jobs:
         shell: bash
         run: |
           base="https://lily09-project.github.io/market-anomaly-dashboard"
-          for attempt in 1 2 3 4 5 6; do
-            if curl --fail --silent --show-error "$base/" | grep -q "Market Regime Lab"; then break; fi
-            sleep 20
-          done
-          curl --fail --silent --show-error "$base/" | grep -q "Market Regime Lab"
-          curl --fail --silent --show-error "$base/data/manifest.json" | grep -q '"schema_version":"2.1"'
-          curl --fail --silent --show-error "$base/data/provenance.json" --output "$RUNNER_TEMP/provenance.json"
+          fetch_public() {
+            curl --fail --silent --show-error --retry 3 --retry-delay 2 \
+              --retry-max-time 45 --max-time 15 --output "$2" "$base/$1"
+          }
+
+          fetch_public "" "$RUNNER_TEMP/pages-index.html"
+          grep -Fq "Market Regime Lab" "$RUNNER_TEMP/pages-index.html"
+          fetch_public data/manifest.json "$RUNNER_TEMP/pages-manifest.json"
+          grep -Fq '"schema_version":"2.1"' "$RUNNER_TEMP/pages-manifest.json"
+          fetch_public data/provenance.json "$RUNNER_TEMP/provenance.json"
           python - "$RUNNER_TEMP/provenance.json" <<'PY'
           import json
           import sys
