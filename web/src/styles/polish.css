@@ -97,8 +97,9 @@ html {
   text-wrap: balance;
 }
 
+/* Keep the footer below the fold while a route loads, so content arriving does not push it (CLS). */
 main {
-  min-height: 75vh;
+  min-height: 100vh;
 }
 
 .eyebrow {

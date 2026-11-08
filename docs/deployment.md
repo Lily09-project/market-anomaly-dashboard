@@ -23,6 +23,8 @@ FinMind 成功後，流程會再向證交所 OpenAPI（`openapi.twse.com.tw`，�
 
 Windows 執行 `run_project.bat`；`run_project.bat --validate` 會跑 pytest、Bandit、Ruff、pip-audit、TypeScript、ESLint、Vitest 覆蓋率與效能預算，但不啟動網站。
 
+分享連結的預覽圖 `web/public/og-image.png`（1200×630）與 `apple-touch-icon.png` 由 `cd web && node scripts/render-share-images.mjs` 依網站色彩 token 與 favicon 產生並提交；預覽圖只有標題與說明，不含任何價格、日期或分析結果，所以資料更新後不需重產。
+
 ## Docker 正式映像
 
 ```bash

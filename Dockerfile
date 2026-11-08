@@ -1,5 +1,6 @@
 # Stage 1: fetch and validate real public market data for the production snapshot.
-FROM python:3.15-slim@sha256:94d3426f1def7db4a106a232ac121bfd975393e5dfd40a619b955fae45fe7913 AS data
+# Python stays on 3.12 to match CI, Pages and .python-version (dependabot ignores minor/major bumps).
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b AS data
 ENV PYTHONDONTWRITEBYTECODE=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /app
 COPY requirements-runtime.lock.txt ./
