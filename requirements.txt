@@ -4,4 +4,4 @@ pyyaml>=6.0.3,<7
 requests>=2.34.2,<3
 # Security floors for requests' HTTP transport dependencies.
 urllib3>=2.8.0,<3
-certifi>=2026.10.19
+certifi>=2026.10.23
