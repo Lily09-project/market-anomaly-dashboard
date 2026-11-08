@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from src.utils import project_path
 
 
@@ -27,6 +29,36 @@ def test_container_uses_source_backed_data_and_serves_it_unprivileged() -> None:
     assert "frame-ancestors 'none'" in nginx
     assert "server_tokens off" in nginx
     assert "location = /healthz" in nginx
+
+
+def test_container_python_matches_ci_and_pages() -> None:
+    expected = project_path(".python-version").read_text(encoding="utf-8").strip()
+    dockerfile = project_path("Dockerfile").read_text(encoding="utf-8")
+    images = re.findall(r"^FROM python:(\d+\.\d+)-slim@sha256:[0-9a-f]{64} AS data$", dockerfile, re.MULTILINE)
+    assert images == [expected]
+    for workflow in project_path(".github/workflows").glob("*.yml"):
+        for version in re.findall(r'python-version: "([^"]+)"', workflow.read_text(encoding="utf-8")):
+            assert version == expected, workflow.name
+    dependabot = project_path(".github/dependabot.yml").read_text(encoding="utf-8")
+    docker = dependabot.split("package-ecosystem: docker", 1)[1].split("package-ecosystem:", 1)[0]
+    assert "dependency-name: python" in docker
+    assert "version-update:semver-minor" in docker
+    assert "version-update:semver-major" in docker
+
+
+def test_nginx_caches_fingerprinted_assets_without_dropping_security_headers() -> None:
+    nginx = project_path("deploy/nginx.conf").read_text(encoding="utf-8")
+    locations = re.findall(r"^    location ([^{\n]+)\{(.*?)\n    \}", nginx, re.DOTALL | re.MULTILINE)
+    blocks = {path.strip(): body for path, body in locations}
+    assert 'Cache-Control "public, max-age=31536000, immutable"' in blocks["/assets/"]
+    assert 'Cache-Control "no-cache"' in blocks["/"]
+    assert 'Cache-Control "no-cache"' in blocks["/data/"]
+    for path, body in blocks.items():
+        if "add_header" not in body:
+            continue
+        # add_header inside a location replaces the server-level headers.
+        for header in ("X-Content-Type-Options", "Referrer-Policy", "X-Frame-Options", "frame-ancestors 'none'"):
+            assert header in body, (path, header)
 
 
 def test_github_actions_build_and_check_the_container() -> None:
