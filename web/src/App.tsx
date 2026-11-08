@@ -4,6 +4,7 @@ import { Shell } from "./components/Shell";
 import { EmptyState, Loading } from "./components/States";
 import { createLoader, type Loader } from "./lib/data";
 import { routeToHash, type Route } from "./lib/router";
+import type { DataFiles } from "./lib/types";
 import Home from "./routes/Home";
 
 const RegimesPage = lazy(() => import("./routes/Regimes"));
@@ -13,6 +14,21 @@ const StressPage = lazy(() => import("./routes/Stress"));
 const MarketPage = lazy(() => import("./routes/Market"));
 const SnapshotPage = lazy(() => import("./routes/Snapshot"));
 const DataTrust = lazy(() => import("./routes/DataTrust"));
+
+/**
+ * Data each lazy route gates on. Requesting it as soon as the route is known lets
+ * the downloads overlap the route chunk instead of waiting for it; the loader
+ * caches the verified promise, so the page reuses it.
+ */
+const ROUTE_DATA: Partial<Record<Route["name"], (keyof DataFiles)[]>> = {
+  regimes: ["overview.json", "regimes.json"],
+  events: ["overview.json", "events.json", "regimes.json"],
+  backtest: ["overview.json", "backtest.json"],
+  stress: ["overview.json", "stress.json"],
+  market: ["twse_market.json", "overview.json"],
+  snapshot: ["overview.json", "regimes.json", "backtest.json", "events.json", "stress.json", "provenance.json"],
+  data: ["provenance.json", "regimes.json", "events.json"],
+};
 
 function Routes({ route }: { route: Route }) {
 
@@ -51,6 +67,11 @@ export default function App({ loader }: { loader?: Loader }) {
   const [route] = useRoute();
   const key = route.name;
   const previousKey = useRef(key);
+
+  useEffect(() => {
+    // Failures surface through the page's own useDataset state, not here.
+    for (const file of ROUTE_DATA[key] ?? []) value.load(file).catch(() => undefined);
+  }, [value, key]);
 
   // The shell is available even when the next route's module is still loading.
   useEffect(() => {

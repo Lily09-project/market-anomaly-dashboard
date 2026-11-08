@@ -1,4 +1,4 @@
-import { scaleLinear } from "d3-scale";
+import { scaleLinear } from "../lib/scale";
 import { area, line } from "d3-shape";
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { Segment } from "../lib/types";
