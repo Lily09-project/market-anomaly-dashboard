@@ -119,6 +119,37 @@ test.describe("Q6 performance and Q8 security", () => {
     expect([...hosts]).toEqual([new URL(page.url()).host]);
   });
 
+  test("shared links get a title, description and a deployed preview image", async ({ page }) => {
+    await page.goto("./");
+    const head = page.locator("head");
+    const meta = (selector: string) => head.locator(selector).getAttribute("content");
+    expect(await page.locator("html").getAttribute("lang")).toBe("zh-Hant-TW");
+    const canonical = await head.locator('link[rel="canonical"]').getAttribute("href");
+    expect(canonical).toMatch(/^https:\/\/[^/]+\/.+\/$/);
+    expect(await meta('meta[property="og:url"]')).toBe(canonical);
+    expect(await meta('meta[property="og:title"]')).toContain("Market Regime Lab");
+    expect((await meta('meta[name="description"]'))?.length).toBeGreaterThan(40);
+    expect(await meta('meta[name="twitter:card"]')).toBe("summary_large_image");
+    expect(await meta('meta[name="theme-color"]')).toBe("#0b0e11");
+
+    // Crawlers need an absolute URL; it must point at a file this build actually ships.
+    const image = await meta('meta[property="og:image"]');
+    expect(image).toBe(`${canonical}og-image.png`);
+    expect(await meta('meta[name="twitter:image"]')).toBe(image);
+    const pngSize = async (path: string) => {
+      const response = await page.request.get(path);
+      expect(response.ok(), path).toBe(true);
+      const bytes = await response.body();
+      expect(bytes.subarray(1, 4).toString("latin1")).toBe("PNG");
+      return [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
+    };
+    expect(await pngSize("./og-image.png")).toEqual([
+      Number(await meta('meta[property="og:image:width"]')),
+      Number(await meta('meta[property="og:image:height"]')),
+    ]);
+    expect(await pngSize(`./${await head.locator('link[rel="apple-touch-icon"]').getAttribute("href")}`)).toEqual([180, 180]);
+  });
+
   test("a strict Content-Security-Policy is declared and no inline script exists", async ({ page }) => {
     await page.goto("./");
     const csp = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute("content");
