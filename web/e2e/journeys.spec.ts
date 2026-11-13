@@ -232,14 +232,14 @@ test("old stress results keep their own symbol, horizon, paths and baseline", as
   await openRoute(page, "/stress?symbol=0050&horizon=20&paths=500");
   await expect(page.getByRole("button", { name: "已是最新結果" })).toBeVisible();
   const originalRisk = await page.getByTestId("risk-kpis").innerText();
-  const originalResult = await page.locator(".split").innerText();
+  const originalResult = await page.getByTestId("stress-charts").innerText();
   await page.getByRole("radio", { name: /2330/ }).check();
   await page.getByLabel("模擬天數").selectOption("250");
   await page.getByLabel("路徑數").selectOption("20000");
   await page.getByRole("slider", { name: /區塊長度/ }).press("ArrowRight");
   await expect(page.getByText("設定已變更，下方仍是舊設定的結果。")).toBeVisible();
   await expect(page.getByTestId("risk-kpis")).toHaveText(originalRisk, { useInnerText: true });
-  await expect(page.locator(".split")).toHaveText(originalResult, { useInnerText: true });
+  await expect(page.getByTestId("stress-charts")).toHaveText(originalResult, { useInnerText: true });
   await page.getByRole("button", { name: "以新設定重新模擬" }).click();
   await expect(page.getByRole("button", { name: "已是最新結果" })).toBeVisible();
   await expect(page.getByRole("figure", { name: "2330 未來 250 個交易日的報酬扇形圖" })).toBeVisible();

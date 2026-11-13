@@ -63,18 +63,20 @@ export function Shell({ children }: { children: ReactNode }) {
       </main>
       <footer className="site-footer">
         <div className="site-footer-inner">
-          <p>
-            {provenance.status === "ready" && (
-              <>
-                資料期間 {provenance.data.range.start} 至 {provenance.data.range.end}，共 {provenance.data.trading_days.toLocaleString("zh-TW")} 個交易日
-                {provenance.data.is_simulated ? "（測試用合成資料）" : provider === "finmind" ? "（歷史快照，非即時）" : ""}。
-              </>
-            )}
-            本站僅供研究與教學，不構成任何投資建議；所有績效與風險數字都是歷史或模擬結果，不代表未來表現。
-          </p>
-          <p className="muted">
-            <a href={routeToHash({ name: "data" })}>方法、限制與資料完整性</a>
-          </p>
+          <div className="footer-copy">
+            <p>
+              {provenance.status === "ready" && (
+                <>
+                  資料期間 {provenance.data.range.start} 至 {provenance.data.range.end}，共 {provenance.data.trading_days.toLocaleString("zh-TW")} 個交易日
+                  {provenance.data.is_simulated ? "（測試用合成資料）" : provider === "finmind" ? "（歷史快照，非即時）" : ""}。
+                </>
+              )}
+              本站僅供研究與教學，不構成任何投資建議；所有績效與風險數字都是歷史或模擬結果，不代表未來表現。
+            </p>
+            <p>
+              <a href={routeToHash({ name: "data" })}>方法、限制與資料完整性</a>
+            </p>
+          </div>
         </div>
       </footer>
     </>

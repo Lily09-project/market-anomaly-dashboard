@@ -1,0 +1,196 @@
+/* Page frame and the analysis grid: chart as the hero, conclusions in a side rail. */
+
+/* Keep the footer below the fold while a route loads, so content arriving does not push it (CLS). */
+main {
+  min-height: 100vh;
+}
+
+.page {
+  width: min(var(--content), 100% - 2 * var(--space-4));
+  min-width: 0;
+  margin: 0 auto;
+  padding: var(--space-5) 0 var(--space-7);
+  animation: page-in var(--duration) var(--ease);
+}
+
+@keyframes page-in {
+  from {
+    transform: translateY(6px);
+  }
+}
+
+.page > * + * {
+  margin-top: var(--space-5);
+}
+
+/* ---- Page header: report section opener ---- */
+.page-head {
+  display: grid;
+  gap: var(--space-2) var(--space-6);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--line);
+}
+
+.page-head h1 {
+  margin: 0;
+  font-size: clamp(1.85rem, 1.45rem + 1.3vw, 2.6rem);
+}
+
+.page-head .eyebrow {
+  margin: 0;
+}
+
+.page-head .lede {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+@media (min-width: 1100px) {
+  .page-head {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    align-items: end;
+  }
+
+  .page-head .eyebrow {
+    grid-column: 1 / -1;
+  }
+
+  .page-head .lede {
+    justify-self: end;
+    max-width: 62ch;
+  }
+}
+
+/* A numbered section inside a page, e.g. "A · 全部標的合計". */
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
+.section-head h2 {
+  margin: 0;
+}
+
+.section-head .panel-kicker {
+  color: var(--accent);
+}
+
+.section-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--label);
+}
+
+/* ---- Analysis grid ----
+   DOM order is rail first (summary → evidence for screen readers);
+   desktop draws the rail on the right, phones interleave by importance. */
+.analysis {
+  display: grid;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.analysis-main,
+.analysis-rail {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  align-content: start;
+}
+
+.analysis-main {
+  container-type: inline-size;
+}
+
+.analysis-main > *,
+.analysis-rail > * {
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .analysis {
+    grid-template-columns: minmax(0, 1fr) var(--rail);
+  }
+
+  .analysis-wide-rail {
+    --rail: 420px;
+  }
+
+  .analysis-main {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .analysis-rail {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+@media (max-width: 1023.98px) {
+  .analysis-main,
+  .analysis-rail {
+    display: contents;
+  }
+
+  .analysis > * > * {
+    order: 3;
+  }
+
+  .analysis .is-lead {
+    order: 1;
+  }
+
+  .analysis .is-hero {
+    order: 2;
+  }
+
+  .analysis .is-last {
+    order: 4;
+  }
+}
+
+/* Rail panels are tighter than the hero. */
+.analysis-rail .card {
+  padding: var(--space-4);
+}
+
+.analysis-rail h2 {
+  font-size: var(--step-0);
+}
+
+/* Side-by-side panels inside the main column, sized by the column rather than the window. */
+.main-pair {
+  display: grid;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@container (min-width: 760px) {
+  .main-pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.main-pair > * {
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding-top: var(--space-4);
+  }
+
+  .page > * + * {
+    margin-top: var(--space-4);
+  }
+
+  .page-head {
+    padding-bottom: var(--space-4);
+  }
+}

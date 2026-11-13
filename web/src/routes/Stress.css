@@ -1,37 +1,44 @@
-.stress-controls {
-  display: flex;
-  flex-wrap: wrap;
+.stress-charts {
+  display: grid;
   gap: var(--space-4);
-  align-items: end;
+}
+
+/* Settings form: a vertical stack in the rail, a row when the rail collapses on tablets. */
+.stress-controls {
+  display: grid;
+  gap: var(--space-4);
+}
+
+@media (min-width: 641px) and (max-width: 1023.98px) {
+  .stress-controls {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: end;
+  }
+
+  .stress-actions,
+  .stress-controls > .progress-row,
+  .stress-controls > [role="alert"] {
+    grid-column: 1 / -1;
+  }
 }
 
 .stress-controls input[type="range"] {
-  width: min(260px, 100%);
+  width: 100%;
   min-height: 44px;
   accent-color: var(--accent);
 }
 
 .stress-controls output {
+  font-family: var(--font-mono);
   font-weight: 800;
   color: var(--accent);
 }
 
 .stress-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
 }
 
-.progress-row {
-  flex-basis: 100%;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.progress-row progress {
-  flex: 1;
-  height: 12px;
-  accent-color: var(--accent);
+.stress-actions .btn {
+  width: 100%;
 }

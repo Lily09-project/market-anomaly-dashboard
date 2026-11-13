@@ -1,8 +1,10 @@
 import { useDataset, useDocumentTitle } from "../app/hooks";
 import { ChartFrame, Legend, LineChart, type Series } from "../components/charts";
-import { pickSymbol, StateChip, SymbolPicker } from "../components/Common";
+import { pickSymbol, StateChip } from "../components/Common";
+import { PageHead } from "../components/PageHead";
 import { ScrollRegion } from "../components/ScrollRegion";
 import { EmptyState, Gate } from "../components/States";
+import { SymbolBar } from "../components/SymbolBar";
 import { downloadText, toCsv } from "../lib/csv";
 import { formatNumber, formatPercent, formatSignedPercent } from "../lib/format";
 import { routeToHash, type Route } from "../lib/router";
@@ -67,78 +69,106 @@ function EventsView({ overview, events, regimes, route }: { overview: Overview; 
 
   return (
     <div className="stack">
-      <header>
-        <span className="eyebrow">事件研究</span>
-        <h1>異常事件：之後會發生什麼？</h1>
-        <p className="lede">
-          「異常」是相對於當下市場狀態而言：高波動期間跌 3% 很平常，平穩期間跌 3% 就很罕見。先保留 252 個交易日暖機，其後每 63 日只用此前最多 504 日重估 HMM，再以過去資訊逐日計算 z 分數，|z| &gt; {events.threshold} 視為異常，再問一個誠實的問題：異常日之後，報酬可以預測嗎？
-        </p>
-      </header>
-
-      {v && (
-        <section className="kpis" aria-label="偵測器驗證">
-          <div className="card kpi">
-            <span className="stat-label">注入事件召回率</span>
-            <span className="stat-value" data-testid="recall">
-              {formatPercent(v.recall, 0)}
-            </span>
-            <span className="muted small">
-              合成資料中注入 {v.injected} 個跳空，找到 {v.matched} 個
-            </span>
-          </div>
-          <div className="card kpi">
-            <span className="stat-label">精確率</span>
-            <span className="stat-value">{formatPercent(v.precision, 0)}</span>
-            <span className="muted small">偵測到 {v.detected} 個異常日，其中屬於注入跳空的比例</span>
-          </div>
-          <div className="card kpi">
-            <span className="stat-label">對照組誤報</span>
-            <span className="stat-value" data-testid="control-events">
-              {events.control_events}
-            </span>
-            <span className="muted small">隨機漫步對照組上被判為異常的天數</span>
-          </div>
-        </section>
-      )}
-
-      <section className="split">
-        <div className="card">
-          <StudyChart study={negative} title={`負向衝擊之後（${negative.n} 個事件，所有個股合計）`} />
-          <p className="callout" data-testid="negative-verdict">
-            {negative.n === 0
-              ? "沒有足夠事件可估計事件後報酬與 95% 區間。"
-              : negSig === "up"
-              ? "結論：負向衝擊之後有顯著的反彈——第 3 天的 95% 區間完全在 0 以上。"
-              : negSig === "down"
-                ? "結論：負向衝擊之後顯著續跌。"
-                : "結論：95% 區間涵蓋 0，本次樣本未見顯著的事件後異常報酬。"}
-            {v && negative.n > 0 && ` 合成資料的真實答案是：每次負向跳空後連續 ${v.truth_rebound.days} 天各多出 ${formatPercent(v.truth_rebound.per_day, 1)}（合計約 ${formatPercent(v.truth_rebound.days * v.truth_rebound.per_day, 1)}）。`}
-          </p>
+      <div className="section-head">
+        <span className="panel-kicker">A</span>
+        <h2>全部標的合計</h2>
+        <p>事件研究彙總所有個股，不隨上方標的切換。</p>
+      </div>
+      <div className="analysis">
+        <div className="analysis-rail">
+          <section className="card is-lead verdicts" aria-label="事件研究結論">
+            <h3 className="panel-title">結論（第 3 天，95% 區間）</h3>
+            <p className="callout" data-testid="negative-verdict">
+              <span className="verdict-label">負向衝擊之後</span>
+              {negative.n === 0
+                ? "沒有足夠事件可估計事件後報酬與 95% 區間。"
+                : negSig === "up"
+                ? "結論：負向衝擊之後有顯著的反彈——第 3 天的 95% 區間完全在 0 以上。"
+                : negSig === "down"
+                  ? "結論：負向衝擊之後顯著續跌。"
+                  : "結論：95% 區間涵蓋 0，本次樣本未見顯著的事件後異常報酬。"}
+              {v && negative.n > 0 && ` 合成資料的真實答案是：每次負向跳空後連續 ${v.truth_rebound.days} 天各多出 ${formatPercent(v.truth_rebound.per_day, 1)}（合計約 ${formatPercent(v.truth_rebound.days * v.truth_rebound.per_day, 1)}）。`}
+            </p>
+            <p className="callout" data-testid="positive-verdict">
+              <span className="verdict-label">正向衝擊之後</span>
+              {positive.n === 0
+                ? "沒有足夠事件可估計事件後報酬與 95% 區間。"
+                : posSig === "none"
+                  ? "結論：95% 區間涵蓋 0，本次樣本未見顯著的事件後異常報酬。"
+                  : `結論：第 3 天的區間${posSig === "up" ? "高於" : "低於"} 0。`}
+              {v && positive.n > 0 && posSig === "none" && " 合成資料的設定為正向跳空後沒有延續或反轉。"}
+            </p>
+          </section>
+          {v && (
+            <section className="card" aria-label="偵測器驗證">
+              <h3 className="panel-title">偵測器驗證</h3>
+              <dl className="readout">
+                <div>
+                  <dt>注入事件召回率</dt>
+                  <dd>
+                    <span className="stat-value" data-testid="recall">
+                      {formatPercent(v.recall, 0)}
+                    </span>
+                    <span className="muted small">
+                      合成資料中注入 {v.injected} 個跳空，找到 {v.matched} 個
+                    </span>
+                  </dd>
+                </div>
+                <div>
+                  <dt>精確率</dt>
+                  <dd>
+                    <span className="stat-value">{formatPercent(v.precision, 0)}</span>
+                    <span className="muted small">偵測到 {v.detected} 個異常日，其中屬於注入跳空的比例</span>
+                  </dd>
+                </div>
+                <div>
+                  <dt>對照組誤報</dt>
+                  <dd>
+                    <span className="stat-value" data-testid="control-events">
+                      {events.control_events}
+                    </span>
+                    <span className="muted small">隨機漫步對照組上被判為異常的天數</span>
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          )}
+          <section className="card method is-last">
+            <h3>方法</h3>
+            <p>
+              異常定義：暖機 252 個交易日後，每 63 日只用此前最多 504 日重估 HMM，逐日計算 z 分數，|z| &gt; {events.threshold} 視為異常。
+            </p>
+            <p>
+              異常報酬採平均調整模型：事件日的報酬減去該股在事件前第 120 至第 11 天的平均報酬。事件窗為前 5 天到後 10 天。信賴區間以「重抽事件」的 bootstrap（2,000 次、固定種子）計算，因此反映的是事件之間的差異。
+            </p>
+          </section>
         </div>
-        <div className="card">
-          <StudyChart study={positive} title={`正向衝擊之後（${positive.n} 個事件）`} />
-          <p className="callout" data-testid="positive-verdict">
-            {positive.n === 0
-              ? "沒有足夠事件可估計事件後報酬與 95% 區間。"
-              : posSig === "none"
-                ? "結論：95% 區間涵蓋 0，本次樣本未見顯著的事件後異常報酬。"
-                : `結論：第 3 天的區間${posSig === "up" ? "高於" : "低於"} 0。`}
-            {v && positive.n > 0 && posSig === "none" && " 合成資料的設定為正向跳空後沒有延續或反轉。"}
-          </p>
+        <div className="analysis-main">
+          <div className="card is-hero">
+            <StudyChart study={negative} title={`負向衝擊之後（${negative.n} 個事件，所有個股合計）`} />
+          </div>
+          <div className="card">
+            <StudyChart study={positive} title={`正向衝擊之後（${positive.n} 個事件）`} />
+          </div>
         </div>
-      </section>
+      </div>
 
-      <SymbolPicker overview={overview} value={symbol} route={{ ...route, symbol, date: undefined }} />
+      <div className="section-head">
+        <span className="panel-kicker">B</span>
+        <h2>{symbol} 的異常日</h2>
+        <p>點選日期，看單一事件之後的累積異常報酬。</p>
+      </div>
 
       {list.length === 0 ? (
         <EmptyState title="這個標的沒有異常日">
           <p>{overview.symbols.find((s) => s.symbol === symbol)?.is_control ? "隨機漫步對照組沒有被誤判的異常日——偵測器沒有把雜訊當成事件。" : `暖機期之後沒有任何一天的 |z| 超過 ${events.threshold}。`}</p>
         </EmptyState>
       ) : (
-        <section className="split">
+        <section className="analysis analysis-wide-rail" aria-label={`${symbol} 的異常日`}>
+          <div className="analysis-rail">
           <div className="card">
-            <div className="row-between">
-              <h2>{symbol} 的異常日（{list.length}）</h2>
+            <div className="panel-head">
+              <h3>異常日列表（{list.length}）</h3>
               <button
                 type="button"
                 className="btn"
@@ -185,11 +215,13 @@ function EventsView({ overview, events, regimes, route }: { overview: Overview; 
               </table>
             </ScrollRegion>
           </div>
+          </div>
+          <div className="analysis-main">
           {selected && (
-            <div className="card" data-testid="event-detail">
-              <h2>
+            <div className="card is-lead" data-testid="event-detail">
+              <h3 className="event-detail-title">
                 {selected.date}：{formatSignedPercent(selected.return, 2)}
-              </h2>
+              </h3>
               <p className="muted">
                 z = {formatNumber(selected.z, 1)}，當時處於 <StateChip state={selected.state} labels={labels} />。
               </p>
@@ -232,15 +264,9 @@ function EventsView({ overview, events, regimes, route }: { overview: Overview; 
               )}
             </div>
           )}
+          </div>
         </section>
       )}
-
-      <section className="card method">
-        <h2>方法</h2>
-        <p>
-          異常報酬採平均調整模型：事件日的報酬減去該股在事件前第 120 至第 11 天的平均報酬。事件窗為前 5 天到後 10 天。信賴區間以「重抽事件」的 bootstrap（2,000 次、固定種子）計算，因此反映的是事件之間的差異。
-        </p>
-      </section>
     </div>
   );
 }
@@ -252,6 +278,10 @@ export default function EventsPage({ route }: { route: EventsRoute }) {
   const regimes = useDataset("regimes.json");
   return (
     <div className="page">
+      <PageHead eyebrow="事件研究" title="異常事件：之後會發生什麼？">
+        「異常」是相對於當下市場狀態而言：高波動期間跌 3% 很平常，平穩期間跌 3% 就很罕見。偵測器只用當時以前的資訊計算 z 分數，再問一個誠實的問題：異常日之後，報酬可以預測嗎？
+      </PageHead>
+      <SymbolBar route={route} />
       <Gate<[Overview, Events, Regimes]> states={[overview, events, regimes]}>{(o, e, r) => <EventsView overview={o} events={e} regimes={r} route={route} />}</Gate>
     </div>
   );

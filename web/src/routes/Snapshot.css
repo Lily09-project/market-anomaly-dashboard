@@ -1,3 +1,27 @@
+/* Two archive panels: create on the left, verify and compare on the right. */
+.snapshot-grid {
+  display: grid;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .snapshot-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+/* Stacked: the static comparer comes first, so the creator loading below it shifts nothing. */
+@media (max-width: 1023.98px) {
+  .snapshot-grid > :last-child {
+    order: -1;
+  }
+}
+
+.snapshot-grid > * {
+  min-width: 0;
+}
+
 .snapshot-card {
   display: grid;
   gap: var(--space-3);
@@ -7,19 +31,65 @@
   margin: 0;
 }
 
-.snapshot-label {
-  flex: 1 1 260px;
+.snapshot-card > p {
+  margin: 0;
+}
+
+.snapshot-form {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: var(--bg-sunken);
+}
+
+.snapshot-form .btn {
+  justify-self: start;
+}
+
+.snapshot-inputs {
+  display: grid;
+  gap: var(--space-3);
 }
 
 .snapshot-input {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   align-content: start;
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-m);
+}
+
+.snapshot-input > * {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .snapshot-input input[type="file"] {
+  width: 100%;
+  min-width: 0;
   min-height: 44px;
   max-width: 100%;
+  color: var(--muted);
+  font-size: var(--label);
+}
+
+.snapshot-input .tag {
+  max-width: 100%;
+  margin: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.snapshot-card > progress {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  accent-color: var(--accent);
 }
 
 tr[data-changed="true"] th,
@@ -34,11 +104,12 @@ tr[data-changed="true"] td {
   padding: 0 var(--space-4);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-m);
-  background: var(--bg-sunken);
+  background: var(--bg-raised);
   color: var(--ink);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+  transition: border-color 160ms ease;
 }
 
 .snapshot-input input[type="file"]::file-selector-button:hover {

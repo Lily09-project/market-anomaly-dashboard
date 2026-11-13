@@ -1,56 +1,300 @@
-.market-controls {
-  align-items: end;
+/* ---- Header: lede and source line both static (no layout shift on load) ---- */
+.market-intro {
+  display: grid;
+  gap: var(--space-2);
 }
 
-.market-search {
-  flex: 1 1 240px;
+.market-intro p {
+  margin: 0;
 }
 
-.market-table {
-  width: 100%;
-  font-variant-numeric: tabular-nums;
+@media (min-width: 1100px) {
+  .market-intro {
+    justify-self: end;
+    max-width: 62ch;
+  }
 }
 
-.breadth-value[data-sign="1"],
-.market-table td[data-sign="1"] {
-  color: var(--bad);
-}
-
-.breadth-value[data-sign="-1"],
-.market-table td[data-sign="-1"] {
-  color: var(--good);
-}
-
-.market-etf {
-  margin-left: var(--space-2);
-  color: var(--muted);
-}
-
-.market-more {
-  margin-top: var(--space-3);
-}
-
+/* ---- Breadth tape ---- */
 .market-breadth {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
   gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  background: var(--bg-sunken);
 }
 
-.market-breadth .card {
+.breadth-figures {
   display: grid;
-  gap: var(--space-1);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+  gap: var(--space-3) 0;
+  margin: 0;
+}
+
+.breadth-figures > div {
+  display: grid;
   align-content: start;
-  padding: var(--space-3) var(--space-4);
+  gap: 2px;
+  padding: 0 var(--space-4);
+  border-left: 1px solid var(--line);
+}
+
+.breadth-figures > div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.breadth-figures dt {
+  color: var(--muted);
+  font-size: var(--label);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.breadth-figures dd {
+  margin: 0;
 }
 
 .breadth-value {
   font-family: var(--font-mono);
-  font-size: 1.5rem;
-  font-weight: 700;
+  font-size: clamp(1.4rem, 1.2rem + 0.6vw, 1.75rem);
+  font-weight: 750;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
 }
 
-/* The results sit below the page header's hairline, not on it. */
-.page > header + .stack {
-  margin-top: var(--space-5);
+.breadth-unit {
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: var(--label);
+  font-weight: 650;
+}
+
+.breadth-value[data-sign="1"] {
+  color: var(--up);
+}
+
+.breadth-value[data-sign="-1"] {
+  color: var(--down);
+}
+
+/* Advancers · unchanged · decliners as one proportional bar. */
+.breadth-bar {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+}
+
+.breadth-bar > span {
+  min-width: 0;
+  background: var(--line-strong);
+}
+
+.breadth-bar > span[data-sign="1"] {
+  background: var(--up);
+}
+
+.breadth-bar > span[data-sign="-1"] {
+  background: var(--down);
+}
+
+.breadth-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  font-size: var(--label);
+  font-weight: 700;
+}
+
+/* ---- Controls ---- */
+.market-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: end;
+}
+
+.market-search {
+  grid-column: 1 / -1;
+}
+
+.market-controls > fieldset:last-child {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 900px) {
+  .market-controls {
+    grid-template-columns: minmax(0, 1fr) 180px auto auto;
+  }
+
+  .market-search,
+  .market-controls > fieldset:last-child {
+    grid-column: auto;
+  }
+}
+
+/* ---- Quote board ---- */
+.quote-board {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.quote-board-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+}
+
+.quote-board-head h2,
+.quote-board-head p {
+  margin: 0;
+}
+
+.quote-board-head p {
+  font-size: var(--label);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The board scrolls inside its own viewport so the header row can stay pinned. */
+.quote-scroll {
+  max-height: min(72vh, 760px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  background: var(--bg-raised);
+  overscroll-behavior: contain;
+}
+
+.market-table {
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.market-table th,
+.market-table td {
+  padding: 6px var(--space-3);
+  border-bottom-color: color-mix(in srgb, var(--line) 85%, transparent);
+}
+
+.market-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding-block: var(--space-2);
+  background: var(--bg-sunken);
+  box-shadow: inset 0 -1px 0 var(--line-strong);
+  font-size: 0.8125rem;
+}
+
+/* Code column stays put while the figures scroll sideways. */
+.market-table tbody th,
+.market-table thead th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg-raised);
+}
+
+.market-table thead th:first-child {
+  z-index: 3;
+  background: var(--bg-sunken);
+}
+
+.market-table tbody th {
+  color: var(--ink-soft);
+  font-weight: 650;
+}
+
+.market-table tbody tr:nth-child(even) > * {
+  background: var(--bg-sunken);
+}
+
+.market-table tbody tr:hover > * {
+  background: var(--accent-soft);
+}
+
+.market-table td.num {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+}
+
+.market-name {
+  white-space: nowrap;
+}
+
+.market-change {
+  font-weight: 700;
+}
+
+.market-change[data-sign="1"] {
+  color: var(--up);
+}
+
+.market-change[data-sign="-1"] {
+  color: var(--down);
+}
+
+/* Direction glyphs are drawn, not text: the figure keeps its plain signed value. */
+.market-change[data-sign="1"]::before {
+  content: "▲" / "";
+  margin-right: 4px;
+  font-size: 0.7em;
+}
+
+.market-change[data-sign="-1"]::before {
+  content: "▼" / "";
+  margin-right: 4px;
+  font-size: 0.7em;
+}
+
+.market-etf {
+  margin-left: var(--space-2);
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.market-more {
+  justify-self: center;
+  min-width: 200px;
+}
+
+.market-empty {
+  justify-items: center;
+  text-align: center;
+}
+
+.market-empty p {
+  margin: 0;
+}
+
+/* Phones: rows stay 44px tall so every linked name is an easy tap. */
+@media (max-width: 640px) {
+  .breadth-figures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .breadth-figures > div:nth-child(odd) {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .market-table th,
+  .market-table td {
+    height: 44px;
+    padding: 0 var(--space-2);
+  }
+
+  .quote-scroll {
+    max-height: 70vh;
+  }
+
+  .breadth-link {
+    min-height: 44px;
+  }
 }

@@ -1,4 +1,4 @@
-/* Design tokens for Market Regime Lab: one fixed light palette. */
+/* Design tokens for Market Regime Lab: one fixed dark palette. Colour values are frozen. */
 :root {
   color-scheme: dark;
   --font-sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -55,5 +55,18 @@
   --content: 1440px;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --duration: 220ms;
+
+  /* ---- Aliases only: new names for values defined above, never new colours. ---- */
+  /* Taiwan quote convention: rising prices red, falling prices green. */
+  --up: var(--bad);
+  --down: var(--good);
+
+  /* Type and layout scale (non-colour). */
+  --space-8: 64px;
+  --step-4: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem);
+  --label: 0.875rem;
+  --header-h: 60px;
+  --toolbar-h: 56px;
+  --rail: 340px;
 }
 
