@@ -1,5 +1,6 @@
 import { useContext, useEffect, useRef, useState } from "react";
 import { LoaderContext, useDataset, useDocumentTitle } from "../app/hooks";
+import { PageHead } from "../components/PageHead";
 import { ScrollRegion } from "../components/ScrollRegion";
 import { Gate, Loading } from "../components/States";
 import { downloadText } from "../lib/csv";
@@ -65,7 +66,7 @@ function Creator({ data, schemaVersion }: { data: Data; schemaVersion: string })
     <section className="card snapshot-card" aria-labelledby="create-title">
       <h2 id="create-title">建立研究快照</h2>
       <p className="muted">快照保存資料指紋、參數與結果。SHA-256 只檢查內容一致性，來源仍需自行確認。</p>
-      <div className="controls">
+      <div className="snapshot-form">
         <label className="field">
           <span className="label">標的</span>
           <select className="input" value={symbol} onChange={(e) => setSymbol(e.target.value)}>
@@ -161,7 +162,7 @@ function Comparer() {
     <section className="card snapshot-card" aria-labelledby="compare-title">
       <h2 id="compare-title">驗證與比較快照</h2>
       <p className="muted">檔案只在你的瀏覽器裡讀取與驗證，不會上傳到任何地方；超過 {MAX_SNAPSHOT_BYTES / 1024} KB 或結構不符的檔案會被拒絕。</p>
-      <div className="grid grid-2">
+      <div className="snapshot-inputs">
         <SnapshotInput id="snapshot-a" label="快照 A" result={a} onResult={setA} />
         <SnapshotInput id="snapshot-b" label="快照 B" result={b} onResult={setB} />
       </div>
@@ -222,19 +223,19 @@ export default function SnapshotPage() {
   const provenance = useDataset("provenance.json");
   const schemaVersion = useSchemaVersion();
   return (
-    <div className="page stack">
-      <header>
-        <span className="eyebrow">可重現研究</span>
-        <h1>研究快照</h1>
-        <p className="lede">封存資料指紋、參數與分析結果，重新匯入後逐項比較。</p>
-      </header>
-      <Gate<[Overview, Regimes, Backtest, Events, Stress, Provenance]> states={[overview, regimes, backtest, events, stress, provenance]}>
-        {(o, r, b, e, s, p) =>
-          // The snapshot records the manifest's schema version; never stamp a guessed one.
-          schemaVersion === null ? <Loading /> : <Creator data={{ overview: o, regimes: r, backtest: b, events: e, stress: s, provenance: p }} schemaVersion={schemaVersion} />
-        }
-      </Gate>
-      <Comparer />
+    <div className="page">
+      <PageHead eyebrow="可重現研究" title="研究快照">
+        封存資料指紋、參數與分析結果，重新匯入後逐項比較。
+      </PageHead>
+      <div className="snapshot-grid">
+        <Gate<[Overview, Regimes, Backtest, Events, Stress, Provenance]> states={[overview, regimes, backtest, events, stress, provenance]}>
+          {(o, r, b, e, s, p) =>
+            // The snapshot records the manifest's schema version; never stamp a guessed one.
+            schemaVersion === null ? <Loading /> : <Creator data={{ overview: o, regimes: r, backtest: b, events: e, stress: s, provenance: p }} schemaVersion={schemaVersion} />
+          }
+        </Gate>
+        <Comparer />
+      </div>
     </div>
   );
 }

@@ -68,6 +68,8 @@ function MarketView({ market, overview, route }: { market: TwseMarket; overview:
   const shown = rows.slice(0, limit);
   const breadth = marketBreadth(market.rows);
   const byValue = { name: "market", sort: "value_twd", desc: true } as const;
+  const total = Math.max(market.rows.length, 1);
+  const share = (n: number) => `${((n / total) * 100).toFixed(2)}%`;
 
   return (
     <div className="stack">
@@ -77,35 +79,50 @@ function MarketView({ market, overview, route }: { market: TwseMarket; overview:
         </p>
       )}
       <section className="market-breadth" aria-label={`${market.trade_date} 全市場概況`} data-testid="market-breadth">
-        <div className="card">
-          <span className="stat-label">上漲</span>
-          <span className="breadth-value" data-sign="1">{breadth.up.toLocaleString("zh-TW")}</span>
-        </div>
-        <div className="card">
-          <span className="stat-label">下跌</span>
-          <span className="breadth-value" data-sign="-1">{breadth.down.toLocaleString("zh-TW")}</span>
-        </div>
-        <div className="card">
-          <span className="stat-label">平盤／無漲跌資料</span>
-          <span className="breadth-value">{breadth.flat.toLocaleString("zh-TW")}</span>
-        </div>
-        <div className="card">
-          <span className="stat-label">總成交值</span>
-          <span className="breadth-value">{Math.round(breadth.value / 1e8).toLocaleString("zh-TW")} 億</span>
-          {!(sort === byValue.sort && desc) && (
-            <a className="small" href={routeToHash(byValue)}>
-              看成交值排行 →
-            </a>
-          )}
+        <dl className="breadth-figures">
+          <div>
+            <dt>上漲</dt>
+            <dd className="breadth-value" data-sign="1">
+              {breadth.up.toLocaleString("zh-TW")}
+            </dd>
+          </div>
+          <div>
+            <dt>下跌</dt>
+            <dd className="breadth-value" data-sign="-1">
+              {breadth.down.toLocaleString("zh-TW")}
+            </dd>
+          </div>
+          <div>
+            <dt>平盤／無漲跌資料</dt>
+            <dd className="breadth-value">{breadth.flat.toLocaleString("zh-TW")}</dd>
+          </div>
+          <div>
+            <dt>總成交值</dt>
+            <dd className="breadth-value">
+              {Math.round(breadth.value / 1e8).toLocaleString("zh-TW")} <span className="breadth-unit">億</span>
+            </dd>
+            {!(sort === byValue.sort && desc) && (
+              <dd>
+                <a className="breadth-link" href={routeToHash(byValue)}>
+                  看成交值排行 →
+                </a>
+              </dd>
+            )}
+          </div>
+        </dl>
+        <div className="breadth-bar" aria-hidden="true">
+          <span data-sign="1" style={{ width: share(breadth.up) }} />
+          <span style={{ width: share(breadth.flat) }} />
+          <span data-sign="-1" style={{ width: share(breadth.down) }} />
         </div>
       </section>
 
-      <div className="controls market-controls">
+      <div className="market-controls">
         <label className="field market-search">
           <span>搜尋代號或名稱</span>
           <input className="input" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="例如 2330 或 台積" maxLength={40} />
         </label>
-        <label className="field">
+        <label className="field market-sort">
           <span>排序</span>
           <select className="input" value={sort} onChange={(e) => navigate({ ...route, q: query.trim() || undefined, sort: e.target.value as MarketSort }, { replace: true })}>
             {SORTS.map((s) => (
@@ -135,12 +152,14 @@ function MarketView({ market, overview, route }: { market: TwseMarket; overview:
         </fieldset>
       </div>
 
-      <p className="muted" role="status" data-testid="market-count">
-        {market.trade_date} 收盤，共 {rows.length.toLocaleString("zh-TW")} 檔{rows.length > shown.length ? `，顯示前 ${shown.length} 檔` : ""}。
-      </p>
-
-      <section className="card">
-        <ScrollRegion label="全市場盤後資料表">
+      <section className="quote-board" aria-labelledby="board-title">
+        <div className="quote-board-head">
+          <h2 id="board-title">盤後報價表</h2>
+          <p className="muted" role="status" data-testid="market-count">
+            {market.trade_date} 收盤，共 {rows.length.toLocaleString("zh-TW")} 檔{rows.length > shown.length ? `，顯示前 ${shown.length} 檔` : ""}。
+          </p>
+        </div>
+        <ScrollRegion label="全市場盤後資料表" className="quote-scroll">
           <table className="market-table" data-testid="market-table">
             <thead>
               <tr>
@@ -156,36 +175,44 @@ function MarketView({ market, overview, route }: { market: TwseMarket; overview:
               </tr>
             </thead>
             <tbody>
-              {shown.map((r) => (
-                <tr key={r[0]}>
-                  <th scope="row" className="mono">
-                    {r[0]}
-                  </th>
-                  <td>
-                    {analysed.has(r[0]) ? (
-                      <a href={routeToHash({ name: "home", symbol: r[0] })} title="查看深度分析">
-                        {r[1]}
-                      </a>
-                    ) : (
-                      r[1]
-                    )}
-                    {isEtf(r[0]) && <span className="tag market-etf">ETF</span>}
-                  </td>
-                  <td className="num">{formatNumber(r[2], 2)}</td>
-                  <td className="num" data-sign={r[4] === null ? undefined : Math.sign(r[4])}>
-                    {formatSignedPercent(r[4], 2)}
-                  </td>
-                  <td className="num">{hundredMillion(r[5])}</td>
-                  <td className="num">{formatNumber(r[6], 2)}</td>
-                  <td className="num">{r[7] === null ? "—" : `${formatNumber(r[7], 2)}%`}</td>
-                  <td className="num">{formatNumber(r[8], 2)}</td>
-                  <td className="num">{formatSigned(r[10], 0)}</td>
-                </tr>
-              ))}
+              {shown.map((r) => {
+                const sign = r[4] === null ? undefined : Math.sign(r[4]);
+                return (
+                  <tr key={r[0]}>
+                    <th scope="row" className="mono">
+                      {r[0]}
+                    </th>
+                    <td className="market-name">
+                      {analysed.has(r[0]) ? (
+                        <a href={routeToHash({ name: "home", symbol: r[0] })} title="查看深度分析">
+                          {r[1]}
+                        </a>
+                      ) : (
+                        r[1]
+                      )}
+                      {isEtf(r[0]) && <span className="tag market-etf">ETF</span>}
+                    </td>
+                    <td className="num">{formatNumber(r[2], 2)}</td>
+                    <td className="num market-change" data-sign={sign}>
+                      {formatSignedPercent(r[4], 2)}
+                    </td>
+                    <td className="num">{hundredMillion(r[5])}</td>
+                    <td className="num">{formatNumber(r[6], 2)}</td>
+                    <td className="num">{r[7] === null ? "—" : `${formatNumber(r[7], 2)}%`}</td>
+                    <td className="num">{formatNumber(r[8], 2)}</td>
+                    <td className="num">{formatSigned(r[10], 0)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </ScrollRegion>
-        {rows.length === 0 && <p className="muted">找不到符合「{deferred}」的證券。</p>}
+        {rows.length === 0 && (
+          <div className="state state-empty market-empty">
+            <strong>找不到符合「{deferred}」的證券</strong>
+            <p className="muted">試試代號或名稱的一部分，或把類型切回「全部」。</p>
+          </div>
+        )}
         {rows.length > shown.length && (
           <button type="button" className="btn market-more" onClick={() => setPaging({ key: filterKey, limit: limit + PAGE })}>
             再顯示 {Math.min(PAGE, rows.length - shown.length)} 檔
@@ -202,17 +229,21 @@ export default function Market({ route }: { route: MarketRoute }) {
   const overview = useDataset("overview.json");
   return (
     <div className="page">
-      <header className="stack">
-        <span className="eyebrow">證交所 OpenAPI · 最新一個交易日</span>
+      {/* Everything above the gate is static, so nothing in the first screen moves when data arrives (CLS). */}
+      <header className="page-head market-head">
+        <p className="eyebrow">證交所 OpenAPI · 最新一個交易日</p>
         <h1>全市場盤後一覽</h1>
-        <p className="lede">
-          所有上市股票與 ETF 的收盤、漲跌、成交值、估值與融資變化。名稱有連結的是有完整市場狀態、異常事件與回測分析的標的。這裡只有最新一天，不是即時報價，也不構成投資建議。
-        </p>
+        <div className="market-intro">
+          <p className="lede">
+            所有上市股票與 ETF 的收盤、漲跌、成交值、估值與融資變化。名稱有連結的是有完整市場狀態、異常事件與回測分析的標的。這裡只有最新一天，不是即時報價，也不構成投資建議。
+          </p>
+          <p className="muted small">
+            來源：<a href="https://openapi.twse.com.tw/">證交所 OpenAPI</a>（STOCK_DAY_ALL、BWIBBU_ALL、MI_MARGN），依<a href="https://data.gov.tw/license">政府資料開放授權條款</a>使用。沒有成交的證券收盤顯示「—」；ETF
+            沒有本益比、殖利率與淨值比。漲跌依臺股慣例：紅色上漲、綠色下跌。
+          </p>
+        </div>
       </header>
       <Gate<[TwseMarket, Overview]> states={[market, overview]}>{(m, o) => <MarketView market={m} overview={o} route={route} />}</Gate>
-      <p className="muted small">
-        來源：<a href="https://openapi.twse.com.tw/">證交所 OpenAPI</a>（STOCK_DAY_ALL、BWIBBU_ALL、MI_MARGN），依<a href="https://data.gov.tw/license">政府資料開放授權條款</a>使用。沒有成交的證券收盤顯示「—」；ETF 沒有本益比、殖利率與淨值比。
-      </p>
     </div>
   );
 }

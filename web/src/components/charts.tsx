@@ -9,6 +9,9 @@ import { ScrollRegion } from "./ScrollRegion";
 const W = 520;
 
 /**
+ * Each SVG declares its pixel height, so the chart's box never changes size
+ * when the measured width arrives (no layout shift).
+ *
  * Measure the chart's container so the viewBox matches real pixels: text stays
  * 13px on a wide desktop card and on a phone instead of scaling with the card.
  */
@@ -110,7 +113,7 @@ export function LineChart({
   const tickIndexes = axisTicks(labels.length, Math.min(ticks, fittingTicks(right - left)));
   return (
     <div ref={box} className="chart-box">
-      <svg className="chart line-chart" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+      <svg className="chart line-chart" viewBox={`0 0 ${width} ${height}`} height={height} aria-hidden="true">
         {stripes?.map(([start, end, state]) => (
           <rect
             key={`${start}-${state}`}
@@ -215,7 +218,7 @@ export function FanChart({ fan, format, height = 260 }: { fan: Record<string, nu
       .y1((i) => y(hi[i] ?? 0))(lo.map((_, i) => i)) ?? "";
   return (
     <div ref={box} className="chart-box">
-      <svg className="chart fan-chart" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+      <svg className="chart fan-chart" viewBox={`0 0 ${width} ${height}`} height={height} aria-hidden="true">
         {y.ticks(5).map((t) => (
           <g key={t}>
             <line className="grid-line" x1={left} x2={right} y1={y(t)} y2={y(t)} />
@@ -260,7 +263,7 @@ export function Histogram({
   const y = scaleLinear().domain([0, Math.max(...bins.map((b) => b.count), 1)]).range([height - 26, 10]).nice();
   return (
     <div ref={box} className="chart-box">
-      <svg className="chart histogram" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+      <svg className="chart histogram" viewBox={`0 0 ${width} ${height}`} height={height} aria-hidden="true">
         {y.ticks(4).map((t) => (
           <g key={t}>
             <line className="grid-line" x1={left} x2={right} y1={y(t)} y2={y(t)} />
@@ -299,7 +302,7 @@ export function DivergingBars({ rows, format, height = 28 }: { rows: { key: stri
   const total = rows.length * height + 8;
   return (
     <div ref={box} className="chart-box">
-      <svg className="chart diverging" viewBox={`0 0 ${width} ${total}`} aria-hidden="true">
+      <svg className="chart diverging" viewBox={`0 0 ${width} ${total}`} height={total} aria-hidden="true">
         <line className="zero" x1={x(0)} x2={x(0)} y1={0} y2={total} />
         {rows.map((r, i) => {
           const y = i * height + 4;
@@ -326,17 +329,18 @@ export function StateTimeline({
   length,
   labels,
   axis,
+  rowHeight = 30,
 }: {
   rows: { key: string; label: string; segments: Segment[] }[];
   length: number;
   labels: string[];
   /** Optional date per index, drawn as a time axis under the rows. */
   axis?: string[];
+  rowHeight?: number;
 }) {
   const [box, width] = useChartWidth();
   const left = 92;
   const right = width - 12;
-  const rowHeight = 30;
   const x = scaleLinear().domain([0, Math.max(length, 1)]).range([left, right]);
   const rowsHeight = rows.length * (rowHeight + 10);
   const height = rowsHeight + (axis ? 34 : 20);
@@ -344,7 +348,7 @@ export function StateTimeline({
   const axisIndexes = axis ? axisTicks(axis.length, Math.min(4, fittingTicks(right - left - TICK_SPACING / 2))) : [];
   return (
     <div ref={box} className="chart-box">
-      <svg className="chart timeline" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+      <svg className="chart timeline" viewBox={`0 0 ${width} ${height}`} height={height} aria-hidden="true">
         {rows.map((row, r) => {
           const y = r * (rowHeight + 10) + 4;
           return (

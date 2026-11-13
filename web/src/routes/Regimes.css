@@ -1,29 +1,55 @@
+.state-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.state-list > * {
+  min-width: 0;
+}
+
 .state-card {
-  border-top: 4px solid var(--state);
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  border-left: 3px solid var(--state);
+}
+
+.analysis-rail .state-card {
+  padding: var(--space-3) var(--space-4);
 }
 
 .mini-dl {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
   gap: 2px var(--space-3);
-  margin: var(--space-2) 0 0;
-  font-size: var(--step--1);
+  width: 100%;
+  margin: 0;
+  font-size: var(--label);
 }
 
 .mini-dl dt {
   color: var(--muted);
 }
 
+.mini-dl dt,
 .mini-dl dd {
-  margin: 0;
-  font-variant-numeric: tabular-nums;
-  font-weight: 650;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
-.matrix td {
-  background: color-mix(in srgb, var(--accent) calc(var(--p, 0) * 45%), transparent);
+.mini-dl dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
 }
 
 .matrix td[data-diagonal="true"] {
   font-weight: 800;
+}
+
+@media (max-width: 1023.98px) and (min-width: 641px) {
+  .state-list {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15em), 1fr));
+  }
 }

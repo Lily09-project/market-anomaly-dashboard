@@ -1,45 +1,44 @@
 .heat-pair {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
+  gap: var(--space-5);
+  margin-top: var(--space-4);
 }
 
-@media (max-width: 900px) {
+/* Side by side once the main column (not the window) can hold two 9-column grids. */
+@container (min-width: 900px) {
   .heat-pair {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 .heat {
+  width: 100%;
   border-collapse: separate;
   border-spacing: 2px;
-  width: 100%;
 }
 
 .heat caption {
-  text-align: left;
-  font-weight: 700;
   padding-bottom: var(--space-2);
+  font-size: var(--label);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: left;
+  color: var(--ink-soft);
 }
 
 .heat th {
-  font-size: var(--step--1);
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
   text-align: center;
 }
 
 .heat td {
   padding: 0;
+  border: 0;
+  border-radius: var(--radius-s);
   text-align: center;
-  border-radius: 4px;
-}
-
-/* Saturated mid-tone hues capped at 50% keep body text above 4.5:1 in both themes. */
-.heat td[data-sign="pos"] {
-  background: color-mix(in srgb, #0d9488 calc(var(--v) * 50%), var(--bg-raised));
-}
-
-.heat td[data-sign="neg"] {
-  background: color-mix(in srgb, #c2410c calc(var(--v) * -50%), var(--bg-raised));
 }
 
 .heat button {
@@ -47,13 +46,18 @@
   min-width: 44px;
   min-height: 36px;
   border: 2px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-s);
   background: transparent;
   color: var(--ink);
-  font: inherit;
-  font-size: var(--step--1);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
+  transition: border-color 120ms ease;
+}
+
+.heat button:hover {
+  border-color: var(--line-strong);
 }
 
 .heat button[aria-pressed="true"] {
@@ -70,7 +74,16 @@
   color: var(--muted);
 }
 
+.heat tbody tr:hover > * {
+  background: transparent;
+}
+
 .selected-cell {
-  margin: var(--space-3) 0 0;
+  margin: var(--space-4) 0 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: var(--label);
   font-weight: 650;
+  max-width: none;
 }

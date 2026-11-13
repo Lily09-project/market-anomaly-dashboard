@@ -1,175 +1,341 @@
-.findings {
-  display: grid;
-  gap: var(--space-3);
-  margin: 0;
-  padding-left: 1.2em;
-}
-
-.findings a {
-  font-weight: 700;
-}
-
-.guide h2 {
-  margin-top: 0;
-}
-
-/* ---- First screen: claim, proof and where to go next ---- */
-.page .hero {
+/* ---- Cover: the first screen reads like a research report's front page ---- */
+.cover {
   display: grid;
   gap: var(--space-5);
-  align-items: center;
 }
 
-@media (min-width: 1000px) {
-  .page .hero {
-    grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr);
-    gap: var(--space-6);
-  }
+.cover-rule {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  padding-bottom: var(--space-2);
+  border-bottom: 2px solid var(--accent);
+  color: var(--ink-soft);
+  font-size: var(--label);
+  font-weight: 700;
+  letter-spacing: 0.06em;
 }
 
-.hero-copy {
-  min-width: 0;
-}
-
-.page .hero h1 {
-  font-size: clamp(1.9rem, 1.3rem + 1.9vw, 3rem);
-  margin-block: var(--space-3);
-}
-
-.hero-meta {
-  margin: var(--space-3) 0 0;
-  font-size: var(--step--1);
+.cover-rule-date {
+  min-width: 11.5em;
+  font-family: var(--font-mono);
+  letter-spacing: 0;
   color: var(--muted);
 }
 
-.hero-meta strong {
-  color: var(--ink);
+.cover-body {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.cover-copy {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+}
+
+.cover-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--step-4);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+}
+
+.cover-copy .lede {
+  margin: 0;
+  color: var(--muted);
+}
+
+.cover-finding {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.cover-kicker {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--label);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.cover-count {
+  display: inline-block;
+  min-width: 2ch;
+  text-align: center;
+}
+
+.cover-verdict {
+  margin: 0;
+  color: var(--accent);
+  font-size: clamp(1.4rem, 1.1rem + 1.1vw, 2.1rem);
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.cover-figures {
+  display: grid;
+  margin: 0;
+  border-top: 1px solid var(--line-strong);
+}
+
+.cover-figures > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.cover-figures dt {
+  color: var(--ink-soft);
+  font-size: var(--label);
+  text-wrap: balance;
+}
+
+.cover-figures dd {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  margin: 0;
+}
+
+.cover-number {
+  display: inline-block;
+  min-width: 7.5em;
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.headline {
-  display: grid;
-  gap: var(--space-3);
-  border-top: 2px solid var(--accent);
-}
-
-.headline h2 {
-  margin: 0;
-  font-size: var(--step-1);
-}
-
-.headline-stats {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-}
-
-.headline-stats > div {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: var(--space-3);
-  padding-block: var(--space-2);
-  border-top: 1px solid var(--line);
-}
-
-.headline-stats dt {
-  color: var(--ink-soft);
-  font-size: var(--step--1);
-  min-width: 0;
-}
-
-.headline-stats dd {
-  margin: 0;
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
-
-.headline-stats strong {
+.cover-number strong {
   font-family: var(--font-mono);
-  font-size: 1.6rem;
+  font-size: clamp(2rem, 1.6rem + 1.4vw, 3rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
   color: var(--accent);
 }
 
-.headline-link {
-  font-weight: 700;
+/* One cell per analysed symbol; lit cells are the count. */
+.meter {
+  display: flex;
+  gap: 3px;
+}
+
+.meter > span {
+  width: 10px;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--line);
+}
+
+.meter > span[data-on] {
+  background: var(--accent);
+}
+
+.cover-link {
   justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 700;
 }
 
-.journey-title {
-  margin: 0 0 var(--space-3);
-  font-size: var(--step-0);
-  color: var(--ink-soft);
-}
-
-.journey ol {
+/* Colophon: source, period, days, coverage. Values sit on one line, so loading never resizes it. */
+.cover-colophon {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
-  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+  gap: 0;
+  margin: 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.cover-colophon > div {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4) var(--space-3) 0;
+  min-width: 0;
+}
+
+.cover-colophon dt {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.cover-colophon dd {
+  margin: 0;
+  font-size: var(--label);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.cover-colophon-link {
+  align-content: end;
+}
+
+.cover-colophon-link a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  font-weight: 700;
+}
+
+@media (min-width: 1024px) {
+  .cover {
+    padding-top: var(--space-2);
+  }
+
+  .cover-body {
+    grid-template-columns: minmax(0, 1.35fr) minmax(360px, 1fr);
+    align-items: center;
+  }
+
+  .cover-finding {
+    padding-left: var(--space-6);
+    border-left: 1px solid var(--line);
+  }
+
+  .cover-colophon {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  }
+
+  .cover-colophon > div + div {
+    padding-left: var(--space-4);
+    border-left: 1px solid var(--line);
+  }
+}
+
+/* ---- Contents: the four questions, numbered like report chapters ---- */
+.contents-title {
+  margin: 0 0 var(--space-3);
+  color: var(--ink-soft);
+  font-size: var(--label);
+  letter-spacing: 0.04em;
+}
+
+.contents ol {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.journey li {
+.contents li {
   min-width: 0;
 }
 
-.journey a {
+.contents a {
   display: flex;
+  align-items: baseline;
   gap: var(--space-3);
-  align-items: flex-start;
   height: 100%;
   min-height: 44px;
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-m);
   background: var(--bg-sunken);
   color: var(--ink);
   text-decoration: none;
   transition: border-color var(--duration) var(--ease), background var(--duration) var(--ease);
 }
 
-.journey a:hover {
+.contents a:hover {
   border-color: var(--accent);
   background: var(--bg-raised);
 }
 
-.journey-step {
-  display: inline-grid;
-  place-items: center;
+.contents-step {
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 800;
+  color: var(--accent);
   font-family: var(--font-mono);
+  font-size: 1.25rem;
+  font-weight: 800;
 }
 
-.journey-text {
+.contents-text {
   display: grid;
   gap: 2px;
   min-width: 0;
 }
 
-.journey-text span {
+.contents-text span {
   color: var(--muted);
-  font-size: var(--step--1);
+  font-size: var(--label);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .journey a {
-    transition: none;
-  }
+/* ---- Dashboard rail ---- */
+.findings {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: 0.9375rem;
+}
+
+.findings a {
+  font-weight: 700;
 }
 
 @media (max-width: 640px) {
-  .journey a {
+  .cover {
+    gap: var(--space-4);
+  }
+
+  /* The date takes its own line whether loading or loaded, so the rule never re-wraps. */
+  .cover-rule-date {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  /* Phones: the computed finding follows the title directly, the lede comes after it. */
+  .cover-body {
+    gap: var(--space-4);
+  }
+
+  .cover-copy {
+    display: contents;
+  }
+
+  .cover-copy .eyebrow {
+    order: 1;
+    margin: 0;
+  }
+
+  .cover-title {
+    order: 2;
+    margin: 0;
+  }
+
+  .cover-finding {
+    order: 3;
+  }
+
+  .cover-copy .lede {
+    order: 4;
+  }
+
+  .cover-title {
+    font-size: clamp(2rem, 9vw, 2.6rem);
+  }
+
+  .contents ol {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .contents a {
     flex-direction: column;
-    gap: var(--space-2);
+    gap: 2px;
     padding: var(--space-3);
   }
 }
