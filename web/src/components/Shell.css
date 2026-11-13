@@ -19,7 +19,8 @@
 
 .brand {
   display: inline-flex;
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  max-width: 100%;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
@@ -46,6 +47,7 @@
 
 .brand-text {
   display: grid;
+  flex: 1 1 auto;
   min-width: 0;
   line-height: 1.15;
 }
@@ -111,6 +113,7 @@
 .site-tools {
   display: flex;
   flex-shrink: 0;
+  max-width: 100%;
   gap: var(--space-2);
   align-items: center;
   margin-left: auto;
@@ -118,6 +121,7 @@
 
 .data-badge {
   display: inline-flex;
+  max-width: 100%;
   align-items: center;
   min-height: 32px;
   padding: 0 var(--space-3);
