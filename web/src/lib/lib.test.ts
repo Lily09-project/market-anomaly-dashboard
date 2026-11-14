@@ -272,12 +272,12 @@ describe("format, csv and data loader", () => {
     const offline = createLoader("./", async () => {
       throw new TypeError("Failed to fetch");
     });
-    await expect(offline.load("overview.json")).rejects.toThrow("無法連線取得");
+    await expect(offline.load("overview.json")).rejects.toThrow("網路連線失敗");
     const garbled = createLoader("./", async () => new Response("<html>not json</html>"));
     await expect(garbled.manifest()).rejects.toThrow("manifest.json 不是有效的 JSON");
   });
 
-  it("revalidates once after a redeploy and recovers from a failed manifest request", async () => {
+  it("detects a redeploy and recovers from a failed manifest request", async () => {
     const encoder = new TextEncoder();
     const respond = (text: string, status = 200) => new Response(encoder.encode(text), { status });
     const oldBody = '{"dates":["a"]}';
@@ -291,6 +291,7 @@ describe("format, csv and data loader", () => {
         ? respond(JSON.stringify({ schema_version: "2.1", files: { "overview.json": manifests[deployed] } }))
         : respond(newBody);
     });
+    await expect(createLoader("./", fetcher).load("overview.json")).rejects.toThrow("網站資料已更新");
     await expect(createLoader("./", fetcher).load("overview.json")).resolves.toEqual({ dates: ["b"] });
     expect(fetcher.mock.calls.filter(([, init]) => init?.cache === "reload")).toHaveLength(2);
 
