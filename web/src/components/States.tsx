@@ -15,7 +15,7 @@ export function ErrorState({ error }: { error: Error }) {
     <div className="state state-error" role="alert">
       <strong>無法顯示這個頁面</strong>
       <p>{error.message}</p>
-      <p className="muted">請重新整理；若問題持續，代表部署的資料檔不完整，網站不會用不完整的資料計算。</p>
+      <button className="btn" type="button" onClick={() => window.location.reload()}>重新載入頁面</button>
     </div>
   );
 }

@@ -45,3 +45,33 @@ describe("deployment data boundaries", () => {
     await expect(loader.load("overview.json")).resolves.toEqual({ items: [] });
   });
 });
+
+it("does not return a new file alongside cached files from an older deployment", async () => {
+  const old = '{"version":"old"}';
+  const next = '{"version":"new"}';
+  const digest = async (value: string) => sha256Hex(new TextEncoder().encode(value).buffer as ArrayBuffer);
+  const oldHash = await digest(old);
+  const nextHash = await digest(next);
+  let deployed = false;
+  let finishOld!: (response: Response) => void;
+  const delayed = new Promise<Response>((resolve) => { finishOld = resolve; });
+  const loader = createLoader("./", async (url) => {
+    if (url.endsWith("manifest.json")) {
+      const hash = deployed ? nextHash : oldHash;
+      return respond(JSON.stringify({ schema_version: "2.1", files: {
+        "overview.json": hash, "provenance.json": hash, "regimes.json": hash,
+      } }));
+    }
+    if (url.endsWith("regimes.json")) return delayed;
+    return respond(deployed ? next : old);
+  });
+  await expect(loader.load("overview.json")).resolves.toEqual({ version: "old" });
+  const late = expect(loader.load("regimes.json")).rejects.toThrow("網站資料已更新");
+  deployed = true;
+  await expect(loader.load("provenance.json")).rejects.toThrow("網站資料已更新");
+  finishOld(respond(old));
+  await late;
+  await expect(loader.load("overview.json")).rejects.toThrow("網站資料已更新");
+  await expect(loader.manifest()).rejects.toThrow("網站資料已更新");
+  expect(loader.verifiedFiles()).toEqual([]);
+});

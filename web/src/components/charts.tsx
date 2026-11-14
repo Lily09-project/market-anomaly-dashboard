@@ -85,6 +85,7 @@ export function LineChart({
   height = 240,
   reference,
   marker,
+  onPointSelect,
   stripes,
   stripeOffset = 0,
   ticks = 4,
@@ -95,6 +96,7 @@ export function LineChart({
   height?: number;
   reference?: { value: number; label: string };
   marker?: number;
+  onPointSelect?: (index: number) => void;
   /** Regime segments drawn as background stripes; indexes are shifted by stripeOffset. */
   stripes?: Segment[];
   stripeOffset?: number;
@@ -169,6 +171,14 @@ export function LineChart({
           />
         ))}
         {marker !== undefined && <line className="marker-line" x1={x(marker)} x2={x(marker)} y1={6} y2={height - 26} />}
+        {onPointSelect && <rect x={left} y={6} width={right - left} height={height - 32}
+          fill="transparent" style={{ cursor: "crosshair" }}
+          onClick={(event) => {
+            const bounds = event.currentTarget.getBoundingClientRect();
+            if (bounds.width <= 0) return;
+            const position = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
+            onPointSelect(Math.round(position * (labels.length - 1)));
+          }} />}
         {tickIndexes.map((i, k) => (
           <text key={i} x={x(i)} y={height - 8} textAnchor={k === 0 ? "start" : k === tickIndexes.length - 1 ? "end" : "middle"}>
             {labels[i]}
