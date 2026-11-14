@@ -214,9 +214,9 @@ def _study_payload(abnormal: list[np.ndarray]) -> dict[str, Any]:
     }
 
 
-def _equity(returns: np.ndarray, step: int = 5) -> list[float | None]:
+def _equity(returns: np.ndarray, indices: list[int]) -> list[float | None]:
     curve = np.cumprod(1 + returns)
-    return _nums(curve[::step], 4)
+    return _nums(curve[indices], 4)
 
 
 def analyse_backtest(dates: list[str], prices: np.ndarray) -> dict[str, Any]:
@@ -240,6 +240,10 @@ def analyse_backtest(dates: list[str], prices: np.ndarray) -> dict[str, Any]:
     dsr = backtest.deflated_sharpe(matrix[:, best_full], full)
     asset = np.diff(prices) / prices[:-1]
     first_oos = folds[0].test[0] if folds else len(asset)
+    step = 5
+    indices = list(range(0, len(oos), step))
+    if indices and indices[-1] != len(oos) - 1:
+        indices.append(len(oos) - 1)
     return {
         "fast": list(backtest.FAST),
         "slow": list(backtest.SLOW),
@@ -267,9 +271,10 @@ def analyse_backtest(dates: list[str], prices: np.ndarray) -> dict[str, Any]:
         "buy_hold_sharpe_oos": _num(stats.sharpe(asset[first_oos : first_oos + len(oos)]), 3),
         "equity": {
             "start": dates[first_oos + 1],
-            "step": 5,
-            "walk_forward": _equity(oos),
-            "buy_hold": _equity(asset[first_oos : first_oos + len(oos)]),
+            "step": step,
+            "dates": [dates[first_oos + i + 1] for i in indices],
+            "walk_forward": _equity(oos, indices),
+            "buy_hold": _equity(asset[first_oos : first_oos + len(oos)], indices),
         },
         "pbo": _num(pbo, 3),
         "logits": _nums(logits, 3),

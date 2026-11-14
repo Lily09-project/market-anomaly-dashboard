@@ -257,3 +257,29 @@ def test_web_reads_the_schema_version_this_exporter_writes() -> None:
     source = (Path(__file__).resolve().parents[1] / "web" / "src" / "lib" / "data.ts").read_text(encoding="utf-8")
     match = re.search(r'DATA_SCHEMA_VERSION = "([^"]+)"', source)
     assert match is not None and match.group(1) == export_web.SCHEMA_VERSION
+
+
+def test_equity_export_includes_true_last_day_for_both_curves() -> None:
+    import numpy as np
+    from src.analytics import backtest
+    from src.export_web import MIN_HISTORY_DAYS, analyse_backtest
+
+    for extra_days in [0, backtest.WALK_FORWARD_TEST]:
+        count = MIN_HISTORY_DAYS + extra_days
+        prices = 100 * np.exp(np.cumsum(np.sin(np.arange(count) / 7) * 0.012 + 0.001))
+        dates = [f"day-{i}" for i in range(count)]
+        result = analyse_backtest(dates, prices)
+        folds = result["walk_forward"]
+        equity = result["equity"]
+        start = dates.index(folds[0]["test_start"])
+        end = dates.index(folds[-1]["test_end"])
+        grid = backtest.parameter_grid()
+        matrix = backtest.returns_matrix(prices, grid)
+        positions = np.column_stack([backtest.crossover_positions(prices, f, s)[:-1] for f, s in grid])
+        _, returns = backtest.walk_forward(matrix, positions=positions)
+        assert equity["dates"][0] == dates[start]
+        assert equity["dates"][-1] == dates[end]
+        assert dates[start : end + 1 : equity["step"]] == equity["dates"][: ((end - start) // equity["step"]) + 1]
+        assert len(equity["dates"]) == len(equity["walk_forward"]) == len(equity["buy_hold"])
+        assert equity["walk_forward"][-1] == pytest.approx(np.prod(1 + returns), abs=5.01e-5)
+        assert equity["buy_hold"][-1] == pytest.approx(prices[end] / prices[start - 1], abs=5.01e-5)
