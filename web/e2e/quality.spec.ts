@@ -7,6 +7,7 @@ const ROUTES = [
   "/backtest",
   "/stress",
   "/snapshot",
+  "/compare",
   "/data",
   "/market",
 ];
