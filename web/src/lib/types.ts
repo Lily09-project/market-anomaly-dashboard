@@ -104,7 +104,7 @@ export interface BacktestResult {
   walk_forward: Fold[];
   oos_sharpe_stitched: number;
   buy_hold_sharpe_oos: number;
-  equity: { start: string; step: number; walk_forward: number[]; buy_hold: number[] };
+  equity: { start: string; step: number; dates?: string[]; walk_forward: number[]; buy_hold: number[] };
   pbo: number;
   logits: number[];
   dsr: { sharpe: number; benchmark_sharpe: number; dsr: number; trials: number };

@@ -78,7 +78,7 @@ function BacktestView({ overview, backtest, route }: { overview: Overview; backt
   const verdict = pboVerdict(result.pbo);
   const beatsHold = result.oos_sharpe_stitched >= result.buy_hold_sharpe_oos;
   const rho = rankCorrelation(result.is_sharpe, result.oos_sharpe);
-  const equityDates = sampledDates(overview.dates, result.equity.start, result.equity.step, result.equity.walk_forward.length);
+  const equityDates = result.equity.dates ?? sampledDates(overview.dates, result.equity.start, result.equity.step, result.equity.walk_forward.length);
   const logitBins = histogramAround(result.logits, 12, 0);
   const trainMean = result.walk_forward.reduce((s, f) => s + f.train_sharpe, 0) / Math.max(result.walk_forward.length, 1);
   const select = (cell: number) => navigate({ ...route, symbol, cell }, { replace: true });
