@@ -13,6 +13,7 @@ const EventsPage = lazy(() => import("./routes/Events"));
 const BacktestPage = lazy(() => import("./routes/Backtest"));
 const StressPage = lazy(() => import("./routes/Stress"));
 const MarketPage = lazy(() => import("./routes/Market"));
+const ComparePage = lazy(() => import("./routes/Compare"));
 const SnapshotPage = lazy(() => import("./routes/Snapshot"));
 const DataTrust = lazy(() => import("./routes/DataTrust"));
 
@@ -27,6 +28,7 @@ const ROUTE_DATA: Partial<Record<Route["name"], (keyof DataFiles)[]>> = {
   backtest: ["overview.json", "backtest.json"],
   stress: ["overview.json", "stress.json"],
   market: ["twse_market.json", "overview.json"],
+  compare: ["overview.json"],
   snapshot: ["overview.json", "regimes.json", "backtest.json", "events.json", "stress.json", "provenance.json"],
   data: ["provenance.json", "regimes.json", "events.json"],
 };
@@ -60,6 +62,8 @@ function Routes({ route }: { route: Route }) {
       return <StressPage route={route} />;
     case "market":
       return <MarketPage route={route} />;
+    case "compare":
+      return <ComparePage route={route} />;
     case "snapshot":
       return <SnapshotPage />;
     case "data":

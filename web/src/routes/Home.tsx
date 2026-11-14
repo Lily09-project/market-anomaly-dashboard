@@ -250,7 +250,7 @@ function Dashboard({ overview, regimes, backtest, events, provenance, route }: {
           <h2 id="guide-title">這個標的的研究結論</h2>
           <ul className="findings">
             <li>
-              <a href={routeToHash({ name: "regimes", symbol })}>市場狀態</a>：
+              <a href={routeToHash({ name: "compare", symbol })}>比較此標的</a> · <a href={routeToHash({ name: "regimes", symbol })}>市場狀態</a>：
               {regime.accuracy !== null ? (
                 <>與合成資料的真實狀態比對，準確率 <strong>{formatPercent(regime.accuracy, 0)}</strong>。</>
               ) : regime.bic_choice === 1 ? (

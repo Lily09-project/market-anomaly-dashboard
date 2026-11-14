@@ -9,6 +9,7 @@ export type Route =
   | { name: "backtest"; symbol?: string; cell?: number }
   | { name: "stress"; symbol?: string; horizon?: number; block?: number; paths?: number }
   | { name: "market"; q?: string; sort?: MarketSort; desc?: boolean; kind?: MarketKind }
+  | { name: "compare"; symbol?: string; against?: string; period?: Period }
   | { name: "snapshot" }
   | { name: "data" }
   | { name: "not-found"; path: string };
@@ -72,6 +73,10 @@ export function parseRoute(hash: string): Route {
         kind: kind === "stock" || kind === "etf" ? kind : undefined,
       };
     }
+    case "compare": {
+      const period = params.get("period");
+      return { name: "compare", symbol, against: params.get("against") ?? undefined, period: period === "all" || period === "3y" || period === "1y" ? period : undefined };
+    }
     case "snapshot":
       return { name: "snapshot" };
     case "data":
@@ -101,6 +106,8 @@ export function routeToHash(route: Route): string {
       return `#/stress${query({ symbol: route.symbol, horizon: route.horizon, block: route.block, paths: route.paths })}`;
     case "market":
       return `#/market${query({ q: route.q, sort: route.sort, desc: route.desc ? 1 : undefined, kind: route.kind })}`;
+    case "compare":
+      return `#/compare${query({ symbol: route.symbol, against: route.against, period: route.period })}`;
     case "snapshot":
       return "#/snapshot";
     case "data":
