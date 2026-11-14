@@ -16,6 +16,11 @@ type StressRoute = Extract<Route, { name: "stress" }>;
 const HORIZONS = [20, 60, 120, 250];
 const PATHS = [500, 2000, 5000, 10000, 20000];
 
+/** A shared link may carry any in-range value; list it so the select shows what was simulated. */
+function withValue(options: number[], value: number): number[] {
+  return options.includes(value) ? options : [...options, value].sort((a, b) => a - b);
+}
+
 interface Result {
   key: string;
   symbol: string;
@@ -67,7 +72,7 @@ function StressView({ overview, stress, route }: { overview: Overview; stress: S
           <label className="field">
             <span className="label">模擬天數</span>
             <select className="input" value={params.horizon} onChange={(e) => update({ horizon: Number(e.target.value) })}>
-              {HORIZONS.map((h) => (
+              {withValue(HORIZONS, params.horizon).map((h) => (
                 <option key={h} value={h}>
                   {h} 個交易日
                 </option>
@@ -91,7 +96,7 @@ function StressView({ overview, stress, route }: { overview: Overview; stress: S
           <label className="field">
             <span className="label">路徑數</span>
             <select className="input" value={params.paths} onChange={(e) => update({ paths: Number(e.target.value) })}>
-              {PATHS.map((p) => (
+              {withValue(PATHS, params.paths).map((p) => (
                 <option key={p} value={p}>
                   {p.toLocaleString("zh-TW")}
                 </option>

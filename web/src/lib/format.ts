@@ -1,11 +1,13 @@
 export function formatNumber(value: number | null | undefined, digits = 0): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return value.toFixed(digits);
+  const fixed = value.toFixed(digits);
+  // A value that rounds to zero never shows a sign ("-0.00").
+  return fixed === `-${(0).toFixed(digits)}` ? (0).toFixed(digits) : fixed;
 }
 
 export function formatPercent(value: number | null | undefined, digits = 1): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return `${(value * 100).toFixed(digits)}%`;
+  return `${formatNumber(value * 100, digits)}%`;
 }
 
 export function formatSigned(value: number | null | undefined, digits = 2): string {

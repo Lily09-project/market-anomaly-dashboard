@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef } from "react";
-import { LoaderContext, useRoute } from "./app/hooks";
+import { LoaderContext, useDocumentTitle, useRoute } from "./app/hooks";
+import { PageHead } from "./components/PageHead";
 import { Shell } from "./components/Shell";
 import { EmptyState, Loading } from "./components/States";
 import { createLoader, type Loader } from "./lib/data";
@@ -30,6 +31,20 @@ const ROUTE_DATA: Partial<Record<Route["name"], (keyof DataFiles)[]>> = {
   data: ["provenance.json", "regimes.json", "events.json"],
 };
 
+function NotFound({ path }: { path: string }) {
+  useDocumentTitle("找不到這個頁面");
+  return (
+    <div className="page">
+      <PageHead eyebrow="404" title="找不到這個頁面" />
+      <EmptyState title="這個網址沒有對應的頁面">
+        <p>
+          網址 <code>{path}</code> 不存在。<a href={routeToHash({ name: "home" })}>回到總覽</a>
+        </p>
+      </EmptyState>
+    </div>
+  );
+}
+
 function Routes({ route }: { route: Route }) {
 
   switch (route.name) {
@@ -50,15 +65,7 @@ function Routes({ route }: { route: Route }) {
     case "data":
       return <DataTrust />;
     case "not-found":
-      return (
-        <div className="page">
-          <EmptyState title="找不到這個頁面">
-            <p>
-              網址 <code>{route.path}</code> 不存在。<a href={routeToHash({ name: "home" })}>回到總覽</a>
-            </p>
-          </EmptyState>
-        </div>
-      );
+      return <NotFound path={route.path} />;
   }
 }
 

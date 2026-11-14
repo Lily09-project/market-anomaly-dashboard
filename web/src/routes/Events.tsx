@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useDataset, useDocumentTitle } from "../app/hooks";
 import { ChartFrame, Legend, LineChart, type Series } from "../components/charts";
 import { pickSymbol, StateChip } from "../components/Common";
@@ -66,6 +67,20 @@ function EventsView({ overview, events, regimes, route }: { overview: Overview; 
   const positive = events.study.positive;
   const negSig = significant(negative, 3);
   const posSig = significant(positive, 3);
+  const detail = useRef<HTMLDivElement>(null);
+  const picked = useRef(route.date);
+
+  // Below 1024px the detail sits above the list, so a tapped date would change it out of
+  // sight. Bring its top into view, but only for a new pick, never on first render.
+  useEffect(() => {
+    if (picked.current === route.date) return;
+    picked.current = route.date;
+    const box = detail.current;
+    if (!box || route.date === undefined) return;
+    const header = document.querySelector(".site-header");
+    const covered = header && getComputedStyle(header).position === "sticky" ? header.getBoundingClientRect().bottom : 0;
+    if (box.getBoundingClientRect().top < covered) box.scrollIntoView({ block: "start" });
+  }, [route.date]);
 
   return (
     <div className="stack">
@@ -218,7 +233,7 @@ function EventsView({ overview, events, regimes, route }: { overview: Overview; 
           </div>
           <div className="analysis-main">
           {selected && (
-            <div className="card is-lead" data-testid="event-detail">
+            <div className="card is-lead" data-testid="event-detail" ref={detail}>
               <h3 className="event-detail-title">
                 {selected.date}：{formatSignedPercent(selected.return, 2)}
               </h3>

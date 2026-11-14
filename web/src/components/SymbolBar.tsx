@@ -43,8 +43,10 @@ export function SymbolBar({ route }: { route: AnalysisRoute }) {
     const box = rail.current;
     const chip = box?.querySelector<HTMLElement>("input:checked")?.parentElement;
     if (!box || !chip) return;
-    const target = chip.offsetLeft - (box.clientWidth - chip.offsetWidth) / 2;
-    box.scrollLeft = Math.max(target, 0);
+    // Measure against the rail itself: offsetLeft is relative to the nearest positioned
+    // ancestor, which is the whole (sticky) toolbar on desktop and overshoots the rail.
+    const offset = chip.getBoundingClientRect().left - box.getBoundingClientRect().left + box.scrollLeft;
+    box.scrollLeft = Math.max(offset - (box.clientWidth - chip.offsetWidth) / 2, 0);
   }, [symbol, data]);
 
   return (
