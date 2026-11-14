@@ -88,11 +88,12 @@ test.describe("Q4/Q5 navigation, keyboard and accessibility", () => {
   });
 
   test("every chart offers an equivalent data table", async ({ page }) => {
-    for (const route of ["/", "/regimes", "/events", "/backtest", "/stress"]) {
+    for (const route of ["/", "/regimes", "/events", "/backtest", "/stress", "/compare"]) {
       await openRoute(page, route);
       if (route === "/stress") await expect(page.getByTestId("var95")).toBeVisible();
       // The exchange panel loads on its own; count charts only once it has rendered.
       if (route === "/") await expect(page.getByTestId("twse-panel").getByRole("figure")).toBeVisible();
+      if (route === "/compare") await expect(page.locator("figure.chart-frame").first()).toBeVisible();
       const count = await page.locator("figure.chart-frame").count();
       expect(count, `charts on ${route}`).toBeGreaterThan(0);
       await expect(page.locator("figure.chart-frame details table")).toHaveCount(count);
