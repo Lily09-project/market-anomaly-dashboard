@@ -53,7 +53,11 @@ def test_exported_walk_forward_pays_actual_entry_and_switch_costs():
     held = np.asarray(held)
     actual = held * np.asarray(observations) - np.abs(np.diff(np.r_[0.0, held])) * result["cost_per_trade"]
     # Independent account ledger: start in cash and charge every actual holdings change.
-    expected = np.round(np.cumprod(1 + actual)[::5], 4)
+    curve = np.cumprod(1 + actual)
+    indices = list(range(0, len(curve), 5))
+    if indices[-1] != len(curve) - 1:
+        indices.append(len(curve) - 1)
+    expected = np.round(curve[indices], 4)
     np.testing.assert_allclose(result["equity"]["walk_forward"], expected, atol=1e-4, rtol=0)
     expected_sharpe = actual.mean() / actual.std(ddof=1) * np.sqrt(252) if actual.std(ddof=1) else 0.0
     assert result["oos_sharpe_stitched"] == pytest.approx(expected_sharpe, abs=0.00051)
@@ -72,7 +76,11 @@ def test_walk_forward_first_fold_enters_from_cash(monkeypatch):
     stop = dates.index(result["walk_forward"][-1]["test_end"])
     earned = prices[first + 1:stop + 1] / prices[first:stop] - 1
     earned[0] -= result["cost_per_trade"]
-    expected = np.round(np.cumprod(1 + earned)[::5], 4)
+    curve = np.cumprod(1 + earned)
+    indices = list(range(0, len(curve), 5))
+    if indices[-1] != len(curve) - 1:
+        indices.append(len(curve) - 1)
+    expected = np.round(curve[indices], 4)
     np.testing.assert_allclose(result["equity"]["walk_forward"], expected, atol=1e-4, rtol=0)
 
 

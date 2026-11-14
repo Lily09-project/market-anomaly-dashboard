@@ -264,7 +264,7 @@ def test_equity_export_includes_true_last_day_for_both_curves() -> None:
     from src.analytics import backtest
     from src.export_web import MIN_HISTORY_DAYS, analyse_backtest
 
-    for extra_days in range(5):
+    for extra_days in [0, backtest.WALK_FORWARD_TEST]:
         count = MIN_HISTORY_DAYS + extra_days
         prices = 100 * np.exp(np.cumsum(np.sin(np.arange(count) / 7) * 0.012 + 0.001))
         dates = [f"day-{i}" for i in range(count)]
