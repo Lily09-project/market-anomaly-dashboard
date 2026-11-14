@@ -218,8 +218,12 @@ describe("format, csv and data loader", () => {
   it("formats numbers", () => {
     expect(formatNumber(1.234, 2)).toBe("1.23");
     expect(formatNumber(null)).toBe("—");
+    expect(formatNumber(-0.001, 2)).toBe("0.00");
+    expect(formatNumber(-0.4)).toBe("0");
+    expect(formatNumber(-0.006, 2)).toBe("-0.01");
     expect(formatPercent(0.1234)).toBe("12.3%");
     expect(formatPercent(undefined)).toBe("—");
+    expect(formatPercent(-0.00001)).toBe("0.0%");
     expect(formatSigned(0.5)).toBe("+0.50");
     expect(formatSigned(-0.001)).toBe("0.00");
     expect(formatSigned(-1)).toBe("-1.00");

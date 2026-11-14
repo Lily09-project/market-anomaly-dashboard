@@ -178,6 +178,10 @@
   overflow-wrap: anywhere;
 }
 
+.cover-colophon .nowrap {
+  white-space: nowrap;
+}
+
 .cover-colophon-link {
   align-content: end;
 }

@@ -131,7 +131,7 @@ function Cover({ finding, provenance, analysed, ready }: { finding: Finding | nu
           <dd>
             {provenance ? (
               <>
-                {provenance.range.start} 至 <strong>{provenance.range.end}</strong>
+                <span className="nowrap">{provenance.range.start}</span> 至 <strong className="nowrap">{provenance.range.end}</strong>
               </>
             ) : (
               pending

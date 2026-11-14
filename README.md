@@ -23,6 +23,8 @@
 
 ## 畫面
 
+版面採「研究報告 × 交易終端」：總覽是一份報告封面，列出資料截止日、跨標的的核心發現與閱讀順序；市場狀態、異常事件、誠實回測與壓力測試共用同一條標的工具列（桌面固定在頁首下方，手機改為可左右滑動的標的列），圖表居中、結論放在側欄；全市場頁是一張可捲動的盤後報價表。手機版的八個頁面以 4×2 格狀導覽呈現。
+
 | 證交所盤後快照 | 全市場盤後一覽 |
 | --- | --- |
 | ![證交所盤後快照](docs/screenshots/twse-snapshot.png) | ![全市場盤後一覽](docs/screenshots/market.png) |
@@ -47,7 +49,7 @@
 
 ## 技術
 
-Python、NumPy、React、TypeScript、Vite、Web Worker；GitHub Pages 提供靜態展示，另有非 root Docker 映像。介面採深色金黑研究工作區，設計原則見 [DESIGN.md](DESIGN.md)。
+Python、NumPy、React、TypeScript、Vite、Web Worker；GitHub Pages 提供靜態展示，另有非 root Docker 映像。介面採深色金黑配色與「研究報告 × 交易終端」排版，設計原則見 [DESIGN.md](DESIGN.md)。
 
 ## 本機執行與驗證
 
