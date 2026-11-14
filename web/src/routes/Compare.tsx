@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useDataset, useDocumentTitle, useRoute } from "../app/hooks";
 import { ChartFrame, Legend, LineChart } from "../components/charts";
 import { PageHead } from "../components/PageHead";
+import { ScrollRegion } from "../components/ScrollRegion";
 import { EmptyState, Gate } from "../components/States";
 import { downloadText, toCsv } from "../lib/csv";
 import { formatNumber, formatPercent } from "../lib/format";
@@ -39,13 +40,13 @@ function Comparison({ data, route }: { data: Overview; route: CompareRoute }) {
       {rows ? <section className="card">
         <p>{rows[0]!.date} 至 {rows.at(-1)!.date} · {rows.length} 個共同交易日</p>
         <p className="muted">以同一口徑的收盤價比較，第一個共同交易日為 100。報酬未計交易成本。</p>
-        <div className="scroll-x"><table>
+        <ScrollRegion label="標的統計比較"><table>
           <thead><tr><th scope="col">標的</th><th scope="col">累積報酬</th><th scope="col">最大回撤</th><th scope="col">年化波動</th></tr></thead>
           <tbody>{(["a", "b"] as const).map((key, i) => {
             const metrics = comparisonMetrics(rows.map((row) => row[key]));
             return <tr key={key}><th scope="row">{names[i]}</th><td>{formatPercent(metrics.total)}</td><td>{formatPercent(metrics.drawdown)}</td><td>{formatPercent(metrics.volatility)}</td></tr>;
           })}</tbody>
-        </table></div>
+        </table></ScrollRegion>
         {selectedDay && <div className="stack">
           <label className="field" htmlFor="compare-trading-day">查看交易日</label>
           <input className="input" id="compare-trading-day" type="range" min={0} max={rows.length - 1}
