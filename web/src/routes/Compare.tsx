@@ -63,5 +63,5 @@ function Comparison({ data, route }: { data: Overview; route: CompareRoute }) {
 export default function Compare({ route }: { route: CompareRoute }) {
   useDocumentTitle("標的比較");
   const data = useDataset("overview.json");
-  return <div className="page stack"><PageHead title="標的比較" /><Gate<[Overview]> states={[data]}>{(overview) => <Comparison data={overview} route={route} />}</Gate></div>;
+  return <div className="page stack"><PageHead eyebrow="研究工具" title="標的比較" /><Gate<[Overview]> states={[data]}>{(overview) => <Comparison data={overview} route={route} />}</Gate></div>;
 }
