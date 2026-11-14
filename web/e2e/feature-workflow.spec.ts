@@ -8,5 +8,7 @@ test("標的比較 keeps settings after reload", async ({ page }) => {
   await expect(page).toHaveURL(/against=2330/);
   await page.reload();
   await expect(page.getByLabel("標的 B", { exact: true })).toHaveValue("2330");
-  await expect(page.getByRole("button", { name: "下載比較 CSV" })).toBeEnabled();
+  const downloadReady = page.waitForEvent("download");
+  await page.getByRole("button", { name: "下載比較 CSV" }).click();
+  expect((await downloadReady).suggestedFilename()).toBe("market-2330-2330.csv");
 });

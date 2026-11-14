@@ -24,11 +24,11 @@ function Comparison({ data, route }: { data: Overview; route: CompareRoute }) {
   return (
     <div className="stack">
       <section className="card controls-row" aria-label="比較設定">
-        <label className="field">標的 A<select className="input" value={a.symbol} onChange={(event) => update({ symbol: event.target.value })}>{options}</select></label>
-        <label className="field">標的 B<select className="input" value={b.symbol} onChange={(event) => update({ against: event.target.value })}>{options}</select></label>
-        <label className="field">共同交易期間<select className="input" value={period} onChange={(event) => update({ period: event.target.value as Period })}>
+        <div className="field"><label htmlFor="compare-symbol-a">標的 A</label><select className="input" id="compare-symbol-a" value={a.symbol} onChange={(event) => update({ symbol: event.target.value })}>{options}</select></div>
+        <div className="field"><label htmlFor="compare-symbol-b">標的 B</label><select className="input" id="compare-symbol-b" value={b.symbol} onChange={(event) => update({ against: event.target.value })}>{options}</select></div>
+        <div className="field"><label htmlFor="compare-period">共同交易期間</label><select className="input" id="compare-period" value={period} onChange={(event) => update({ period: event.target.value as Period })}>
           <option value="1y">近 252 個交易日</option><option value="3y">近 756 個交易日</option><option value="all">全部</option>
-        </select></label>
+        </select></div>
       </section>
       {rows ? <section className="card">
         <p>{rows[0]!.date} 至 {rows.at(-1)!.date} · {rows.length} 個共同交易日</p>
