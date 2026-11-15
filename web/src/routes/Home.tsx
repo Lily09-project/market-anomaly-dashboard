@@ -107,10 +107,14 @@ function Cover({ finding, provenance, analysed, ready }: { finding: Finding | nu
               <div key={f.key}>
                 <dt>{f.label}</dt>
                 <dd>
-                  <span className="cover-number">
+                  {/* Remounted when the data arrives: proportional figures differ in width from the
+                      placeholder, and a fresh node is an insertion, not a layout shift. */}
+                  <span className="cover-number" key={finding ? "value" : "pending"}>
+
                     <strong>{finding ? finding[f.key] : pending}</strong> / {finding ? finding.n : pending} 檔
                   </span>
-                  <Meter filled={finding ? finding[f.key] : 0} n={finding ? finding.n : 10} />
+                  {finding && <Meter filled={finding[f.key]} n={finding.n} />}
+
                 </dd>
               </div>
             ))}

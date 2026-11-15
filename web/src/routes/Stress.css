@@ -29,8 +29,8 @@
 }
 
 .stress-controls output {
-  font-family: var(--font-mono);
-  font-weight: 800;
+  font-family: var(--font-num);
+  font-weight: var(--weight-bold);
   color: var(--accent);
 }
 

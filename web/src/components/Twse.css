@@ -10,7 +10,7 @@
 .twse > p:last-child {
   margin: 0;
   padding-top: var(--space-3);
-  border-top: 1px solid var(--line);
+  border-top: var(--hairline);
 }
 
 .twse-grid {
@@ -50,7 +50,7 @@
   display: grid;
   gap: 2px;
   padding: var(--space-2) var(--space-3);
-  border-left: 1px solid var(--line-strong);
+  border-left: var(--hairline);
 }
 
 .twse-metric dd {
@@ -59,9 +59,9 @@
 }
 
 .twse-value {
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-size: var(--step-1);
-  font-weight: 700;
+  font-weight: var(--weight-bold);
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }

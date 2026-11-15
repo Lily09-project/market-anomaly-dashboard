@@ -41,22 +41,24 @@ h4 {
   text-wrap: balance;
 }
 
+/* Display weight 700, titles 600: headlines hold their own beside dense charts without shouting. */
 h1 {
   font-size: var(--step-3);
-  font-weight: 750;
-  letter-spacing: -0.02em;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--track-display);
   line-height: 1.15;
 }
 
 h2 {
   font-size: var(--step-1);
-  font-weight: 750;
-  letter-spacing: -0.01em;
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0;
+  line-height: var(--lh-title);
 }
 
 h3 {
   font-size: var(--step-0);
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
 }
 
 p {
@@ -114,14 +116,14 @@ td {
 
 th {
   font-size: var(--label);
-  font-weight: 700;
+  font-weight: var(--weight-medium);
   color: var(--muted);
   white-space: nowrap;
 }
 
 thead th {
   border-bottom-color: var(--line-strong);
-  letter-spacing: 0.03em;
+  letter-spacing: var(--track-label);
 }
 
 tbody tr {
@@ -138,6 +140,11 @@ th.num,
   text-align: right;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+td.num {
+  font-family: var(--font-num);
+  font-weight: var(--weight-medium);
 }
 
 tr[aria-current="true"] th,
@@ -240,8 +247,8 @@ tr[aria-current="true"] td {
   gap: var(--space-2);
   margin: 0 0 var(--space-3);
   font-size: var(--label);
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--track-label);
   color: var(--accent);
 }
 
@@ -262,19 +269,20 @@ tr[aria-current="true"] td {
 
 .stat-label {
   font-size: var(--label);
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--track-label);
   color: var(--muted);
 }
 
+/* Stat block: a flat figure in the numeric face, no box of its own. */
 .stat-value,
 .big-number {
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-size: clamp(1.6rem, 1.2rem + 1.2vw, 2.25rem);
-  font-weight: 750;
+  font-weight: var(--weight-bold);
   line-height: 1.1;
-  letter-spacing: -0.04em;
-  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .stat-value-text {
@@ -285,15 +293,15 @@ tr[aria-current="true"] td {
   overflow-wrap: anywhere;
 }
 
-/* ---- Panels ---- */
+/* ---- Panels ----
+   Flat cards: the canvas → raised surface step is the elevation. No gradient, no shadow;
+   the transparent border keeps the outline in forced-colours mode. */
 .card {
   min-width: 0;
   padding: var(--space-5);
-  border: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
+  border: 1px solid transparent;
   border-radius: var(--radius-l);
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.025), transparent 120px),
-    var(--bg-raised);
+  background: var(--bg-raised);
 }
 
 .card > h2:first-child,
@@ -317,8 +325,9 @@ tr[aria-current="true"] td {
 }
 
 .panel-kicker {
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-size: var(--label);
+  font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
 
@@ -332,7 +341,7 @@ tr[aria-current="true"] td {
   display: grid;
   gap: 2px;
   padding: var(--space-3) 0;
-  border-top: 1px solid var(--line);
+  border-top: var(--hairline);
 }
 
 .readout > div:first-child {
@@ -346,8 +355,8 @@ tr[aria-current="true"] td {
 
 .readout dt {
   font-size: var(--label);
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--track-label);
   color: var(--muted);
 }
 
@@ -368,19 +377,22 @@ tr[aria-current="true"] td {
   letter-spacing: 0;
 }
 
-/* ---- Buttons and inputs ---- */
+/* ---- Buttons and inputs ----
+   Button label 14px / 600 at line-height 1.2, 24px side padding, 6px radius. */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: 44px;
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--line-strong);
+  min-height: var(--control-h);
+  padding: var(--space-2) var(--space-5);
+  border: var(--hairline-strong);
   border-radius: var(--radius-m);
   background: var(--bg-raised);
   color: var(--ink);
-  font-weight: 650;
+  font-size: var(--label);
+  font-weight: var(--weight-semibold);
+  line-height: 1.2;
   text-decoration: none;
   cursor: pointer;
   transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
@@ -421,15 +433,18 @@ tr[aria-current="true"] td {
 .field .label,
 .field > span:first-child {
   font-size: var(--label);
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
   color: var(--ink-soft);
 }
 
+/* Inputs share the button height: line-height 1.4 keeps 16px text inside a 40px box on desktop. */
 .input {
   width: 100%;
-  min-height: 44px;
+  min-height: var(--control-h);
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--line-strong);
+  line-height: 1.4;
+
+  border: var(--hairline-strong);
   border-radius: var(--radius-m);
   background: var(--bg-sunken);
   transition: border-color 160ms ease;
@@ -461,7 +476,7 @@ tr[aria-current="true"] td {
 .segmented legend {
   margin-bottom: var(--space-1);
   font-size: var(--label);
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
   color: var(--ink-soft);
 }
 
@@ -482,12 +497,13 @@ tr[aria-current="true"] td {
 .segmented span {
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
+  min-height: var(--control-h);
   margin-left: -1px;
   padding: 0 var(--space-4);
-  border: 1px solid var(--line-strong);
+  border: var(--hairline-strong);
   background: var(--bg-raised);
-  font-weight: 650;
+  font-size: var(--label);
+  font-weight: var(--weight-semibold);
   white-space: nowrap;
   transition: background var(--duration) var(--ease), color var(--duration) var(--ease), border-color var(--duration) var(--ease);
 }
@@ -538,11 +554,11 @@ tr[aria-current="true"] td {
   align-items: center;
   gap: var(--space-1);
   padding: 2px var(--space-2);
-  border: 1px solid var(--line);
+  border: var(--hairline);
   border-radius: var(--radius-s);
   background: var(--bg-sunken);
   font-size: var(--label);
-  font-weight: 650;
+  font-weight: var(--weight-medium);
   white-space: nowrap;
 }
 
@@ -559,20 +575,21 @@ tr[aria-current="true"] td {
   border: 1px solid currentColor;
   border-radius: var(--radius-s);
   font-size: var(--label);
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
   white-space: nowrap;
 }
 
+/* Verdict tags are status (pass / caution / fail), so they use the status names, never --up / --down. */
 .tag[data-tone="good"] {
-  color: var(--good);
+  color: var(--success);
 }
 
 .tag[data-tone="warn"] {
-  color: var(--gold);
+  color: var(--warn);
 }
 
 .tag[data-tone="bad"] {
-  color: var(--bad);
+  color: var(--danger);
 }
 
 .tag[data-tone="info"] {
@@ -603,7 +620,7 @@ tr[aria-current="true"] td {
   border-radius: var(--radius-s);
   background: var(--state-soft);
   color: var(--ink);
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
   white-space: nowrap;
 }
 
@@ -611,23 +628,24 @@ tr[aria-current="true"] td {
   content: "";
   width: 8px;
   height: 8px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: var(--state);
 }
 
 /* ---- Prose blocks ---- */
 .notice {
   padding: var(--space-3) var(--space-4);
-  border-left: 3px solid var(--gold);
+  border-left: 3px solid var(--warn);
   border-radius: var(--radius-s);
   background: var(--bg-sunken);
 }
 
+/* Flat fill: no atmospheric gradients on surfaces. */
 .callout {
   padding: var(--space-3) var(--space-4);
   border-left: 3px solid var(--accent);
   border-radius: var(--radius-m);
-  background: linear-gradient(90deg, var(--accent-soft), color-mix(in srgb, var(--accent-soft) 30%, transparent));
+  background: var(--accent-soft);
 }
 
 .callout > :first-child {
@@ -647,6 +665,7 @@ tr[aria-current="true"] td {
 
 .chart text {
   fill: var(--muted);
+  font-family: var(--font-num);
   font-size: 13px;
 }
 
@@ -660,7 +679,7 @@ details.data-table summary {
   min-height: 44px;
   color: var(--ink-soft);
   font-size: var(--label);
-  font-weight: 650;
+  font-weight: var(--weight-semibold);
   cursor: pointer;
 }
 
@@ -719,7 +738,7 @@ details.data-table summary {
 }
 
 .state-error {
-  border-color: var(--bad);
+  border-color: var(--danger);
 }
 
 .spinner {
@@ -794,8 +813,8 @@ figcaption {
   margin: 0 0 var(--space-3);
   color: var(--ink-soft);
   font-size: var(--label);
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--track-label);
 }
 
 .verdicts {
@@ -817,8 +836,8 @@ figcaption {
   margin-bottom: 2px;
   color: var(--accent);
   font-size: var(--label);
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--track-label);
 }
 
 .guide h2 {
@@ -856,11 +875,12 @@ figcaption {
 }
 
 .state-error > strong {
-  color: var(--bad);
+  color: var(--danger);
 }
 
 .event-detail-title {
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
+
   font-size: var(--step-1);
   font-variant-numeric: tabular-nums;
 }

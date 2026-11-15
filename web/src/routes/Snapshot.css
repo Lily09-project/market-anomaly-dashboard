@@ -39,7 +39,7 @@
   display: grid;
   gap: var(--space-3);
   padding: var(--space-4);
-  border: 1px solid var(--line);
+  border: var(--hairline);
   border-radius: var(--radius-m);
   background: var(--bg-sunken);
 }
@@ -107,7 +107,7 @@ tr[data-changed="true"] td {
   background: var(--bg-raised);
   color: var(--ink);
   font: inherit;
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
   cursor: pointer;
   transition: border-color 160ms ease;
 }
