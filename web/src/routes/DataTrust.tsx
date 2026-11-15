@@ -5,6 +5,7 @@ import { ScrollRegion } from "../components/ScrollRegion";
 import { Gate } from "../components/States";
 import { formatPercent } from "../lib/format";
 import type { DataFiles, Events, Manifest, Provenance, Regimes } from "../lib/types";
+import { safeExternalUrl } from "../lib/links";
 import "./DataTrust.css";
 
 const FILES: (keyof DataFiles)[] = ["overview.json", "regimes.json", "events.json", "backtest.json", "stress.json", "provenance.json", "twse.json", "twse_market.json"];
@@ -199,10 +200,14 @@ function Trust({ provenance, regimes, events }: { provenance: Provenance; regime
           <ul className="sources">
             {provenance.sources.map((s) => (
               <li key={s.url}>
-                <a href={s.url} target="_blank" rel="noopener noreferrer">
-                  {s.label}
-                  <span className="visually-hidden">（在新分頁開啟）</span>
-                </a>
+                {safeExternalUrl(s.url) ? (
+                  <a href={safeExternalUrl(s.url)!} target="_blank" rel="noopener noreferrer">
+                    {s.label}
+                    <span className="visually-hidden">（在新分頁開啟）</span>
+                  </a>
+                ) : (
+                  s.label
+                )}
               </li>
             ))}
           </ul>
