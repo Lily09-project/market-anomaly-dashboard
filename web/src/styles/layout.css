@@ -28,7 +28,7 @@ main {
   display: grid;
   gap: var(--space-2) var(--space-6);
   padding-bottom: var(--space-5);
-  border-bottom: 1px solid var(--line);
+  border-bottom: var(--hairline);
 }
 
 .page-head h1 {
@@ -69,7 +69,7 @@ main {
   align-items: baseline;
   gap: var(--space-2) var(--space-3);
   padding-top: var(--space-2);
-  border-top: 1px solid var(--line);
+  border-top: var(--hairline);
 }
 
 .section-head h2 {
@@ -112,10 +112,22 @@ main {
   min-width: 0;
 }
 
+/* Desktop rhythm on the 4px grid: 32px between page bands, 24px gutters between panels,
+   16px between the dense rail items. */
 @media (min-width: 1024px) {
+  .page > * + * {
+    margin-top: var(--space-6);
+  }
+
+  .analysis,
+  .analysis-main {
+    gap: var(--space-5);
+  }
+
   .analysis {
     grid-template-columns: minmax(0, 1fr) var(--rail);
   }
+
 
   .analysis-wide-rail {
     --rail: 420px;

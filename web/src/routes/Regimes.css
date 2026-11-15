@@ -39,13 +39,13 @@
 
 .mini-dl dd {
   margin: 0;
-  font-family: var(--font-mono);
-  font-weight: 650;
+  font-family: var(--font-num);
+  font-weight: var(--weight-medium);
   font-variant-numeric: tabular-nums;
 }
 
 .matrix td[data-diagonal="true"] {
-  font-weight: 800;
+  font-weight: var(--weight-bold);
 }
 
 @media (max-width: 1023.98px) and (min-width: 641px) {

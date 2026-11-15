@@ -19,9 +19,9 @@
 .market-breadth {
   display: grid;
   gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-l);
+  padding: var(--space-4) var(--space-5);
+  border: var(--hairline);
+  border-radius: var(--radius-xl);
   background: var(--bg-sunken);
 }
 
@@ -37,7 +37,7 @@
   align-content: start;
   gap: 2px;
   padding: 0 var(--space-4);
-  border-left: 1px solid var(--line);
+  border-left: var(--hairline);
 }
 
 .breadth-figures > div:first-child {
@@ -48,8 +48,8 @@
 .breadth-figures dt {
   color: var(--muted);
   font-size: var(--label);
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--track-label);
 }
 
 .breadth-figures dd {
@@ -57,10 +57,10 @@
 }
 
 .breadth-value {
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-size: clamp(1.4rem, 1.2rem + 0.6vw, 1.75rem);
-  font-weight: 750;
-  letter-spacing: -0.03em;
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -68,15 +68,30 @@
   color: var(--muted);
   font-family: var(--font-sans);
   font-size: var(--label);
-  font-weight: 650;
+  font-weight: var(--weight-medium);
 }
 
+/* Direction colour is always paired with a drawn triangle, so it never relies on hue alone. */
 .breadth-value[data-sign="1"] {
   color: var(--up);
 }
 
 .breadth-value[data-sign="-1"] {
   color: var(--down);
+}
+
+.breadth-value[data-sign="1"]::before {
+  content: "▲" / "";
+  margin-right: 6px;
+  font-size: 0.5em;
+  vertical-align: 0.3em;
+}
+
+.breadth-value[data-sign="-1"]::before {
+  content: "▼" / "";
+  margin-right: 6px;
+  font-size: 0.5em;
+  vertical-align: 0.3em;
 }
 
 /* Advancers · unchanged · decliners as one proportional bar. */
@@ -106,7 +121,7 @@
   align-items: center;
   min-height: 32px;
   font-size: var(--label);
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
 }
 
 /* ---- Controls ---- */
@@ -161,11 +176,12 @@
 }
 
 /* The board scrolls inside its own viewport so the header row can stay pinned. */
+/* Table container: the one 12px-radius surface, hairline outline, no shadow. */
 .quote-scroll {
   max-height: min(72vh, 760px);
   overflow: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-l);
+  border: var(--hairline);
+  border-radius: var(--radius-xl);
   background: var(--bg-raised);
   overscroll-behavior: contain;
 }
@@ -175,9 +191,10 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Dense rows on the 4px grid: 8px block padding, a hairline between rows. */
 .market-table th,
 .market-table td {
-  padding: 6px var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border-bottom-color: color-mix(in srgb, var(--line) 85%, transparent);
 }
 
@@ -207,7 +224,9 @@
 
 .market-table tbody th {
   color: var(--ink-soft);
-  font-weight: 650;
+  font-family: var(--font-num);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
 }
 
 .market-table tbody tr:nth-child(even) > * {
@@ -219,8 +238,8 @@
 }
 
 .market-table td.num {
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
+  font-family: var(--font-num);
+  font-size: 0.9375rem;
 }
 
 .market-name {
@@ -228,8 +247,9 @@
 }
 
 .market-change {
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
 }
+
 
 .market-change[data-sign="1"] {
   color: var(--up);
