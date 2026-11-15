@@ -1,0 +1,50 @@
+{
+  "site": "https://lily09-project.github.io/market-anomaly-dashboard/",
+  "shots": [
+    {
+      "file": "pages-desktop.png",
+      "route": "/"
+    },
+    {
+      "file": "pages-mobile.png",
+      "route": "/",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "mobile": true
+    },
+    {
+      "file": "regimes.png",
+      "route": "/regimes"
+    },
+    {
+      "file": "events.png",
+      "route": "/events"
+    },
+    {
+      "file": "backtest.png",
+      "route": "/backtest",
+      "viewport": {
+        "width": 1440,
+        "height": 1150
+      }
+    },
+    {
+      "file": "stress.png",
+      "route": "/stress",
+      "waitFor": ".fan-chart"
+    },
+    {
+      "file": "twse-snapshot.png",
+      "route": "/?symbol=2330",
+      "waitFor": "[data-testid=twse-cross-check]",
+      "element": "[data-testid=twse-panel]"
+    },
+    {
+      "file": "market.png",
+      "route": "/market?sort=value_twd&desc=1",
+      "waitFor": "[data-testid=market-table]"
+    }
+  ]
+}

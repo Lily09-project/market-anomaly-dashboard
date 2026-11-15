@@ -35,7 +35,7 @@
 | **誠實回測** | **壓力測試** |
 | ![誠實回測畫面](docs/screenshots/backtest.png) | ![壓力測試畫面](docs/screenshots/stress.png) |
 
-截圖取自正式網站的 FinMind 歷史快照與證交所盤後資料。
+截圖取自正式網站的 FinMind 歷史快照與證交所盤後資料。改版上線後在 `web/` 執行 `npm run screenshots` 即可重拍，截圖清單在 `docs/screenshots/shots.json`。
 
 ## 正式資料
 
