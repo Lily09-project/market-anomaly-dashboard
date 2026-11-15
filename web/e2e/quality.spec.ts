@@ -1,5 +1,9 @@
 import { expect, expectAccessible, openRoute, test } from "./fixtures";
 
+// CI enforces the 1.5 s load budget. A local run often shares the CPU with other work,
+// so it gets more slack; set CI=1 to check the real budget locally.
+const LOAD_BUDGET_MS = process.env.CI ? 1500 : 4000;
+
 const ROUTES = [
   "/",
   "/regimes",
@@ -50,6 +54,8 @@ test.describe("Q4/Q5 navigation, keyboard and accessibility", () => {
   });
 
   test("every page keeps one palette under both system color preferences", async ({ page }) => {
+    // Runs axe on every route twice; allow a busy local machine more time. CI keeps the default.
+    test.slow(!process.env.CI, "many axe passes on a shared local CPU");
     await page.addInitScript((key) => {
       try {
         window.localStorage.setItem(key, "dark");
@@ -116,7 +122,7 @@ test.describe("Q6 performance and Q8 security", () => {
     const start = Date.now();
     await page.goto("./");
     await expect(page.locator("main h1")).toBeVisible();
-    expect(Date.now() - start).toBeLessThan(1500);
+    expect(Date.now() - start).toBeLessThan(LOAD_BUDGET_MS);
     await page.waitForLoadState("networkidle");
     expect([...hosts]).toEqual([new URL(page.url()).host]);
   });
