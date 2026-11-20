@@ -11,6 +11,16 @@
 | --- | --- |
 | ![Market Regime Lab 桌面畫面](docs/screenshots/pages-desktop.png) | ![Market Regime Lab 手機畫面](docs/screenshots/pages-mobile.png) |
 
+## 3 分鐘 Demo 路線
+
+每個連結都直接開到指定標的與參數，照順序點即可完成導覽。
+
+1. **[市場狀態：0050](https://lily09-project.github.io/market-anomaly-dashboard/#/regimes?symbol=0050)**：看三狀態（平穩／震盪／高波動）時間軸、轉移矩陣與 1–3 狀態的 BIC 比較。重點：隱藏馬可夫模型以 NumPy 自行實作 Baum-Welch 與 Viterbi，跳空日先排除，不讓它自成一個狀態。
+2. **[異常事件：0050 的 2025-04-07](https://lily09-project.github.io/market-anomaly-dashboard/#/events?symbol=0050&date=2025-04-07)**：選定這天的大跌，看它之後的累積異常報酬，再對照全部標的合計的事件研究。重點：偵測只用當時以前的資料，每季重新擬合、只對之後的區塊打分，沒有前視偏誤。
+3. **[誠實回測：台積電 40／150 日均線](https://lily09-project.github.io/market-anomaly-dashboard/#/backtest?symbol=2330&cell=40)**：在 48 組參數熱圖中選定一格，對照樣本內、樣本外 Sharpe，再看 PBO 與 Deflated Sharpe。重點：回測不只報最好的數字，還量化「從一堆參數裡挑冠軍」有多不可靠。
+4. **[壓力測試：0050 模擬 250 天、20,000 條路徑](https://lily09-project.github.io/market-anomaly-dashboard/#/stress?symbol=0050&horizon=250&block=20&paths=20000)**：開頁即開始模擬，進度條跑到一半按「取消」，再按「開始模擬」重跑。重點：區塊拔靴法在 Web Worker 執行，取消會直接終止 worker，畫面不卡；固定種子讓同一組設定每次結果相同。
+5. **[資料可信度](https://lily09-project.github.io/market-anomaly-dashboard/#/data)**：看 8 個資料檔的 SHA-256 檢查全部通過，以及資料來源、涵蓋範圍與排除筆數。重點：瀏覽器用 Web Crypto 重新計算雜湊並對照 manifest，內容被截斷或竄改就拒絕顯示。
+
 ## 功能
 
 - **標的比較**：以共同交易日比較兩檔收盤走勢、報酬、回撤與波動，可交換標的、分享指定交易日與下載 CSV。
@@ -49,9 +59,33 @@
 - 證交所 OpenAPI 只提供最新資料，所以盤後快照與全市場頁不納入歷史分析；取得失敗時網站會標示「未取得」，不會因此停止發布價格分析。
 - 固定種子的合成資料只用於本機研究、方法測試與 PR 預覽。正式 Pages 與 Docker 建置都必須以嚴格模式取得並驗證 FinMind 公開資料；來源失敗即停止，不會以合成資料替代。網站都是靜態快照，不是即時報價。
 
-## 技術
+## 工程重點
 
 Python、NumPy、React、TypeScript、Vite、Web Worker；GitHub Pages 提供靜態展示，另有非 root Docker 映像。介面採深色金黑配色與「研究報告 × 交易終端」排版，設計原則見 [DESIGN.md](DESIGN.md)。
+
+```mermaid
+flowchart LR
+  F["FinMind 歷史日行情"] --> P
+  T["證交所 OpenAPI 盤後資料"] --> P
+  P["Python 管線 run_all.py<br/>嚴格模式抓取"] --> V["驗證與清理<br/>0050 分割還原・排除零成交<br/>單日變動超過 20% 即停止"]
+  V --> A["分析<br/>HMM・事件研究・PBO・DSR"]
+  A --> E["export_web.py<br/>8 個 JSON + manifest.json<br/>（SHA-256、schema 版本）"]
+  E --> G["GitHub Pages 靜態網站"]
+  G --> B["瀏覽器 Web Crypto<br/>重算 SHA-256 對照 manifest"]
+  subgraph CI["CI 關卡"]
+    Q["Quality Gate<br/>pytest 分析覆蓋率 ≥ 90%・匯出可重現<br/>型別・lint・單元覆蓋率 ≥ 85%・體積預算・E2E"]
+    S["Quality & Security<br/>gitleaks・bandit・Ruff・pip-audit・npm audit・Docker 檢查"]
+    D["Static Pages<br/>部署前以真實資料跑 E2E<br/>部署後比對來源版本與資產雜湊"]
+  end
+  CI -.-> G
+```
+
+- **資料一路可驗證**：匯出時為每個資料檔記錄 SHA-256 與 schema 版本；瀏覽器載入時重新計算，不符就顯示錯誤而不是畫出錯的數字。部署後的 smoke test 也會比對線上的 `deployment.json` 與每個 JS／CSS 資產的雜湊。
+- **失敗就停止，不靜默替代**：正式建置以 `--require-api` 執行，來源取不到、分割邊界對不上或出現無法解釋的大幅跳動都會中止發布，合成資料只用於測試與 PR 預覽。
+- **回測先防自欺**：48 組均線參數以 CSCV（資料切 10 塊、取 5 塊當樣本內，共 252 種組合）計算 PBO，再用 Deflated Sharpe 校正多重嘗試；選出的策略另有前視檢查，任何過去的部位若受未來價格影響，建置就直接報錯。
+- **事件偵測只看過去**：每 63 個交易日用之前最多 504 天的報酬重新擬合 HMM，只對之後的區塊打分，z 值門檻 5。
+- **瀏覽器與 Python 同一套引擎**：壓力測試的 TypeScript 版本與 Python 參考實作使用同一條 mulberry32 亂數序列與迴圈順序，由匯出的對照案例在測試中鎖定結果一致；計算放在 Web Worker，可隨時取消。
+- **可重現**：CI 以合成資料連跑兩次完整管線，`diff -r` 兩份匯出必須完全相同；匯出數值先四捨五入，避免不同平台的浮點末位差異。
 
 ## 本機執行與驗證
 
