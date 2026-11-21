@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { useDataset, useDocumentTitle } from "../app/hooks";
 import { ChartFrame, Legend, LineChart } from "../components/charts";
 import { pickSymbol, StateChip } from "../components/Common";
@@ -62,7 +63,7 @@ function Meter({ filled, n }: { filled: number; n: number }) {
   return (
     <span className="meter" aria-hidden="true">
       {Array.from({ length: n }, (_, i) => (
-        <span key={i} data-on={i < filled || undefined} />
+        <span key={i} data-on={i < filled || undefined} style={{ "--i": i } as CSSProperties} />
       ))}
     </span>
   );
@@ -88,7 +89,7 @@ function Cover({ finding, provenance, analysed, ready }: { finding: Finding | nu
           <h1 className="cover-title">
             漂亮的回測，
             <br />
-            經得起檢驗嗎？
+            <span className="cover-title-em">經得起檢驗嗎？</span>
           </h1>
           <p className="lede">
             用隱藏馬可夫模型找出平穩、震盪與高波動三種狀態；檢驗異常日之後是否真的有可預測的報酬；再用過度擬合檢定揭穿「漂亮回測」。每個方法都先在已知答案的合成資料上接受檢驗。
