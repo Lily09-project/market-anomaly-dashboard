@@ -32,6 +32,7 @@
 
 .chart .grid-line {
   stroke-dasharray: 2 3;
+  opacity: 0.75;
 }
 
 .chart .row-label {
@@ -54,6 +55,7 @@
   fill: none;
   stroke-width: 2;
   stroke-linejoin: round;
+  stroke-linecap: round;
 }
 
 /* Colour and dash differ, so lines stay distinguishable without colour. */
@@ -117,6 +119,7 @@
 
 .histogram .bar {
   fill: var(--line-strong);
+  rx: 2px;
 }
 
 .histogram .bar-tail {
@@ -170,6 +173,7 @@
 
 .timeline .timeline-cell {
   fill: var(--state);
+  rx: 2px;
 }
 
 /* One plain-language line under a chart: how to read it. */
