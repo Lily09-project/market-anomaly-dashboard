@@ -372,7 +372,7 @@
 .cover-copy::before {
   content: "";
   position: absolute;
-  inset: calc(var(--space-4) * -1) calc(var(--space-4) * -1) calc(var(--space-4) * -1) calc(var(--space-4) * -1);
+  inset: 0;
   z-index: -1;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Ccircle cx='2' cy='2' r='1' fill='%23353d49'/%3E%3C/svg%3E");
   opacity: 0.55;
