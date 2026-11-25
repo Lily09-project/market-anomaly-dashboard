@@ -27,10 +27,22 @@ def _load(path: Path, name: str):
     return json.loads((path / name).read_text(encoding="utf-8"))
 
 
-def test_pipeline_is_byte_for_byte_reproducible(exported: Path, tmp_path: Path) -> None:
-    run("sample", out_dir=tmp_path)
-    for name in (*FILES, "manifest.json"):
-        assert (exported / name).read_bytes() == (tmp_path / name).read_bytes(), name
+def test_sample_preprocessing_is_reproducible() -> None:
+    """Generating and cleaning the sample data twice yields identical bytes (cheap half of the reproducibility check).
+
+    The export half is checked by test_cli_writes_to_the_requested_directory, which compares an
+    independent export with the module fixture; CI additionally diffs two complete pipeline runs.
+    """
+    from src.generate_sample_data import generate_sample_data
+    from src.preprocess import preprocess_data
+    from src.utils import load_config
+
+    config = load_config()
+    generate_sample_data(config)
+    first = preprocess_data(config, mode="sample").read_bytes()
+    generate_sample_data(config)
+    second = preprocess_data(config, mode="sample").read_bytes()
+    assert first == second
 
 
 def test_manifest_hashes_match(exported: Path) -> None:
@@ -143,11 +155,14 @@ def test_short_history_fails_clearly(exported: Path, tmp_path: Path) -> None:
         export_web.export(tmp_path / "out", cleaned_path=path)
 
 
-def test_cli_writes_to_the_requested_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_writes_to_the_requested_directory(exported: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     monkeypatch.setattr("sys.argv", ["export_web", "--out", str(tmp_path / "cli")])
     export_web.main()
     assert (tmp_path / "cli" / "manifest.json").exists()
     assert "overview.json" in capsys.readouterr().out
+    # An independent export must match the fixture byte for byte (export reproducibility).
+    for name in (*FILES, "manifest.json"):
+        assert (exported / name).read_bytes() == (tmp_path / "cli" / name).read_bytes(), name
 
 
 def stress_fixture(exported: Path) -> dict:
