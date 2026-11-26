@@ -93,11 +93,14 @@ function Creator({ data, schemaVersion }: { data: Data; schemaVersion: string })
       </div>
       {running && <progress max={1} value={progress} aria-label="壓力測試進度" />}
       {error && <p role="alert">建立失敗：{error}</p>}
-      {created && (
-        <p className="callout" data-testid="created-snapshot" aria-live="polite">
-          已下載 {created.symbol} 的快照。指紋 <code className="mono">{created.fingerprint}</code>
-        </p>
-      )}
+      {/* The live region is always mounted; only its content changes, so screen readers announce it. */}
+      <div aria-live="polite">
+        {created && (
+          <p className="callout" data-testid="created-snapshot">
+            已下載 {created.symbol} 的快照。指紋 <code className="mono">{created.fingerprint}</code>
+          </p>
+        )}
+      </div>
       <p className="muted small">
         壓力測試使用預設參數（{data.stress.defaults.horizon} 天、區塊 {data.stress.defaults.block} 天、{data.stress.defaults.paths.toLocaleString("zh-TW")} 條路徑、種子 {data.stress.defaults.seed}），所以同一份資料一定得到同樣的快照。
       </p>

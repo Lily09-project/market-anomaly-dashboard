@@ -44,7 +44,7 @@ def test_already_adjusted_input_is_rejected_instead_of_double_adjusted():
         adjust_finmind_splits(adjusted)
 
 
-@pytest.mark.parametrize("mode,provider,expected", [("sample", "finmind", 188.65), ("api", "yfinance", 188.65), ("api", "finmind", 47.1625)])
+@pytest.mark.parametrize("mode,provider,expected", [("sample", "finmind", 188.65), ("api", "finmind", 47.1625)])
 def test_pipeline_applies_split_only_to_raw_finmind(tmp_path, mode, provider, expected):
     config = load_config()
     config["api"]["provider"] = provider
@@ -57,6 +57,17 @@ def test_pipeline_applies_split_only_to_raw_finmind(tmp_path, mode, provider, ex
     cleaned = pd.read_csv(output, dtype={"symbol": "string"})
     close = cleaned.loc[(cleaned["symbol"] == "0050") & (cleaned["date"] == "2025-06-10"), "close"].iloc[0]
     assert close == pytest.approx(expected)
+
+
+def test_other_providers_never_get_the_finmind_split_table_and_reject_the_jump(tmp_path):
+    config = load_config()
+    config["api"]["provider"] = "yfinance"
+    config["data"]["sample_market_path"] = str(tmp_path / "sample.csv")
+    config["data"]["cleaned_path"] = str(tmp_path / "cleaned.csv")
+    raw = tmp_path / "raw.csv"
+    prices().to_csv(raw, index=False)
+    with pytest.raises(ValueError, match="Unexplained single-day price move"):
+        preprocess.preprocess_data(config, mode="api", market_path=raw)
 
 
 def test_unexplained_jumps_are_rejected_but_ex_dividend_moves_pass():
