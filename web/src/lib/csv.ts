@@ -40,5 +40,6 @@ export function downloadText(filename: string, text: string, type: string): void
   document.body.append(link);
   link.click();
   link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  // Some browsers cancel the download if the URL is revoked right after click(); give them a second.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

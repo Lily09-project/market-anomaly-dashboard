@@ -172,7 +172,12 @@ function Trust({ provenance, regimes, events }: { provenance: Provenance; regime
           {!provenance.is_simulated && provenance.provider === "finmind" && (
             <section aria-label="價格還原基準">
               <h3>價格還原基準</h3>
-              <p>0050 已依官方公告還原 2025-06-18 的 1 拆 4：分割前 OHLC 除以 4、成交股數乘以 4，原始下載檔保持不變。分析使用還原後價格；未再投入現金股息，不是含息總報酬，其他公司行動仍可能影響結果。</p>
+              <p>
+                {provenance.price_basis?.splits.length
+                  ? `${provenance.price_basis.splits.map((s) => `${s.symbol} 已依官方公告還原 ${s.effective_date} 的 1 拆 ${s.new_units_per_old}`).join("；")}：分割前 OHLC 除以分割比、成交股數乘以分割比，原始下載檔保持不變。`
+                  : "本次資料沒有套用已知的分割還原，原始下載檔保持不變。"}
+                分析使用還原後價格；未再投入現金股息，不是含息總報酬，其他公司行動仍可能影響結果。
+              </p>
             </section>
           )}
           <h3>市場狀態（隱藏馬可夫模型）</h3>

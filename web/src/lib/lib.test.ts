@@ -226,6 +226,8 @@ describe("format, csv and data loader", () => {
     expect(formatPercent(-0.00001)).toBe("0.0%");
     expect(formatSigned(0.5)).toBe("+0.50");
     expect(formatSigned(-0.001)).toBe("0.00");
+    expect(formatSigned(0.004)).toBe("0.00");
+    expect(formatSignedPercent(0.00004, 2)).toBe("0.00%");
     expect(formatSigned(-1)).toBe("-1.00");
     expect(formatSigned(null)).toBe("—");
     expect(formatSignedPercent(0.015)).toBe("+1.5%");
@@ -312,7 +314,8 @@ describe("format, csv and data loader", () => {
 });
 
 describe("downloadText", () => {
-  it("creates and revokes an object URL for the download", async () => {
+  it("creates the object URL now and revokes it a second later", () => {
+    vi.useFakeTimers();
     const create = vi.fn(() => "blob:test");
     const revoke = vi.fn();
     Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke });
@@ -321,8 +324,11 @@ describe("downloadText", () => {
     expect(create).toHaveBeenCalledOnce();
     expect(click).toHaveBeenCalledOnce();
     expect(document.querySelector("a[download]")).toBeNull();
-    await new Promise((r) => setTimeout(r, 0));
+    vi.advanceTimersByTime(999);
+    expect(revoke).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
     expect(revoke).toHaveBeenCalledWith("blob:test");
+    vi.useRealTimers();
   });
 });
 

@@ -55,3 +55,13 @@ def test_invalid_mode_and_empty_input_fail(tmp_path) -> None:
     (tmp_path / "sample" / "market.csv").write_text("date,symbol,open,high,low,close,volume\n2026-01-02,0050,1,2,1,0,3\n", encoding="utf-8")
     with pytest.raises(ValueError, match="No usable"):
         preprocess.preprocess_data(config, mode="sample")
+
+
+@pytest.mark.parametrize("provider", ["yfinance", "url"])
+def test_api_mode_rejects_unexplained_jumps_for_every_provider(tmp_path, provider: str) -> None:
+    config = _config(tmp_path)
+    config["api"] = {**config.get("api", {}), "provider": provider}
+    rows = "date,symbol,open,high,low,close,volume" + "\n2026-01-02,2330,1,2,1,100,3" + "\n2026-01-05,2330,1,2,1,50,3" + "\n"
+    (tmp_path / "raw" / "market_raw.csv").write_text(rows, encoding="utf-8")
+    with pytest.raises(ValueError, match="Unexplained single-day price move"):
+        preprocess.preprocess_data(config, mode="api")

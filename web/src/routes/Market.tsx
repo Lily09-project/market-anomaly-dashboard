@@ -176,7 +176,8 @@ function MarketView({ market, overview, route }: { market: TwseMarket; overview:
             </thead>
             <tbody>
               {shown.map((r) => {
-                const sign = r[4] === null ? undefined : Math.sign(r[4]);
+                // Colour by the figure as displayed: a change that rounds to 0.00% is flat, not up or down.
+                const sign = r[4] === null ? undefined : Math.sign(Number((r[4] * 100).toFixed(2)));
                 return (
                   <tr key={r[0]}>
                     <th scope="row" className="mono">

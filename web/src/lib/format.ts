@@ -13,7 +13,10 @@ export function formatPercent(value: number | null | undefined, digits = 1): str
 export function formatSigned(value: number | null | undefined, digits = 2): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   const fixed = value.toFixed(digits);
-  return value > 0 ? `+${fixed}` : fixed === `-${(0).toFixed(digits)}` ? (0).toFixed(digits) : fixed;
+  const zero = (0).toFixed(digits);
+  // A value that rounds to zero carries no sign in either direction.
+  if (fixed === zero || fixed === `-${zero}`) return zero;
+  return value > 0 ? `+${fixed}` : fixed;
 }
 
 export function formatSignedPercent(value: number | null | undefined, digits = 1): string {
