@@ -789,6 +789,30 @@ details.data-table summary {
   }
 }
 
+/* ---- Boot placeholder: shown by index.html until the app mounts ---- */
+.boot {
+  display: flex;
+  min-height: 60vh;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  color: var(--muted);
+  font-size: var(--label);
+}
+
+.boot-mark {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: var(--radius-s);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--font-num);
+  font-size: 12px;
+  font-weight: var(--weight-bold);
+}
+
 /* ---- Motion preference ---- */
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -8,14 +8,31 @@ import { routeToHash, type Route } from "./lib/router";
 import type { DataFiles } from "./lib/types";
 import Home from "./routes/Home";
 
-const RegimesPage = lazy(() => import("./routes/Regimes"));
-const EventsPage = lazy(() => import("./routes/Events"));
-const BacktestPage = lazy(() => import("./routes/Backtest"));
-const StressPage = lazy(() => import("./routes/Stress"));
-const MarketPage = lazy(() => import("./routes/Market"));
-const ComparePage = lazy(() => import("./routes/Compare"));
-const SnapshotPage = lazy(() => import("./routes/Snapshot"));
-const DataTrust = lazy(() => import("./routes/DataTrust"));
+const importers = {
+  regimes: () => import("./routes/Regimes"),
+  events: () => import("./routes/Events"),
+  backtest: () => import("./routes/Backtest"),
+  stress: () => import("./routes/Stress"),
+  market: () => import("./routes/Market"),
+  compare: () => import("./routes/Compare"),
+  snapshot: () => import("./routes/Snapshot"),
+  data: () => import("./routes/DataTrust"),
+};
+const RegimesPage = lazy(importers.regimes);
+const EventsPage = lazy(importers.events);
+const BacktestPage = lazy(importers.backtest);
+const StressPage = lazy(importers.stress);
+const MarketPage = lazy(importers.market);
+const ComparePage = lazy(importers.compare);
+const SnapshotPage = lazy(importers.snapshot);
+const DataTrust = lazy(importers.data);
+
+/** Warm the route chunks once the first screen is idle, so switching tabs does not wait on the network. */
+function prefetchRoutes() {
+  const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+  if (connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType ?? "")) return;
+  for (const load of Object.values(importers)) load().catch(() => undefined);
+}
 
 /**
  * Data each lazy route gates on. Requesting it as soon as the route is known lets
@@ -84,6 +101,16 @@ export default function App({ loader }: { loader?: Loader }) {
     // Failures surface through the page's own useDataset state, not here.
     for (const file of ROUTE_DATA[key] ?? []) value.load(file).catch(() => undefined);
   }, [value, key]);
+
+  useEffect(() => {
+    const idle = window.requestIdleCallback;
+    if (idle) {
+      const id = idle(prefetchRoutes, { timeout: 4000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = window.setTimeout(prefetchRoutes, 2000);
+    return () => window.clearTimeout(id);
+  }, []);
 
   // The shell is available even when the next route's module is still loading.
   useEffect(() => {
