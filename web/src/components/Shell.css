@@ -200,6 +200,12 @@
     flex-basis: 100%;
     margin: 0 calc(-1 * var(--space-2));
     padding-bottom: var(--space-1);
+    overflow: visible;
+  }
+
+  /* Wrap instead of scrolling sideways, so every destination stays visible. */
+  .site-nav ul {
+    flex-wrap: wrap;
   }
 }
 

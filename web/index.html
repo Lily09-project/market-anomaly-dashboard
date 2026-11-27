@@ -36,7 +36,8 @@
   </head>
   <body>
     <noscript>這個網站需要啟用 JavaScript 才能執行分析與模擬。</noscript>
-    <div id="root"></div>
+    <!-- Painted before the script runs; React replaces it on mount. -->
+    <div id="root"><div class="boot" role="status"><span class="boot-mark">MRL</span>Market Regime Lab 載入中…</div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
