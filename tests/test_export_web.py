@@ -16,6 +16,14 @@ from src.analytics import risk
 FILES = ("overview.json", "regimes.json", "events.json", "backtest.json", "stress.json", "provenance.json", "twse.json", "twse_market.json")
 
 
+@pytest.fixture(scope="module", autouse=True)
+def isolate_sample_inputs(tmp_path_factory: pytest.TempPathFactory):
+    root = tmp_path_factory.mktemp("sample-pipeline")
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr("src.utils.PROJECT_ROOT", root)
+        yield
+
+
 @pytest.fixture(scope="module")
 def exported(tmp_path_factory: pytest.TempPathFactory) -> Path:
     out = tmp_path_factory.mktemp("web-data")

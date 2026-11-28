@@ -157,7 +157,7 @@ def _atomic_write(path: str | Path, writer) -> Path:
 
 
 def atomic_write_dataframe(df: pd.DataFrame, path: str | Path) -> Path:
-    return _atomic_write(path, lambda file: df.to_csv(file, index=False))
+    return _atomic_write(path, lambda file: df.to_csv(file, index=False, lineterminator="\n"))
 
 
 def ensure_project_dirs(config: dict[str, Any] | None = None) -> None:
