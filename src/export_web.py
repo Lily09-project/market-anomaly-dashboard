@@ -10,8 +10,11 @@ from src.corporate_actions import PRICE_BASIS
 
 import argparse
 import hashlib
+import io
 import json
 import math
+import os
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -400,7 +403,7 @@ def twse_payload(config: dict[str, Any], wide: pd.DataFrame, simulated: bool, tw
     for symbol in symbols:
         daily = snapshot["daily"].get(symbol)
         margin = snapshot["margin"].get(symbol)
-        if daily is None or margin is None:
+        if daily is None:
             continue
         valuation = snapshot["valuation"].get(symbol, {})
         reference = finmind.get(symbol)
@@ -412,10 +415,10 @@ def twse_payload(config: dict[str, Any], wide: pd.DataFrame, simulated: bool, tw
             "pe": _num(valuation.get("pe"), 2),
             "dividend_yield_pct": _num(valuation.get("dividend_yield_pct"), 2),
             "pb": _num(valuation.get("pb"), 2),
-            "margin_balance": _num(margin["margin_balance"], 0),
-            "margin_change": _num(margin["margin_balance"] - margin["margin_previous"], 0),
-            "short_balance": _num(margin["short_balance"], 0),
-            "short_change": _num(margin["short_balance"] - margin["short_previous"], 0),
+            "margin_balance": _num(margin["margin_balance"], 0) if margin else None,
+            "margin_change": _num(margin["margin_balance"] - margin["margin_previous"], 0) if margin else None,
+            "short_balance": _num(margin["short_balance"], 0) if margin else None,
+            "short_change": _num(margin["short_balance"] - margin["short_previous"], 0) if margin else None,
             "cross_check": None if reference is None or daily["close"] is None else {
                 "finmind_close": _num(reference, 2),
                 "match": abs(reference - daily["close"]) <= CROSS_CHECK_TOLERANCE,
@@ -452,9 +455,30 @@ def market_wide_payload(trade_date: str | None, simulated: bool, twse_path: Path
     return {"status": "ok", "trade_date": snapshot["trade_date"], "columns": columns, "rows": snapshot["all"], "sources": TWSE_SOURCES}
 
 
+def _analyse_symbol(job):
+    symbol, dates, prices, truth, jump_dates = job
+    returns = np.diff(np.log(prices))
+    regime, model, _ = analyse_regimes(returns, truth)
+    event_info, negatives, positives = analyse_events(dates, returns, model, regime["segments"], jump_dates)
+    return regime, event_info, negatives, positives, analyse_backtest(dates, prices)
+
+
+def _analyse_symbols(jobs):
+    if len(jobs) < 32:
+        yield from map(_analyse_symbol, jobs)
+        return
+    workers = min(8, os.cpu_count() or 1)
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        for completed, result in enumerate(pool.map(_analyse_symbol, jobs), start=1):
+            if completed % 25 == 0 or completed == len(jobs):
+                print(f"Analysed {completed}/{len(jobs)} symbols.", flush=True)
+            yield result
+
+
 def export(out_dir: Path, cleaned_path: Path | None = None, twse_path: Path | None = None) -> dict[str, str]:
     config = load_config()
-    cleaned = pd.read_csv(cleaned_path or project_path(config["data"]["cleaned_path"]), dtype={"symbol": "string"})
+    input_bytes = Path(cleaned_path or project_path(config["data"]["cleaned_path"])).read_bytes()
+    cleaned = pd.read_csv(io.BytesIO(input_bytes), dtype={"symbol": "string"})
     cleaned = cleaned.sort_values(["symbol", "date"], kind="stable")
     wide = cleaned.pivot(index="date", columns="symbol", values="close").sort_index().dropna()
     if len(wide) < MIN_HISTORY_DAYS:
@@ -462,6 +486,7 @@ def export(out_dir: Path, cleaned_path: Path | None = None, twse_path: Path | No
     dates = list(wide.index)
     simulated = bool((cleaned.get("data_source", pd.Series(["sample"])) == "sample").all())
     provider = str(config.get("api", {}).get("provider", "unknown"))
+    names = NAMES | config.get("api", {}).get("sampled_names", {})
     source_quality = _finmind_source_quality(config, provider, simulated)
     sample_dir = project_path(config["data"]["sample_market_path"]).parent
     truth_states = None
@@ -472,7 +497,7 @@ def export(out_dir: Path, cleaned_path: Path | None = None, twse_path: Path | No
         truth_states = truth_frame["state"].map(order).to_numpy()[1:].astype(int)
         truth_jumps = pd.read_csv(sample_dir / "injected_events.csv", dtype={"symbol": "string"})
 
-    overview: dict[str, Any] = {"dates": dates, "symbols": []}
+    overview: dict[str, Any] = {"dates": dates, "symbols": [], "backtest_summary": {}}
     regimes_payload: dict[str, Any] = {"labels": list(STATE_LABELS), "symbols": {}}
     events_payload: dict[str, Any] = {"threshold": EVENT_Z, "window": list(events.WINDOW), "symbols": {}}
     backtest_payload: dict[str, Any] = {"symbols": {}}
@@ -482,14 +507,21 @@ def export(out_dir: Path, cleaned_path: Path | None = None, twse_path: Path | No
     control_events: list[np.ndarray] = []
     matched = injected_total = detected_total = 0
 
-    for symbol in wide.columns:
-        prices = wide[symbol].to_numpy(dtype=float)
+    jobs = [
+        (
+            symbol,
+            dates,
+            wide[symbol].to_numpy(dtype=float),
+            truth_states if symbol != CONTROL_SYMBOL else None,
+            set(truth_jumps.loc[truth_jumps["symbol"] == symbol, "date"]) if truth_jumps is not None else None,
+        )
+        for symbol in wide.columns
+    ]
+    for job, result in zip(jobs, _analyse_symbols(jobs), strict=True):
+        symbol, _, prices, _, jump_dates = job
+        regime, event_info, negatives, positives, backtest_result = result
         returns = np.diff(np.log(prices))
         is_control = symbol == CONTROL_SYMBOL
-        truth = truth_states if truth_states is not None and not is_control else None
-        regime, model, _ = analyse_regimes(returns, truth)
-        jump_dates = set(truth_jumps.loc[truth_jumps["symbol"] == symbol, "date"]) if truth_jumps is not None else None
-        event_info, negatives, positives = analyse_events(dates, returns, model, regime["segments"], jump_dates)
         if is_control:
             control_events += negatives + positives
         else:
@@ -504,7 +536,7 @@ def export(out_dir: Path, cleaned_path: Path | None = None, twse_path: Path | No
         overview["symbols"].append(
             {
                 "symbol": symbol,
-                "name": NAMES.get(symbol, symbol),
+                "name": names.get(symbol, symbol),
                 "is_control": is_control,
                 "close": _nums(prices, 4),
                 "total_return": _num(prices[-1] / prices[0] - 1, 4),
@@ -517,7 +549,13 @@ def export(out_dir: Path, cleaned_path: Path | None = None, twse_path: Path | No
         )
         regimes_payload["symbols"][symbol] = regime
         events_payload["symbols"][symbol] = event_info
-        backtest_payload["symbols"][symbol] = analyse_backtest(dates, prices)
+        backtest_payload["symbols"][symbol] = backtest_result
+        overview["backtest_summary"][symbol] = {
+            "pbo": backtest_result["pbo"],
+            "oos_sharpe_stitched": backtest_result["oos_sharpe_stitched"],
+            "buy_hold_sharpe_oos": backtest_result["buy_hold_sharpe_oos"],
+            "best_full_sharpe": backtest_result["full_sharpe"][backtest_result["best_full"]],
+        }
         if symbol in ("0050", CONTROL_SYMBOL):
             stress_payload["parity"] += stress_parity(symbol, returns)
 
@@ -536,7 +574,6 @@ def export(out_dir: Path, cleaned_path: Path | None = None, twse_path: Path | No
         else None
     )
 
-    input_bytes = Path(cleaned_path or project_path(config["data"]["cleaned_path"])).read_bytes()
     if simulated:
         source_label = "Reproducible synthetic test data"
         market_sources = [{"label": "合成資料產生器（測試用 fixture）", "url": "https://github.com/Lily09-project/market-anomaly-dashboard"}]

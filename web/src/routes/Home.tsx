@@ -9,7 +9,7 @@ import { formatNumber, formatPercent, formatSignedPercent } from "../lib/format"
 import { drawdowns, mostVolatileState, rollingVolatility, statesByDay } from "../lib/market";
 import { PERIOD_DAYS, routeToHash, type Route } from "../lib/router";
 import { logReturns } from "../lib/stress";
-import type { Backtest, Events, Overview, Provenance, Regimes, Segment } from "../lib/types";
+import type { Backtest, BacktestSummary, Events, Overview, Provenance, Regimes, Segment } from "../lib/types";
 import "./Home.css";
 
 type HomeRoute = Extract<Route, { name: "home" }>;
@@ -37,19 +37,31 @@ interface Finding {
 }
 
 /** Cross-symbol headline computed from the loaded results; the control series is excluded. */
-function computeFinding(overview: Overview, regimes: Regimes, backtest: Backtest): Finding | null {
-  const symbols = overview.symbols.filter((s) => !s.is_control && backtest.symbols[s.symbol] && regimes.symbols[s.symbol]).map((s) => s.symbol);
+function computeFinding(overview: Overview, regimes: Regimes, backtest: Record<string, BacktestSummary>): Finding | null {
+  const symbols = overview.symbols.filter((s) => !s.is_control && backtest[s.symbol] && regimes.symbols[s.symbol]).map((s) => s.symbol);
   const n = symbols.length;
   if (n === 0) return null;
   return {
     n,
-    overfit: symbols.filter((s) => backtest.symbols[s]!.pbo >= 0.5).length,
-    losing: symbols.filter((s) => backtest.symbols[s]!.oos_sharpe_stitched < backtest.symbols[s]!.buy_hold_sharpe_oos).length,
+    overfit: symbols.filter((s) => backtest[s]!.pbo >= 0.5).length,
+    losing: symbols.filter((s) => backtest[s]!.oos_sharpe_stitched < backtest[s]!.buy_hold_sharpe_oos).length,
     stressed: symbols.filter((s) => {
       const r = regimes.symbols[s]!;
       return r.current.state === mostVolatileState(r.vol_annual);
     }).length,
   };
+}
+
+function compactBacktest(backtest: Backtest): Record<string, BacktestSummary> {
+  return Object.fromEntries(Object.entries(backtest.symbols).map(([symbol, result]) => [
+    symbol,
+    {
+      pbo: result.pbo,
+      oos_sharpe_stitched: result.oos_sharpe_stitched,
+      buy_hold_sharpe_oos: result.buy_hold_sharpe_oos,
+      best_full_sharpe: result.full_sharpe[result.best_full]!,
+    },
+  ]));
 }
 
 const FIGURES: { key: keyof Omit<Finding, "n">; label: string }[] = [
@@ -58,15 +70,9 @@ const FIGURES: { key: keyof Omit<Finding, "n">; label: string }[] = [
   { key: "stressed", label: "目前處於高波動狀態" },
 ];
 
-/** n cells, `filled` of them lit: the count drawn as a share. */
+/** The fill shows the same proportion as the visible count. */
 function Meter({ filled, n }: { filled: number; n: number }) {
-  return (
-    <span className="meter" aria-hidden="true">
-      {Array.from({ length: n }, (_, i) => (
-        <span key={i} data-on={i < filled || undefined} style={{ "--i": i } as CSSProperties} />
-      ))}
-    </span>
-  );
+  return <span className="meter" aria-hidden="true" style={{ "--share": `${100 * filled / n}%` } as CSSProperties} />;
 }
 
 /**
@@ -187,12 +193,12 @@ function Contents({ symbol }: { symbol: string | undefined }) {
   );
 }
 
-function Dashboard({ overview, regimes, backtest, events, provenance, route }: { overview: Overview; regimes: Regimes; backtest: Backtest; events: Events; provenance: Provenance; route: HomeRoute }) {
+function Dashboard({ overview, regimes, backtest, events, provenance, route }: { overview: Overview; regimes: Regimes; backtest: Record<string, BacktestSummary>; events: Events; provenance: Provenance; route: HomeRoute }) {
   const symbol = pickSymbol(overview, route.symbol);
   const period = route.period ?? "all";
   const series = overview.symbols.find((s) => s.symbol === symbol)!;
   const regime = regimes.symbols[symbol]!;
-  const bt = backtest.symbols[symbol]!;
+  const bt = backtest[symbol]!;
   const days = PERIOD_DAYS[period];
   const from = days === null ? 0 : Math.max(overview.dates.length - days, 0);
   const dates = overview.dates.slice(from);
@@ -266,7 +272,7 @@ function Dashboard({ overview, regimes, backtest, events, provenance, route }: {
             </li>
             <li>
               <a href={routeToHash({ name: "backtest", symbol })}>誠實回測</a>：均線策略的回測過度擬合機率 <strong>{formatPercent(bt.pbo, 0)}</strong>，walk-forward 樣本外 Sharpe{" "}
-              <strong>{formatNumber(bt.oos_sharpe_stitched, 2)}</strong>（全期最佳參數 {formatNumber(bt.full_sharpe[bt.best_full], 2)}）。
+              <strong>{formatNumber(bt.oos_sharpe_stitched, 2)}</strong>（全期最高 Sharpe {formatNumber(bt.best_full_sharpe, 2)}）。
             </li>
             <li>
               <a href={routeToHash({ name: "events", symbol })}>異常事件</a>：所有標的合計，負向衝擊後 3 日平均累積異常報酬{" "}
@@ -358,7 +364,10 @@ export default function Home({ route }: { route: HomeRoute }) {
   useDocumentTitle("");
   const overview = useDataset("overview.json");
   const regimes = useDataset("regimes.json");
-  const backtest = useDataset("backtest.json");
+  const summary = overview.status === "ready" ? overview.data.backtest_summary : undefined;
+  const legacyBacktest = useDataset<"backtest.json">(overview.status === "ready" && !summary ? "backtest.json" : null);
+  const backtest = summary ? { status: "ready", data: summary } as const
+    : legacyBacktest.status === "ready" ? { status: "ready", data: compactBacktest(legacyBacktest.data) } as const : legacyBacktest;
   const events = useDataset("events.json");
   const provenance = useDataset("provenance.json");
   const finding =
@@ -371,13 +380,16 @@ export default function Home({ route }: { route: HomeRoute }) {
       <Cover finding={finding} provenance={provenance.status === "ready" ? provenance.data : null} analysed={analysed} ready={settled} />
       <Contents symbol={symbol} />
       <SymbolBar route={route} />
-      <Gate<[Overview, Regimes, Backtest, Events, Provenance]> states={[overview, regimes, backtest, events, provenance]}>
-        {(o, r, b, e, p) => (
-          <>
-            <Dashboard overview={o} regimes={r} backtest={b} events={e} provenance={p} route={route} />
-            <TwsePanel symbol={pickSymbol(o, route.symbol)} />
-          </>
-        )}
+      <Gate<[Overview, Regimes, Record<string, BacktestSummary>, Events, Provenance]> states={[overview, regimes, backtest, events, provenance]}>
+        {(o, r, b, e, p) => {
+          const selected = o.symbols.find((item) => item.symbol === pickSymbol(o, route.symbol));
+          return (
+            <>
+              <Dashboard overview={o} regimes={r} backtest={b} events={e} provenance={p} route={route} />
+              {selected && <TwsePanel symbol={selected.symbol} isControl={selected.is_control} />}
+            </>
+          );
+        }}
       </Gate>
     </div>
   );

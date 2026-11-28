@@ -40,7 +40,7 @@ function Metric({ label, value, note }: { label: string; value: string; note?: s
   );
 }
 
-function TwseView({ twse, symbol }: { twse: Twse; symbol: string }) {
+function TwseView({ twse, symbol, isControl }: { twse: Twse; symbol: string; isControl: boolean }) {
   if (twse.status === "unavailable" || twse.trade_date === null) {
     return (
       <p className="notice" data-testid="twse-unavailable">
@@ -76,7 +76,9 @@ function TwseView({ twse, symbol }: { twse: Twse; symbol: string }) {
             <CrossCheck row={row} date={date} />
           </>
         ) : (
-          <p className="muted">這個標的沒有交易所資料（隨機漫步對照組）。</p>
+          <p className="muted">
+            {isControl ? "這個標的沒有交易所資料（隨機漫步對照組）。" : `證交所 ${date} 的盤後快照未包含 ${symbol}。`}
+          </p>
         )}
       </div>
       {market.length === 1 && (
@@ -124,7 +126,7 @@ function TwseView({ twse, symbol }: { twse: Twse; symbol: string }) {
 }
 
 /** Latest TWSE after-hours snapshot; loads on its own so a failure never blocks the dashboard. */
-export function TwsePanel({ symbol }: { symbol: string }) {
+export function TwsePanel({ symbol, isControl }: { symbol: string; isControl: boolean }) {
   const twse = useDataset("twse.json");
   const ready = twse.status === "ready" ? twse.data : null;
   return (
@@ -138,7 +140,7 @@ export function TwsePanel({ symbol }: { symbol: string }) {
           預覽用合成數值，正式網站會換成證交所 OpenAPI 的資料。
         </p>
       )}
-      <Gate<[Twse]> states={[twse]}>{(t) => <TwseView twse={t} symbol={symbol} />}</Gate>
+      <Gate<[Twse]> states={[twse]}>{(t) => <TwseView twse={t} symbol={symbol} isControl={isControl} />}</Gate>
       <p className="muted small">
         來源：<a href="https://openapi.twse.com.tw/">證交所 OpenAPI</a>，依<a href="https://data.gov.tw/license">政府資料開放授權條款</a>使用。只提供最新一個交易日，不是即時報價；融資券資料集未標日期，視為同一批盤後公告。
       </p>

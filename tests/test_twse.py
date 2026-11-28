@@ -80,6 +80,14 @@ def test_suspension_lagging_valuation_and_month_series_degrade_without_failing()
     assert snapshot["market"] == []
 
 
+def test_sampled_symbol_keeps_daily_quote_without_margin():
+    payloads = _payloads()
+    payloads["margin"] = [row for row in payloads["margin"] if row["股票代號"] != "2330"]
+    snapshot = normalize_twse_payloads(payloads, SYMBOLS, optional_symbols=frozenset({"2330"}))
+    assert snapshot["daily"]["2330"]["close"] == 2415.0
+    assert "2330" not in snapshot["margin"]
+
+
 class _Response:
     def __init__(self, payload, url):
         self.content = json.dumps(payload).encode()

@@ -28,6 +28,12 @@
 .cover-body {
   display: grid;
   gap: var(--space-6);
+  padding: clamp(var(--space-4), 3vw, var(--space-7));
+  border: var(--hairline);
+  border-radius: var(--radius-xl);
+  background:
+    radial-gradient(ellipse at 18% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 62%),
+    var(--bg-sunken);
 }
 
 .cover-copy {
@@ -133,19 +139,10 @@
 
 /* One cell per analysed symbol; lit cells are the count. */
 .meter {
-  display: flex;
-  gap: 3px;
-}
-
-.meter > span {
-  width: 10px;
-  height: 6px;
+  width: min(100%, 7rem);
+  height: 100%;
   border-radius: var(--radius-xs);
-  background: var(--line);
-}
-
-.meter > span[data-on] {
-  background: var(--accent);
+  background: linear-gradient(90deg, var(--accent) var(--share), var(--line) var(--share));
 }
 
 .cover-link {
@@ -162,14 +159,15 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
   gap: 0;
   margin: 0;
-  border-top: var(--hairline);
-  border-bottom: var(--hairline);
+  border: var(--hairline);
+  border-radius: var(--radius-l);
+  background: var(--bg-sunken);
 }
 
 .cover-colophon > div {
   display: grid;
   gap: 2px;
-  padding: var(--space-3) var(--space-4) var(--space-3) 0;
+  padding: var(--space-3) var(--space-4);
   min-width: 0;
 }
 
@@ -213,17 +211,11 @@
     align-items: center;
   }
 
-  .cover-finding {
-    padding-left: var(--space-6);
-    border-left: var(--hairline);
-  }
-
   .cover-colophon {
     grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
   }
 
   .cover-colophon > div + div {
-    padding-left: var(--space-4);
     border-left: var(--hairline);
   }
 }
@@ -246,6 +238,12 @@
   list-style: none;
 }
 
+@media (min-width: 1024px) {
+  .contents ol {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 .contents li {
   min-width: 0;
 }
@@ -265,7 +263,7 @@
   transition: border-color var(--duration) var(--ease), background var(--duration) var(--ease);
 }
 
-.contents a:hover {
+.contents a:is(:hover, :focus-visible) {
   border-color: var(--accent);
   background: var(--bg-raised);
 }
@@ -362,8 +360,7 @@
   color: var(--accent);
 }
 
-/* Flat dot grid behind the title. The dot colour is --line (#353d49) written out, because a
-   data: URI cannot read custom properties; it is one flat fill, not a gradient. */
+/* Fade the terminal grid before it reaches the body copy. */
 .cover-copy {
   position: relative;
   isolation: isolate;
@@ -374,40 +371,28 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Ccircle cx='2' cy='2' r='1' fill='%23353d49'/%3E%3C/svg%3E");
-  opacity: 0.55;
+  background-image: radial-gradient(circle, var(--line-strong) 1px, transparent 1px);
+  background-size: 16px 16px;
+  opacity: 0.4;
   pointer-events: none;
-  -webkit-mask-image: linear-gradient(90deg, #000 30%, transparent 100%);
-  mask-image: linear-gradient(90deg, #000 30%, transparent 100%);
+  mask-image: linear-gradient(155deg, transparent 22%, black 55%, transparent 82%);
 }
 
-/* The finding becomes a raised panel with a thick accent edge. */
+/* Give the finding its own surface within the cover. */
 .cover-finding {
   padding: var(--space-5);
   border: var(--hairline);
-  border-top: 3px solid var(--accent);
   border-radius: var(--radius-xl);
-  background: var(--bg-raised);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 6%, var(--bg-raised)), var(--bg-raised) 64%);
+  box-shadow: inset 0 2px 0 var(--accent), 0 14px 28px -18px rgb(0 0 0 / 0.75);
 }
 
 .cover-figures > div:last-child {
   border-bottom: 0;
 }
 
-.meter > span {
-  width: 14px;
-  height: 8px;
-}
-
 .cover-figures dd {
   grid-template-rows: auto 8px;
-}
-
-@media (min-width: 1024px) {
-  .cover-finding {
-    padding-left: var(--space-5);
-    border-left: var(--hairline);
-  }
 }
 
 /* Contents cards: bigger chapter number and an arrow that slides in on hover. */
@@ -439,17 +424,10 @@
   transform: translate(0, -50%);
 }
 
-/* Entry motion: transform only (opacity stays 1, so contrast checks are never mid-fade).
-   The global reduced-motion rule collapses these to a single frame. */
+/* Entry motion uses transforms so the text stays visible. */
 @keyframes cover-rise {
   from {
     transform: translateY(10px);
-  }
-}
-
-@keyframes meter-fill {
-  from {
-    transform: scaleY(0);
   }
 }
 
@@ -472,15 +450,22 @@
   animation-delay: 200ms;
 }
 
-.meter > span[data-on] {
-  transform-origin: bottom;
-  animation: meter-fill 420ms var(--ease) backwards;
-  animation-delay: calc(var(--i, 0) * 60ms + 200ms);
+@media (prefers-reduced-motion: reduce) {
+  .cover-title,
+  .cover-copy .lede,
+  .cover-finding,
+  .cover-colophon {
+    animation: none;
+  }
 }
 
 @media (max-width: 640px) {
   .cover-finding {
     padding: var(--space-4);
+  }
+
+  .cover-colophon > div {
+    padding-inline: var(--space-3);
   }
 
   .contents a {
