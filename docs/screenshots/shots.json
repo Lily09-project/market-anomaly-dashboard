@@ -45,6 +45,18 @@
       "file": "market.png",
       "route": "/market?sort=value_twd&desc=1",
       "waitFor": "[data-testid=market-table]"
+    },
+    {
+      "file": "symbol-search.png",
+      "route": "/regimes?symbol=2330",
+      "viewport": {
+        "width": 1440,
+        "height": 760
+      },
+      "clicks": [".symbol-search-input"],
+      "type": "23",
+      "keepFocus": true,
+      "waitFor": ".symbol-search-list li"
     }
   ]
 }

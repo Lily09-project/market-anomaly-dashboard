@@ -38,10 +38,15 @@ try {
     for (const click of shot.clicks ?? []) {
       await page.locator(click).first().click();
     }
+    // Text typed into whatever the clicks focused (for example the symbol search).
+    if (shot.type) await page.keyboard.type(shot.type);
     if (shot.waitFor) await page.locator(shot.waitFor).first().waitFor({ timeout: 60000 });
     // Park the pointer and drop focus so no hover or focus ring ends up in the image.
     await page.mouse.move(0, 0);
-    await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
+    // keepFocus: the shot is of an open popup that closes on blur.
+    if (!shot.keepFocus) {
+      await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
+    }
     await page.waitForTimeout(600);
     const out = path.join(outDir, shot.file);
     if (shot.element) {
