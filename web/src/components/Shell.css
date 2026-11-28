@@ -277,7 +277,7 @@
 }
 
 /* Tablets and narrow desktops: the labels alone already fill the row. */
-@media (min-width: 641px) and (max-width: 1279.98px) {
+@media (min-width: 641px) and (max-width: 1359.98px) {
   .nav-icon {
     display: none;
   }
@@ -290,5 +290,21 @@
     gap: 2px;
     padding-block: 6px;
     line-height: 1.2;
+  }
+}
+
+/* Small laptops (1024–1199px): nine tabs, the brand and the data badge share one
+   row. Tighter tabs and gaps keep it to one line with no sideways scrollbar. */
+@media (min-width: 1024px) and (max-width: 1199.98px) {
+  .site-header-inner {
+    gap: var(--space-3);
+  }
+
+  .site-nav a {
+    padding: 0 6px;
+  }
+
+  .brand-text strong {
+    white-space: nowrap;
   }
 }
