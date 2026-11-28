@@ -206,3 +206,34 @@ main {
     padding-bottom: var(--space-4);
   }
 }
+
+/* ---- Page title icon: the same mark as the page's navigation tab ---- */
+.page-head h1 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.page-icon {
+  display: inline-grid;
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: var(--radius-l);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+@media (max-width: 640px) {
+  .page-icon {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  .page-icon .icon {
+    width: 20px;
+    height: 20px;
+  }
+}

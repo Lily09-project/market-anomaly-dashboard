@@ -1,5 +1,6 @@
 import { useDeferredValue, useEffect, useState } from "react";
 import { useDataset, useDocumentTitle, useRoute } from "../app/hooks";
+import { Icon } from "../components/Icon";
 import { ScrollRegion } from "../components/ScrollRegion";
 import { Gate } from "../components/States";
 import { formatNumber, formatSigned, formatSignedPercent } from "../lib/format";
@@ -233,7 +234,12 @@ export default function Market({ route }: { route: MarketRoute }) {
       {/* Everything above the gate is static, so nothing in the first screen moves when data arrives (CLS). */}
       <header className="page-head market-head">
         <p className="eyebrow">證交所 OpenAPI · 最新一個交易日</p>
-        <h1>全市場盤後一覽</h1>
+        <h1>
+          <span className="page-icon">
+            <Icon name="market" size={24} />
+          </span>
+          全市場盤後一覽
+        </h1>
         <div className="market-intro">
           <p className="lede">
             所有上市股票與 ETF 的收盤、漲跌、成交值、估值與融資變化。名稱有連結的是有完整市場狀態、異常事件與回測分析的標的。這裡只有最新一天，不是即時報價，也不構成投資建議。

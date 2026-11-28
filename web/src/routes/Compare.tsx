@@ -3,6 +3,7 @@ import { useDataset, useDocumentTitle, useRoute } from "../app/hooks";
 import { ChartFrame, Legend, LineChart } from "../components/charts";
 import { PageHead } from "../components/PageHead";
 import { ScrollRegion } from "../components/ScrollRegion";
+import { SEARCH_THRESHOLD, SymbolSearch, toSymbolOptions } from "../components/SymbolSearch";
 import { EmptyState, Gate } from "../components/States";
 import { downloadText, toCsv } from "../lib/csv";
 import { formatNumber, formatPercent } from "../lib/format";
@@ -30,11 +31,17 @@ function Comparison({ data, route }: { data: Overview; route: CompareRoute }) {
   const names = [a, b].map((item) => `${item.symbol} ${item.name}`);
   const update = (patch: Partial<CompareRoute>) => navigate({ name: "compare", symbol: a.symbol, against: b.symbol, period, date: selectedDay?.date, ...patch });
   const options = symbols.map((item) => <option key={item.symbol} value={item.symbol}>{item.symbol} {item.name}</option>);
+  const searchable = symbols.length > SEARCH_THRESHOLD;
+  const searchOptions = searchable ? toSymbolOptions(symbols) : [];
   return (
     <div className="stack">
       <section className="card controls-row" aria-label="比較設定">
-        <div className="field"><label htmlFor="compare-symbol-a">標的 A</label><select className="input" id="compare-symbol-a" value={a.symbol} onChange={(event) => update({ symbol: event.target.value })}>{options}</select></div>
-        <div className="field"><label htmlFor="compare-symbol-b">標的 B</label><select className="input" id="compare-symbol-b" value={b.symbol} onChange={(event) => update({ against: event.target.value })}>{options}</select></div>
+        <div className="field"><label htmlFor="compare-symbol-a">標的 A</label>{searchable
+          ? <SymbolSearch id="compare-symbol-a" label="標的 A" options={searchOptions} value={a.symbol} onChange={(symbol) => update({ symbol })} />
+          : <select className="input" id="compare-symbol-a" value={a.symbol} onChange={(event) => update({ symbol: event.target.value })}>{options}</select>}</div>
+        <div className="field"><label htmlFor="compare-symbol-b">標的 B</label>{searchable
+          ? <SymbolSearch id="compare-symbol-b" label="標的 B" options={searchOptions} value={b.symbol} onChange={(against) => update({ against })} />
+          : <select className="input" id="compare-symbol-b" value={b.symbol} onChange={(event) => update({ against: event.target.value })}>{options}</select>}</div>
         <div className="field"><label htmlFor="compare-period">共同交易期間</label><select className="input" id="compare-period" value={period} onChange={(event) => update({ period: event.target.value as Period })}>
           <option value="1y">近 252 個交易日</option><option value="3y">近 756 個交易日</option><option value="all">全部</option>
         </select></div>
@@ -70,7 +77,7 @@ function Comparison({ data, route }: { data: Overview; route: CompareRoute }) {
           <LineChart labels={rows.map((row) => row.date)} series={[
             { key: "a", label: names[0]!, values: rows.map((row) => row.a), tone: 1 },
             { key: "b", label: names[1]!, values: rows.map((row) => row.b), tone: 2 },
-          ]} reference={{ value: 100, label: "起點" }} marker={selectedIndex} onPointSelect={selectDay} />
+          ]} reference={{ value: 100, label: "起點" }} valueFormat={(v) => formatNumber(v, 2)} marker={selectedIndex} onPointSelect={selectDay} />
           <Legend items={[{ key: "a", label: names[0]!, tone: 1 }, { key: "b", label: names[1]!, tone: 2 }]} />
         </ChartFrame>
         <button className="btn" type="button" onClick={() => downloadText(

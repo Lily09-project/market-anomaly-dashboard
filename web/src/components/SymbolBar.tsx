@@ -1,8 +1,9 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useMemo, useRef } from "react";
 import { useDataset, useRoute } from "../app/hooks";
 import { formatNumber, formatSignedPercent } from "../lib/format";
 import type { Period, Route } from "../lib/router";
 import { pickSymbol } from "./Common";
+import { SEARCH_THRESHOLD, SymbolSearch, toSymbolOptions } from "./SymbolSearch";
 import "./SymbolBar.css";
 
 type AnalysisRoute = Extract<Route, { name: "home" | "regimes" | "events" | "backtest" | "stress" }>;
@@ -31,7 +32,8 @@ export function SymbolBar({ route }: { route: AnalysisRoute }) {
   const rail = useRef<HTMLDivElement>(null);
   const id = useId();
   const data = overview.status === "ready" ? overview.data : null;
-  const useSelect = (data?.symbols.length ?? 0) > 12;
+  const useSelect = (data?.symbols.length ?? 0) > SEARCH_THRESHOLD;
+  const options = useMemo(() => (data ? toSymbolOptions(data.symbols) : []), [data]);
   const symbol = data ? pickSymbol(data, route.symbol) : route.symbol;
   const series = data?.symbols.find((s) => s.symbol === symbol);
   const last = series?.close.at(-1);
@@ -79,16 +81,14 @@ export function SymbolBar({ route }: { route: AnalysisRoute }) {
           標的
         </span>
         {useSelect ? (
-          <select
-            className="symbol-select"
-            aria-labelledby={`${id}-symbols`}
-            value={symbol}
-            onChange={(event) => navigate(withSymbol(route, event.target.value), { replace: true })}
-          >
-            {data?.symbols.map((item) => (
-              <option key={item.symbol} value={item.symbol}>{item.symbol} {item.name}</option>
-            ))}
-          </select>
+          <SymbolSearch
+            options={options}
+            value={symbol ?? ""}
+            label="標的"
+            labelledBy={`${id}-symbols`}
+            shortcut
+            onChange={(next) => navigate(withSymbol(route, next), { replace: true })}
+          />
         ) : <div className="symbol-rail" ref={rail} role="radiogroup" aria-labelledby={`${id}-symbols`}>
           {data?.symbols.map((s) => (
             <label key={s.symbol} className="symbol-chip" data-control={s.is_control || undefined}>

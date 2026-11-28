@@ -1,8 +1,9 @@
-import { useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { LoaderContext, useDataset, useDocumentTitle } from "../app/hooks";
 import { PageHead } from "../components/PageHead";
 import { ScrollRegion } from "../components/ScrollRegion";
 import { Gate, Loading } from "../components/States";
+import { SEARCH_THRESHOLD, SymbolSearch, toSymbolOptions } from "../components/SymbolSearch";
 import { downloadText } from "../lib/csv";
 import { formatNumber } from "../lib/format";
 import { createSnapshot, diffSnapshots, MAX_SNAPSHOT_BYTES, validateSnapshot, type Snapshot, type ValidationResult } from "../lib/snapshot";
@@ -31,6 +32,7 @@ function Creator({ data, schemaVersion }: { data: Data; schemaVersion: string })
   const [label, setLabel] = useState("");
   const [created, setCreated] = useState<Snapshot | null>(null);
   const { run, cancel, running, progress, error } = useStressWorker();
+  const searchOptions = useMemo(() => toSymbolOptions(data.overview.symbols), [data.overview.symbols]);
 
   const build = async () => {
     const series = data.overview.symbols.find((s) => s.symbol === symbol)!;
@@ -67,16 +69,23 @@ function Creator({ data, schemaVersion }: { data: Data; schemaVersion: string })
       <h2 id="create-title">建立研究快照</h2>
       <p className="muted">快照保存資料指紋、參數與結果。SHA-256 只檢查內容一致性，來源仍需自行確認。</p>
       <div className="snapshot-form">
-        <label className="field">
-          <span className="label">標的</span>
-          <select className="input" value={symbol} onChange={(e) => setSymbol(e.target.value)}>
-            {data.overview.symbols.map((s) => (
-              <option key={s.symbol} value={s.symbol}>
-                {s.symbol} {s.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {data.overview.symbols.length > SEARCH_THRESHOLD ? (
+          <div className="field">
+            <label className="label" htmlFor="snapshot-symbol">標的</label>
+            <SymbolSearch id="snapshot-symbol" label="標的" options={searchOptions} value={symbol} onChange={setSymbol} />
+          </div>
+        ) : (
+          <label className="field">
+            <span className="label">標的</span>
+            <select className="input" value={symbol} onChange={(e) => setSymbol(e.target.value)}>
+              {data.overview.symbols.map((s) => (
+                <option key={s.symbol} value={s.symbol}>
+                  {s.symbol} {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="field snapshot-label">
           <span className="label">備註（選填，最多 120 字）</span>
           <input className="input" value={label} maxLength={120} onChange={(e) => setLabel(e.target.value)} />

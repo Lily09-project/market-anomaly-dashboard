@@ -52,7 +52,7 @@ function StudyChart({ study, title }: { study: Study; title: string }) {
         </table>
       }
     >
-      <LineChart series={series} labels={study.post_offsets.map((o) => `+${o} 日`)} reference={{ value: 0, label: "0" }} format={(v) => formatPercent(v, 1)} height={220} />
+      <LineChart series={series} labels={study.post_offsets.map((o) => `+${o} 日`)} reference={{ value: 0, label: "0" }} format={(v) => formatPercent(v, 1)} valueFormat={(v) => formatPercent(v, 2)} height={220} />
     </ChartFrame>
   );
 }
@@ -269,6 +269,7 @@ function EventsView({ overview, events, regimes, route }: { overview: Overview; 
                       labels={selected.car_post.map((_, i) => `+${i + 1} 日`)}
                       reference={{ value: 0, label: "0" }}
                       format={(x) => formatPercent(x, 1)}
+                      valueFormat={(x) => formatPercent(x, 2)}
                       height={200}
                     />
                   </ChartFrame>

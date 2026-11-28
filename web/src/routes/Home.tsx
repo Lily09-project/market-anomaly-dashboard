@@ -3,6 +3,7 @@ import { useDataset, useDocumentTitle } from "../app/hooks";
 import { ChartFrame, Legend, LineChart } from "../components/charts";
 import { pickSymbol, StateChip } from "../components/Common";
 import { Gate } from "../components/States";
+import { Icon } from "../components/Icon";
 import { SymbolBar } from "../components/SymbolBar";
 import { TwsePanel } from "../components/Twse";
 import { formatNumber, formatPercent, formatSignedPercent } from "../lib/format";
@@ -182,7 +183,10 @@ function Contents({ symbol }: { symbol: string | undefined }) {
                 {String(i + 1).padStart(2, "0")}
               </span>
               <span className="contents-text">
-                <strong>{step.label}</strong>
+                <strong>
+                  <Icon name={step.name} size={16} className="contents-icon" />
+                  {step.label}
+                </strong>
                 <span>{step.question}</span>
               </span>
             </a>
@@ -318,7 +322,7 @@ function Dashboard({ overview, regimes, backtest, events, provenance, route }: {
               </table>
             }
           >
-            <LineChart series={[{ key: "close", label: "收盤價", values: close, tone: 1 }]} labels={dates} stripes={stripes} format={(v) => formatNumber(v, 0)} height={320} />
+            <LineChart series={[{ key: "close", label: "收盤價", values: close, tone: 1 }]} labels={dates} stripes={stripes} format={(v) => formatNumber(v, 0)} valueFormat={(v) => formatNumber(v, 2)} height={320} />
           </ChartFrame>
           <Legend items={[{ key: "close", label: "收盤價", tone: 1 }, ...regime.labels.map((label, state) => ({ key: label, label, state }))]} />
           <p className="chart-note">
@@ -352,7 +356,7 @@ function Dashboard({ overview, regimes, backtest, events, provenance, route }: {
               </table>
             }
           >
-            <LineChart series={[{ key: "vol", label: "波動率", values: vol, tone: 2 }]} labels={dates} stripes={stripes} format={(v) => formatPercent(v, 0)} height={180} />
+            <LineChart series={[{ key: "vol", label: "波動率", values: vol, tone: 2 }]} labels={dates} stripes={stripes} format={(v) => formatPercent(v, 0)} valueFormat={(v) => formatPercent(v, 1)} height={180} />
           </ChartFrame>
         </section>
       </div>

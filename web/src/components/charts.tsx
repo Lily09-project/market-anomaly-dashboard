@@ -1,6 +1,6 @@
 import { scaleLinear } from "../lib/scale";
 import { area, line } from "d3-shape";
-import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode, type RefObject } from "react";
 import type { Segment } from "../lib/types";
 import "./charts.css";
 import { ScrollRegion } from "./ScrollRegion";
@@ -89,10 +89,13 @@ export function LineChart({
   stripes,
   stripeOffset = 0,
   ticks = 4,
+  valueFormat,
 }: {
   series: Series[];
   labels: string[];
   format?: (v: number) => string;
+  /** Format for the hover read-out; defaults to the axis format. */
+  valueFormat?: (v: number) => string;
   height?: number;
   reference?: { value: number; label: string };
   marker?: number;
@@ -113,6 +116,16 @@ export function LineChart({
   const x = scaleLinear().domain([0, Math.max(labels.length - 1, 1)]).range([left, right]);
   const y = scaleLinear().domain([lo - pad, hi + pad]).range([height - 26, 10]).nice();
   const tickIndexes = axisTicks(labels.length, Math.min(ticks, fittingTicks(right - left)));
+  const [hover, setHover] = useState<number | null>(null);
+  const last = Math.max(labels.length - 1, 0);
+  const indexAt = (event: PointerEvent<SVGRectElement> | MouseEvent<SVGRectElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (bounds.width <= 0) return null;
+    const position = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
+    return Math.round(position * last);
+  };
+  const shown = hover !== null && hover <= last ? hover : null;
+  const readout = valueFormat ?? format;
   return (
     <div ref={box} className="chart-box">
       <svg className="chart line-chart" viewBox={`0 0 ${width} ${height}`} height={height} aria-hidden="true">
@@ -171,20 +184,58 @@ export function LineChart({
           />
         ))}
         {marker !== undefined && <line className="marker-line" x1={x(marker)} x2={x(marker)} y1={6} y2={height - 26} />}
-        {onPointSelect && <rect x={left} y={6} width={right - left} height={height - 32}
-          fill="transparent" style={{ cursor: "crosshair" }}
-          onClick={(event) => {
-            const bounds = event.currentTarget.getBoundingClientRect();
-            if (bounds.width <= 0) return;
-            const position = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
-            onPointSelect(Math.round(position * (labels.length - 1)));
-          }} />}
+        {shown !== null && (
+          <g className="hover-layer">
+            <line className="hover-line" x1={x(shown)} x2={x(shown)} y1={6} y2={height - 26} />
+            {series.map((s) => {
+              const v = s.values[shown];
+              return defined(v) ? <circle key={s.key} className={`hover-dot hover-dot-${s.tone}`} cx={x(shown)} cy={y(v)} r={3.5} /> : null;
+            })}
+          </g>
+        )}
+        <rect
+          className="hover-target"
+          x={left}
+          y={6}
+          width={Math.max(right - left, 0)}
+          height={height - 32}
+          fill="transparent"
+          style={onPointSelect ? { cursor: "crosshair" } : undefined}
+          onPointerMove={(event) => setHover(indexAt(event))}
+          onPointerLeave={() => setHover(null)}
+          onClick={onPointSelect ? (event) => {
+            const index = indexAt(event);
+            if (index !== null) onPointSelect(index);
+          } : undefined}
+        />
         {tickIndexes.map((i, k) => (
           <text key={i} x={x(i)} y={height - 8} textAnchor={k === 0 ? "start" : k === tickIndexes.length - 1 ? "end" : "middle"}>
             {labels[i]}
           </text>
         ))}
       </svg>
+      {shown !== null && (
+        <div
+          className="chart-tooltip"
+          aria-hidden="true"
+          data-side={x(shown) > width / 2 ? "left" : "right"}
+          style={{ left: `${(x(shown) / width) * 100}%`, top: 8 }}
+        >
+          <strong>{labels[shown]}</strong>
+          {series.map((s) => {
+            const v = s.values[shown];
+            return (
+              <span key={s.key} className="chart-tooltip-row">
+                <svg width="16" height="8" aria-hidden="true">
+                  <line x1="1" x2="15" y1="4" y2="4" className={`series series-${s.tone}`} />
+                </svg>
+                <span className="chart-tooltip-label">{s.label}</span>
+                <span className="chart-tooltip-value">{defined(v) ? readout(v) : "—"}</span>
+              </span>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

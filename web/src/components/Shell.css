@@ -255,3 +255,40 @@
     box-shadow: none;
   }
 }
+
+/* ---- Navigation icons: quiet until hovered or current ---- */
+.site-nav a {
+  gap: 6px;
+}
+
+.nav-icon {
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.site-nav a:hover .nav-icon,
+.site-nav a[aria-current="page"] .nav-icon {
+  opacity: 1;
+}
+
+.site-nav a:hover .nav-icon {
+  transform: translateY(-1px);
+}
+
+/* Tablets and narrow desktops: the labels alone already fill the row. */
+@media (min-width: 641px) and (max-width: 1279.98px) {
+  .nav-icon {
+    display: none;
+  }
+}
+
+/* Phones: icon above the label in each tab. */
+@media (max-width: 640px) {
+  .site-nav a {
+    flex-direction: column;
+    gap: 2px;
+    padding-block: 6px;
+    line-height: 1.2;
+  }
+}
