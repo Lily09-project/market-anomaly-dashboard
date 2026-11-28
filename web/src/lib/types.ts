@@ -14,6 +14,7 @@ export interface SymbolOverview {
 export interface Overview {
   dates: string[];
   symbols: SymbolOverview[];
+  backtest_summary?: Record<string, BacktestSummary>;
 }
 
 /** [start, end, state], inclusive indexes into the return series (date index − 1). */
@@ -114,6 +115,10 @@ export interface BacktestResult {
 
 export interface Backtest {
   symbols: Record<string, BacktestResult>;
+}
+
+export interface BacktestSummary extends Pick<BacktestResult, "pbo" | "oos_sharpe_stitched" | "buy_hold_sharpe_oos"> {
+  best_full_sharpe: number;
 }
 
 export interface StressParams {

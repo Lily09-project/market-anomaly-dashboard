@@ -21,6 +21,7 @@ try:
 except Exception:
     requests = None
 
+from src.fetch_finmind import finmind_symbols
 from src.request_policy import RequestBudget, request_with_retry, validate_response_origin, validate_upstream_url
 from src.utils import ensure_parent, load_config, normalize_http_timeout, project_path, read_http_response_bytes, safe_exception_message, write_json
 
@@ -79,9 +80,14 @@ def _by_code(rows: list[dict[str, Any]], key: str, symbols: list[str], name: str
     return found
 
 
-def normalize_twse_payloads(payloads: dict[str, Any], symbols: list[str]) -> dict[str, Any]:
+def normalize_twse_payloads(
+    payloads: dict[str, Any], symbols: list[str], *, optional_symbols: frozenset[str] = frozenset()
+) -> dict[str, Any]:
     """Validate the four OpenAPI responses and keep only the tracked symbols."""
-    daily_rows = _by_code(_rows(payloads["daily"], "daily"), "Code", symbols, "daily", required=True)
+    daily_rows = _by_code(_rows(payloads["daily"], "daily"), "Code", symbols, "daily", required=False)
+    required_symbols = set(symbols) - optional_symbols
+    if not required_symbols <= daily_rows.keys():
+        raise ValueError("TWSE daily is missing required symbols.")
     trade_dates = {roc_to_iso(row.get("Date")) for row in daily_rows.values()}
     if len(trade_dates) != 1:
         raise ValueError("TWSE daily rows do not share one trading date.")
@@ -110,7 +116,9 @@ def normalize_twse_payloads(payloads: dict[str, Any], symbols: list[str]) -> dic
             "pb": parse_number(row.get("PBratio")),
         }
 
-    margin_rows = _by_code(_rows(payloads["margin"], "margin"), "股票代號", symbols, "margin", required=True)
+    margin_rows = _by_code(_rows(payloads["margin"], "margin"), "股票代號", symbols, "margin", required=False)
+    if not required_symbols <= margin_rows.keys():
+        raise ValueError("TWSE margin is missing required symbols.")
     margin = {
         symbol: {
             "margin_balance": parse_number(row.get("融資今日餘額"), blank=0.0),
@@ -197,7 +205,7 @@ def normalize_market_wide(payloads: dict[str, Any], trade_date: str) -> list[lis
 def fetch_twse(config: dict[str, Any] | None = None, *, client: Any = None) -> Path | None:
     cfg = config or load_config()
     api = cfg.get("api", {})
-    symbols = [str(item).strip() for item in api.get("symbols", [])]
+    symbols = finmind_symbols(api)
     target = project_path(Path(cfg["data"]["raw_dir"]) / SNAPSHOT_FILE)
     target.unlink(missing_ok=True)  # never let an old snapshot pass as today's
     try:
@@ -218,7 +226,7 @@ def fetch_twse(config: dict[str, Any] | None = None, *, client: Any = None) -> P
                 close = getattr(response, "close", None)
                 if callable(close):
                     close()
-        snapshot = normalize_twse_payloads(payloads, symbols)
+        snapshot = normalize_twse_payloads(payloads, symbols, optional_symbols=frozenset(api.get("sampled_names", {})))
         snapshot["all"] = normalize_market_wide(payloads, snapshot["trade_date"])
         snapshot["endpoints"] = {name: BASE_URL + path for name, path in ENDPOINTS.items()}
         written = write_json(snapshot, ensure_parent(target))

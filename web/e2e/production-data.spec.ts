@@ -10,7 +10,8 @@ interface Provenance {
   source_quality: { source_row_count: number; usable_price_rows: number; excluded_no_trade_rows: number } | null;
 }
 
-const SYMBOLS = ["0050", "1301", "2308", "2317", "2330", "2382", "2412", "2454", "2881", "2882"];
+const BASELINE = ["0050", "1301", "2308", "2317", "2330", "2382", "2412", "2454", "2881", "2882"];
+const SYMBOL_COUNT = 200;
 
 interface Twse {
   status: string;
@@ -34,13 +35,15 @@ test.describe("正式公開行情資料", () => {
     expect(provenance.price_basis.kind).toBe("known_split_adjusted");
     expect(provenance.price_basis.cash_dividends_reinvested).toBe(false);
     expect(provenance.trading_days).toBeGreaterThanOrEqual(400);
-    expect(provenance.symbols.slice().sort()).toEqual(SYMBOLS);
+    expect(new Set(provenance.symbols).size).toBe(SYMBOL_COUNT);
+    expect(provenance.symbols).toHaveLength(SYMBOL_COUNT);
+    expect(provenance.symbols).toEqual(expect.arrayContaining(BASELINE));
     expect(provenance.source_quality).not.toBeNull();
     expect(provenance.source_quality!.source_row_count).toBe(
       provenance.source_quality!.usable_price_rows + provenance.source_quality!.excluded_no_trade_rows,
     );
     expect(overview.dates.length).toBe(provenance.trading_days);
-    expect(overview.symbols.map((item) => item.symbol).sort()).toEqual(SYMBOLS);
+    expect(overview.symbols.map((item) => item.symbol).sort()).toEqual(provenance.symbols.slice().sort());
     for (const item of overview.symbols) {
       expect(item.close).toHaveLength(overview.dates.length);
       expect(item.close.every((value) => Number.isFinite(value) && value > 0)).toBe(true);
@@ -59,19 +62,37 @@ test.describe("正式公開行情資料", () => {
     const twse = await fetchJson<Twse>(page, "twse.json");
     expect(["ok", "unavailable"]).toContain(twse.status);
     if (twse.status === "ok") {
-      expect(Object.keys(twse.symbols).sort()).toEqual(SYMBOLS);
+      expect(Object.keys(twse.symbols)).toEqual(expect.arrayContaining(BASELINE));
+      expect(provenance.symbols).toEqual(expect.arrayContaining(Object.keys(twse.symbols)));
       for (const row of Object.values(twse.symbols)) {
         expect(row.close).toBeGreaterThan(0);
         if (row.cross_check) expect(row.cross_check.match).toBe(true);
       }
     }
 
+    const homeBacktestRequests: string[] = [];
+    const recordBacktest = (request: { url(): string }) => {
+      if (request.url().endsWith("/data/backtest.json")) homeBacktestRequests.push(request.url());
+    };
+    page.on("request", recordBacktest);
     await openRoute(page, "/");
     await expect(page.getByTestId("total-return")).toBeVisible();
+    await expect(page.getByTestId("headline-finding")).toContainText(`${SYMBOL_COUNT} 檔合計`);
     await expect(page.getByTestId(twse.status === "ok" ? "twse-cross-check" : "twse-unavailable")).toBeVisible();
-    await page.getByRole("radio", { name: /2330/ }).check();
+    const selector = page.getByRole("combobox", { name: "標的", exact: true });
+    await expect(selector.locator("option")).toHaveCount(SYMBOL_COUNT);
+    const sampled = provenance.symbols.find((symbol) => !BASELINE.includes(symbol))!;
+    await selector.selectOption(sampled);
+    await expect(page).toHaveURL(new RegExp(`symbol=${sampled}`));
+    await selector.selectOption("2330");
     await expect(page).toHaveURL(/symbol=2330/);
+    expect(homeBacktestRequests).toEqual([]);
+    page.off("request", recordBacktest);
     await expectAccessible(page);
+
+    await openRoute(page, `/backtest?symbol=${sampled}`);
+    await expect(page.getByTestId("pbo")).toBeVisible();
+    await expect(page.getByTestId("heat-oos")).toBeVisible();
 
     const market = await fetchJson<{ status: string; trade_date: string | null; rows: [string, string, number | null][] }>(page, "twse_market.json");
     expect(["ok", "unavailable"]).toContain(market.status);

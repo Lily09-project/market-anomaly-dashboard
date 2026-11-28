@@ -28,7 +28,8 @@ from src.utils import atomic_write_dataframe, ensure_parent, load_config, normal
 API_URL = "https://api.finmindtrade.com/api/v4/data"
 API_HOSTS = {"api.finmindtrade.com"}
 SYMBOL_PATTERN = re.compile(r"^[0-9]{4,6}$")
-MAX_SYMBOLS = 12
+MAX_SYMBOLS = 200
+FREE_REQUEST_LIMIT = 300
 NUMERIC_PATTERN = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
 
 
@@ -121,10 +122,14 @@ def normalize_finmind_payload(payload: Any, symbol: str, start_date: str, end_da
     return frame
 
 
+def finmind_symbols(api: dict[str, Any]) -> list[str]:
+    return [str(item).strip() for item in [*api.get("symbols", []), *api.get("sampled_names", {})]]
+
+
 def fetch_finmind(config: dict[str, Any] | None = None, *, client: Any = None) -> Path | None:
     cfg = config or load_config()
     api = cfg.get("api", {})
-    symbols = [str(item).strip() for item in api.get("symbols", [])]
+    symbols = finmind_symbols(api)
     start = _validate_date(api.get("start_date", "2021-01-01"), "start_date")
     end = _validate_date(api.get("end_date") or _taipei_today(), "end_date")
     try:
@@ -139,7 +144,7 @@ def fetch_finmind(config: dict[str, Any] | None = None, *, client: Any = None) -
         if http is None:
             raise RuntimeError("requests is not installed.")
         timeout = normalize_http_timeout(api.get("timeout_seconds"), default=20.0)
-        budget = RequestBudget(max_requests=len(symbols) * 2)
+        budget = RequestBudget(max_requests=min(len(symbols) * 2, FREE_REQUEST_LIMIT))
         frames: list[pd.DataFrame] = []
         source_row_count = 0
         excluded_no_trade_rows = 0
