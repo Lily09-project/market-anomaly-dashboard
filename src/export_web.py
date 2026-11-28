@@ -469,7 +469,10 @@ def _analyse_symbols(jobs):
         return
     workers = min(8, os.cpu_count() or 1)
     with ProcessPoolExecutor(max_workers=workers) as pool:
-        yield from pool.map(_analyse_symbol, jobs)
+        for completed, result in enumerate(pool.map(_analyse_symbol, jobs), start=1):
+            if completed % 25 == 0 or completed == len(jobs):
+                print(f"Analysed {completed}/{len(jobs)} symbols.", flush=True)
+            yield result
 
 
 def export(out_dir: Path, cleaned_path: Path | None = None, twse_path: Path | None = None) -> dict[str, str]:
