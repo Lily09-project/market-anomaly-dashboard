@@ -24,6 +24,7 @@ python run_all.py --mode api --require-api
 FinMind 成功後，流程會再向證交所 OpenAPI（`openapi.twse.com.tw`，免金鑰）取得最新一個交易日的盤後快照，寫入 `twse.json`（追蹤標的中有盤後紀錄者）與 `twse_market.json`（全部上市證券），兩者都列入 manifest 雜湊。抽樣標的缺少融資融券資料時，保留報價並將對應欄位標示為缺值。證交所失敗時，`twse.json` 標示 `unavailable`，價格分析仍可發布。
 
 Windows 執行 `run_project.bat`；`run_project.bat --validate` 會跑 pytest、Bandit、Ruff、pip-audit、TypeScript、ESLint、Vitest 覆蓋率與效能預算，但不啟動網站。
+啟動器會沿用已有 manifest 的本機資料快照。首次執行時若尚無快照，才產生合成測試資料。
 
 分享連結的預覽圖 `web/public/og-image.png`（1200×630）與 `apple-touch-icon.png` 由 `cd web && node scripts/render-share-images.mjs` 依網站色彩 token 與 favicon 產生並提交；預覽圖只有標題與說明，不含任何價格、日期或分析結果，所以資料更新後不需重產。
 

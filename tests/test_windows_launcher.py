@@ -20,6 +20,14 @@ def test_launcher_never_deletes_an_existing_environment():
     assert "Existing .venv is broken. Preserve or move it" in source
 
 
+def test_launcher_skips_sample_export_when_a_snapshot_exists():
+    source = _launcher()
+    existing = source.index('if exist "web\\public\\data\\manifest.json"')
+    jump = source.index("goto :snapshot_ready", existing)
+    sample = source.index("run_all.py --mode sample")
+    assert existing < jump < sample < source.index("\n:snapshot_ready\n")
+
+
 def test_validation_runs_every_gate_and_never_starts_the_site():
     source = _launcher()
     for command in (

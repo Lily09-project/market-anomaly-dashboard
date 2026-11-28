@@ -86,13 +86,23 @@ if errorlevel 1 (
 "%VENV_PY%" -m pip check
 if errorlevel 1 goto :fail
 
-echo [3/8] Generating data and exporting the analysis for the web app...
+echo [3/8] Checking the local web data snapshot...
+if exist "web\public\data\manifest.json" (
+    echo Reusing the existing local data snapshot.
+    goto :snapshot_ready
+)
+if exist "web\public\data\provenance.json" (
+    echo [ERROR] The local snapshot is missing its manifest. Restore or regenerate it before launching.
+    goto :fail
+)
+echo Generating sample data for a first run...
 "%VENV_PY%" run_all.py --mode sample
 if errorlevel 1 (
     echo [ERROR] run_all.py --mode sample failed.
     goto :fail
 )
 
+:snapshot_ready
 echo [4/8] Running zero-warning pytest...
 set "PYTHONDONTWRITEBYTECODE=1"
 set "PYTEST_BASETEMP=%TEMP%\market-regime-lab_pytest_%RANDOM%_%RANDOM%"
@@ -170,7 +180,7 @@ exit /b 1
 
 :usage
 echo Usage: run_project.bat [--validate ^| --help]
-echo   no argument   Rebuild the sample analysis, run the tests, build the web app and open it locally.
+echo   no argument   Reuse local data or generate sample data on first run, then build and open the site.
 echo   --validate    Run every Python, security and web quality gate without starting the site.
 endlocal
 exit /b 0
