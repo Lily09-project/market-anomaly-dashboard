@@ -407,7 +407,7 @@
 }
 
 .contents a::after {
-  content: "92";
+  content: "\2192";
   position: absolute;
   right: var(--space-4);
   top: 50%;
@@ -475,4 +475,21 @@
   .contents a::after {
     display: none;
   }
+}
+
+/* ---- Reading-order cards: each step title carries its page icon ---- */
+.contents-text strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.contents-icon {
+  flex-shrink: 0;
+  color: var(--accent);
+  transition: transform 160ms ease;
+}
+
+.contents a:is(:hover, :focus-visible) .contents-icon {
+  transform: scale(1.12);
 }

@@ -1,0 +1,220 @@
+/* Searchable symbol picker: an input that opens a quote list, like a terminal's ticker search. */
+.symbol-search {
+  position: relative;
+  width: min(100%, 24rem);
+  min-width: 0;
+}
+
+.symbol-search-input {
+  width: 100%;
+  min-height: var(--control-h);
+  padding: 0 2.5rem 0 2.25rem;
+  border: var(--hairline-strong);
+  border-radius: var(--radius-m);
+  background: var(--bg-raised);
+  color: var(--ink);
+  font-family: var(--font-num), var(--font-sans);
+  font-weight: var(--weight-semibold);
+  text-overflow: ellipsis;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.symbol-search-input:hover {
+  border-color: var(--ink-soft);
+}
+
+.symbol-search-input:focus,
+.symbol-search[data-open] .symbol-search-input {
+  border-color: var(--accent);
+  outline: none;
+  background: var(--bg-sunken);
+}
+
+.symbol-search-input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* While searching, the placeholder echoes the current pick in a quieter voice. */
+.symbol-search-input::placeholder {
+  color: var(--muted);
+  font-weight: var(--weight-regular);
+  opacity: 1;
+}
+
+.symbol-search:not([data-open]) .symbol-search-input::placeholder {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+
+.symbol-search-icon {
+  position: absolute;
+  top: 50%;
+  left: var(--space-3);
+  z-index: 1;
+  color: var(--muted);
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: color 160ms ease;
+}
+
+.symbol-search[data-open] .symbol-search-icon {
+  color: var(--accent);
+}
+
+.symbol-search-key {
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  display: inline-grid;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  place-items: center;
+  border: var(--hairline-strong);
+  border-radius: var(--radius-s);
+  background: var(--bg-sunken);
+  color: var(--muted);
+  font-family: var(--font-num);
+  font-size: 0.75rem;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.symbol-search-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 40;
+  width: 100%;
+  max-height: min(60vh, 24rem);
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-l);
+  background: var(--bg-raised);
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.symbol-search-list[hidden] {
+  display: none;
+}
+
+.symbol-search-list li {
+  display: grid;
+  grid-template-columns: 4.25rem minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: 40px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-s);
+  cursor: pointer;
+}
+
+.symbol-search-list li[data-active] {
+  background: var(--bg-sunken);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.symbol-search-list li[aria-selected="true"] .symbol-search-code {
+  color: var(--accent);
+}
+
+.symbol-search-code {
+  font-family: var(--font-num);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.symbol-search-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: var(--label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.symbol-search-tag {
+  flex-shrink: 0;
+  padding: 0 5px;
+  border: var(--hairline);
+  border-radius: var(--radius-xs);
+  color: var(--muted);
+  font-size: 0.6875rem;
+  line-height: 1.5;
+}
+
+.symbol-search-list li[data-control] .symbol-search-code {
+  color: var(--muted);
+}
+
+.symbol-search-quote {
+  display: grid;
+  justify-items: end;
+  font-family: var(--font-num);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.symbol-search-close {
+  color: var(--ink-soft);
+}
+
+.symbol-search-change {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.symbol-search-change[data-sign="1"] {
+  color: var(--up);
+}
+
+.symbol-search-change[data-sign="-1"] {
+  color: var(--down);
+}
+
+.symbol-search-change[data-sign="1"]::before {
+  content: "▲" / "";
+  margin-right: 2px;
+}
+
+.symbol-search-change[data-sign="-1"]::before {
+  content: "▼" / "";
+  margin-right: 2px;
+}
+
+.symbol-search-status {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 41;
+  width: 100%;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--label);
+}
+
+.symbol-search-status:not(:has(.visually-hidden)) {
+  padding: var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-l);
+  background: var(--bg-raised);
+}
+
+/* Touch screens: no keyboard hint, and room for a thumb on every row. */
+@media (hover: none) {
+  .symbol-search-key {
+    display: none;
+  }
+
+  .symbol-search-list li {
+    min-height: 44px;
+  }
+}

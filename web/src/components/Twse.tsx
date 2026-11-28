@@ -118,7 +118,7 @@ function TwseView({ twse, symbol, isControl }: { twse: Twse; symbol: string; isC
             </table>
           }
         >
-          <LineChart series={[{ key: "taiex", label: "加權指數", values: market.map((m) => m.taiex), tone: 3 }]} labels={market.map((m) => m.date)} format={(v) => formatNumber(v, 0)} height={180} ticks={3} />
+          <LineChart series={[{ key: "taiex", label: "加權指數", values: market.map((m) => m.taiex), tone: 3 }]} labels={market.map((m) => m.date)} format={(v) => formatNumber(v, 0)} valueFormat={(v) => formatNumber(v, 2)} height={180} ticks={3} />
         </ChartFrame>
       )}
     </div>

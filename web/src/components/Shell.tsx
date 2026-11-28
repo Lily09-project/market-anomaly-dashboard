@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
 import { useDataset, useRoute } from "../app/hooks";
 import { routeToHash, type Route } from "../lib/router";
+import { Icon, type IconName } from "./Icon";
 import "./Shell.css";
 
 /** Navigation keeps the selected symbol, so switching pages never loses context. */
-function navItems(symbol: string | undefined): { route: Route; label: string; match: Route["name"][] }[] {
+function navItems(symbol: string | undefined): { route: Extract<Route, { name: IconName }>; label: string; match: Route["name"][] }[] {
   return [
     { route: { name: "home", symbol }, label: "總覽", match: ["home"] },
     { route: { name: "regimes", symbol }, label: "市場狀態", match: ["regimes"] },
@@ -44,7 +45,8 @@ export function Shell({ children }: { children: ReactNode }) {
               {navItems(symbol).map((item) => (
                 <li key={item.label}>
                   <a href={routeToHash(item.route)} aria-current={item.match.includes(route.name) ? "page" : undefined}>
-                    {item.label}
+                    <Icon name={item.route.name} size={16} className="nav-icon" />
+                    <span>{item.label}</span>
                   </a>
                 </li>
               ))}
