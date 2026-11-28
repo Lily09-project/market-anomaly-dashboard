@@ -381,12 +381,15 @@ export default function Home({ route }: { route: HomeRoute }) {
       <Contents symbol={symbol} />
       <SymbolBar route={route} />
       <Gate<[Overview, Regimes, Record<string, BacktestSummary>, Events, Provenance]> states={[overview, regimes, backtest, events, provenance]}>
-        {(o, r, b, e, p) => (
-          <>
-            <Dashboard overview={o} regimes={r} backtest={b} events={e} provenance={p} route={route} />
-            <TwsePanel symbol={pickSymbol(o, route.symbol)} />
-          </>
-        )}
+        {(o, r, b, e, p) => {
+          const selected = o.symbols.find((item) => item.symbol === pickSymbol(o, route.symbol));
+          return (
+            <>
+              <Dashboard overview={o} regimes={r} backtest={b} events={e} provenance={p} route={route} />
+              {selected && <TwsePanel symbol={selected.symbol} isControl={selected.is_control} />}
+            </>
+          );
+        }}
       </Gate>
     </div>
   );
